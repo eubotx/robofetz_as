@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os
+from glob import glob
 
 package_name = 'detection'
 
@@ -10,6 +12,14 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        
+        # Add launch files
+        (os.path.join('share', package_name, 'launch'), 
+         glob('launch/*.launch.py')),
+        
+        # Add config files
+        (os.path.join('share', package_name, 'config'), 
+         glob('config/*.yaml')),
     ],
     install_requires=[
         'setuptools',
@@ -23,8 +33,8 @@ setup(
     zip_safe=True,
     maintainer='eubotx',
     maintainer_email='eubotx@mailbox.org',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Detect robot and enemy robot',
+    license='GNU GPL',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
