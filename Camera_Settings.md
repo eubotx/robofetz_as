@@ -10,6 +10,10 @@ ros2 launch detection camera.launch.py video_device:=/dev/video2
 
 
 
+This now also works with ARENA_CAMERA_CONFIG to give the config name to use!!!
+
+
+
 ____________________
 
 
