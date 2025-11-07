@@ -21,12 +21,6 @@ def generate_launch_description():
         'arena_camera_params.yaml'
     )
     
-    camera_info = os.path.join(
-        get_package_share_directory('detection'),
-        'config',
-        'arena_camera.info.yaml'
-    )
-    
     return LaunchDescription([
         video_device_arg,
         Node(
@@ -34,8 +28,7 @@ def generate_launch_description():
             executable='usb_cam_node_exe',
             namespace='arena_camera',
             parameters=[config, {
-                'video_device': LaunchConfiguration('video_device'),
-                'camera_info_url': f"file://{camera_info}"
+                'video_device': LaunchConfiguration('video_device')
             }]
         )
     ])
