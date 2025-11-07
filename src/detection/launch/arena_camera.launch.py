@@ -11,13 +11,19 @@ def generate_launch_description():
         'config',
         'arena_camera_params.yaml'
     )
+
+    camera_info = os.path.join(
+        get_package_share_directory('detection'),
+        'config',
+        'arena_camera.info.yaml'
+    )
     
     # Default parameters (good starting point)
     default_params = {
         # Hardware
-        'video_device': '/dev/video6',                    # string: device path
+        'video_device': '/dev/video0',                    # string: device path
         'camera_name': 'arena_camera',                    # string: camera name
-        'camera_info_url': '',                            # string: calibration file
+        'camera_info_url': camera_info,                            # string: calibration file
         'frame_id': 'arena_camera_frame',                 # string: TF frame
         
         # Image format
@@ -29,8 +35,6 @@ def generate_launch_description():
         # Exposure (critical for FPS)
         'autoexposure': False,                            # bool: true, false
         'exposure_absolute': 156,                         # int: 1-8188 (default: 156) - increase if too dark, decrease if fps too slow
-        
-        # Gain
         'auto_gain': False,                               # bool: true=auto, false=manual
         'gain': 32,                                       # int: 16-255 (default: 32) - decrease if too noisy
         
@@ -60,11 +64,8 @@ def generate_launch_description():
         Node(
             package='usb_cam',
             executable='usb_cam_node_exe',
-            name='camera',
+            #name='arena_camera_node',
+            namespace='arena_camera',
             parameters=[default_params, config],  # YAML overrides defaults
-            remappings=[
-                ('image_raw', 'image_raw'),
-                ('image_raw/compressed', 'image_compressed'),
-            ]
         )
     ])
