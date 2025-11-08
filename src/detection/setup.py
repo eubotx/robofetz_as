@@ -39,6 +39,7 @@ setup(
     entry_points={
         'console_scripts': [
             'main_lean = detection.main_lean:main',
+            'rectify_fisheye = detection.rectify_fisheye:main',
         ],
     },
 )
