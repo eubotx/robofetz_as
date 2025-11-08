@@ -1,3 +1,4 @@
+# Intrinsics of camera type
 image_width: 640
 image_height: 480
 camera_name: arena_camera

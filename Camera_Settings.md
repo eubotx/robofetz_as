@@ -2,7 +2,7 @@
 ros2 launch detection camera.launch.py
 
 # Method 2: Environment variable (set once, works forever)
-export ARENA_CAMERA_DEVICE=/dev/video2
+export ARENA_CAMERA_CONFIG=laptop_camera_params.yaml
 ros2 launch detection camera.launch.py
 
 # Method 3: Command line (overrides method 1 & 2)
@@ -30,7 +30,6 @@ This is the professional approach that avoids both rebuilding AND manual configu
 1. **Tell Linux**: "No matter which USB port I use, always call my camera `arena_camera`"
 2. **System automatically creates**: `/dev/arena_camera` that always points to your actual camera
 3. **Your code always uses** the same path: `/dev/arena_camera`
-4. **Add environment variable** ARENA_CAMERA_DEVICE=/dev/arena_camera
 
 ### Step-by-Step Implementation:
 
@@ -138,3 +137,90 @@ SUBSYSTEM=="video4linux", ATTRS{idVendor}=="5678", SYMLINK+="user_b_camera"
 **UDEV rules are the professional solution** for hardware that moves between USB ports. They turn a dynamic, frustrating problem into a rock-solid, set-once-forget-forever solution.
 
 This is how industrial systems, robotics labs, and production environments handle USB devices - because professionals can't be chasing device paths every time they replug a cable!
+
+
+
+
+
+
+
+
+
+
+_____________________
+
+# Arena Camera Setup Manual
+
+## 1. Find Your Camera
+
+### Identify Connected Cameras
+```bash
+# List all USB devices
+lsusb
+
+# List video devices and their capabilities  
+v4l2-ctl --list-devices
+
+# Check supported formats for each camera
+for dev in /dev/video*; do
+  echo "=== $dev ==="
+  v4l2-ctl --device=$dev --list-formats 2>/dev/null || echo "No formats"
+done
+```
+
+### Find Your Arena Camera
+Look for your camera in `lsusb` output and note:
+- **Vendor ID** (e.g., `32e4`)
+- **Product ID** (e.g., `0144`)
+
+## 2. Create UDEV Rule
+
+Replace `32e4:0144` with your camera's IDs:
+```bash
+sudo nano /etc/udev/rules.d/99-arena-camera.rules
+```
+Content:
+```udev
+SUBSYSTEM=="video4linux", ATTRS{idVendor}=="32e4", ATTRS{idProduct}=="0144", SYMLINK+="arena_camera", MODE="0666"
+```
+
+## 3. Apply Rules
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+# Unplug and replug camera
+```
+
+## 4. Verify
+```bash
+ls -la /dev/arena_camera  # Should show symlink
+v4l2-ctl --device=/dev/arena_camera --list-formats
+```
+
+## Usage
+
+### Default (Arena Camera)
+```bash
+ros2 launch detection arena_camera.launch.py
+```
+
+### Custom Config
+```bash
+ros2 launch detection arena_camera.launch.py config_file:=laptop_camera_params.yaml
+```
+
+### Override Device
+```bash
+ros2 launch detection arena_camera.launch.py video_device:=/dev/video2
+```
+
+## File Structure
+```
+config/
+├── arena_camera_params.yaml     # Main settings
+├── arena_camera.yaml           # Calibration
+├── laptop_camera_params.yaml   # Alternative config
+└── laptop_camera.yaml         # Alternative calibration
+```
+
+That's it! Your camera will always be at `/dev/arena_camera` regardless of USB port.
