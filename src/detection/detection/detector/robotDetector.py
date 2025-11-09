@@ -6,7 +6,7 @@ import cv2
 # from src.detection.calibration.calibration import Calibration
 # from src.detection.detector import AprilTagDetector
 
-from .aprilTagDetector import AprilTagDetector
+from .aprilTagDetectorAlt import AprilTagDetector
 from detection.math_funcs import *
 
 import cv2.fisheye

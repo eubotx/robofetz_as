@@ -40,6 +40,9 @@ setup(
         'console_scripts': [
             'main_lean = detection.main_lean:main',
             'rectify_fisheye = detection.rectify_fisheye:main',
+            'arena_calibration_service = detection.arena_calibration_service:main',
+            'robot_detection_node = detection.robot_detection:main',
+            'enemy_detection_node = detection.enemy_detection:main'
         ],
     },
 )
