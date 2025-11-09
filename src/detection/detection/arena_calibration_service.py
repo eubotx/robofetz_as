@@ -10,6 +10,25 @@ from tf2_ros import TransformBroadcaster
 from detection.detector import AprilTagDetector
 from detection.math_funcs import Pose as MathPose
 
+class SimpleArenaDetector:
+    def __init__(self, options, calibration_data):
+        self.options = options
+        self.calibration_data = calibration_data
+        self.april_detector = AprilTagDetector(calibration_data)
+        
+    def detect_arena_tag(self, image_gray, debug_image=None):
+        """Detect arena tag and return cameraFromWorld pose"""
+        april_tag_output = self.april_detector.detect(
+            image_gray, self.options['arena_tag']['size'], debug_image
+        )
+        
+        for detection in april_tag_output["aprilTags"]:
+            if (detection.tag_family.decode() == self.options['arena_tag']['family'] and
+                detection.tag_id == self.options['arena_tag']['id']):
+                return MathPose(detection.pose_R, detection.pose_t)
+        
+        return None
+
 class ArenaCalibrationService(Node):
     def __init__(self):
         super().__init__('arena_calibration_service')
@@ -35,7 +54,7 @@ class ArenaCalibrationService(Node):
         self.camera_info = None
         self.camera_from_world = None
         self.calibration_complete = False
-        self.april_detector = None
+        self.arena_detector = None
         
         # Options
         self.options = {
@@ -45,18 +64,17 @@ class ArenaCalibrationService(Node):
     def camera_info_callback(self, msg):
         """Receive camera calibration from camera_info topic"""
         self.camera_info = msg
-        if self.april_detector is None and self.camera_info is not None:
+        if self.arena_detector is None and self.camera_info is not None:
             self.initialize_detector()
         
     def initialize_detector(self):
-        """Initialize AprilTag detector with camera info"""
-        # Convert CameraInfo to calibration format
+        """Initialize arena detector with camera info"""
         calibration_data = {
             'camera_matrix': np.array(self.camera_info.k).reshape(3, 3),
             'distortion_coefficients': np.array(self.camera_info.d)
         }
-        self.april_detector = AprilTagDetector(calibration_data)
-        self.get_logger().info("AprilTag detector initialized with camera info")
+        self.arena_detector = SimpleArenaDetector(self.options, calibration_data)
+        self.get_logger().info("Arena detector initialized with camera info")
         
     def image_callback(self, msg):
         self.latest_frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
@@ -68,7 +86,7 @@ class ArenaCalibrationService(Node):
             response.message = "No camera frame available"
             return response
             
-        if self.april_detector is None:
+        if self.arena_detector is None:
             response.success = False
             response.message = "Camera info not received yet"
             return response
@@ -90,16 +108,16 @@ class ArenaCalibrationService(Node):
         return response
     
     def detect_arena_tag(self):
+        """Detect arena tag using the simple detector"""
         gray = cv2.cvtColor(self.latest_frame, cv2.COLOR_BGR2GRAY)
-        april_tag_output = self.april_detector.detect(gray, self.options['arena_tag']['size'], self.latest_frame.copy())
+        camera_from_world = self.arena_detector.detect_arena_tag(gray, self.latest_frame.copy())
         
-        for detection in april_tag_output["aprilTags"]:
-            if (detection.tag_family.decode() == self.options['arena_tag']['family'] and
-                detection.tag_id == self.options['arena_tag']['id']):
-                self.camera_from_world = MathPose(detection.pose_R, detection.pose_t)
-                self.calibration_complete = True
-                self.get_logger().info("Arena tag detected - calibration complete")
-                return True
+        if camera_from_world is not None:
+            self.camera_from_world = camera_from_world
+            self.calibration_complete = True
+            self.get_logger().info("Arena tag detected - calibration complete")
+            return True
+        
         self.get_logger().warn("Arena tag not found in frame")
         return False
     
