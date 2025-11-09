@@ -224,3 +224,23 @@ config/
 ```
 
 That's it! Your camera will always be at `/dev/arena_camera` regardless of USB port.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ros2 run rqt_reconfigure rqt_reconfigure
+ros2 run rqt_image_view rqt_image_view
+
+
+sudo apt update
+sudo apt install ros-jazzy-camera-ros

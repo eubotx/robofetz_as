@@ -22,11 +22,21 @@ def generate_launch_description():
         LaunchConfiguration('config_file')
     ])
     
+    # return LaunchDescription([
+    #     config_file_arg,
+    #     Node(
+    #         package='usb_cam',
+    #         executable='usb_cam_node_exe',
+    #         namespace='arena_camera',
+    #         parameters=[config_path]
+    #     )
+    # ])
+
     return LaunchDescription([
         config_file_arg,
         Node(
-            package='usb_cam',
-            executable='usb_cam_node_exe',
+            package='camera_ros',
+            executable='camera_node',
             namespace='arena_camera',
             parameters=[config_path]
         )
