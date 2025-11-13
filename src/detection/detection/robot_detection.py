@@ -1,11 +1,15 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import PoseStamped, Pose
+from geometry_msgs.msg import PoseStamped
 from std_srvs.srv import Trigger
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
+from tf2_ros import Buffer, TransformListener
+from geometry_msgs.msg import TransformStamped
+from scipy.spatial.transform import Rotation
+
 from detection.detector import AprilTagDetector
 from detection.math_funcs import Pose as MathPose
 
@@ -96,8 +100,6 @@ class BotDetectionNode(Node):
             Image, 'arena_camera/image_rect', self.image_callback, 10)
         self.camera_info_sub = self.create_subscription(
             CameraInfo, 'arena_camera/camera_info', self.camera_info_callback, 10)
-        self.calibration_sub = self.create_subscription(
-            Pose, '/arena_calibration', self.calibration_callback, 10)
         self.bridge = CvBridge()
         
         # Publishers
@@ -107,10 +109,13 @@ class BotDetectionNode(Node):
         # Calibration client
         self.calibration_client = self.create_client(Trigger, 'calibrate_arena')
         
+        # TF2 Buffer and Listener - NEW: Replace custom topic with TF2
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+        
         # State
         self.camera_info = None
         self.robot_detector = None
-        self.camera_from_world = None
         self.calibration_requested = False
         
         # Options
@@ -132,18 +137,43 @@ class BotDetectionNode(Node):
         }
         self.robot_detector = SimpleRobotDetector(self.options, calibration_data)
         self.get_logger().info("Robot detector initialized with camera info")
-        
-    def calibration_callback(self, msg):
-        """Receive arena calibration from topic"""
-        translation = np.array([msg.position.x, msg.position.y, msg.position.z])
-        rotation = np.eye(3)  # Extract from quaternion (implement properly)
-        self.camera_from_world = MathPose(rotation, translation)
-        self.get_logger().info("Received arena calibration - ready for detection")
     
+    def get_world_from_camera_transform(self):
+        """Get world→camera transform from TF2 - NEW: Replaces calibration_callback"""
+        try:
+            # Lookup the transform from world to camera frame
+            transform: TransformStamped = self.tf_buffer.lookup_transform(
+                'world',        # target frame
+                'camera',       # source frame  
+                rclpy.time.Time()  # get latest available
+            )
+            
+            # Convert transform to MathPose
+            translation = np.array([
+                transform.transform.translation.x,
+                transform.transform.translation.y, 
+                transform.transform.translation.z
+            ])
+            
+            quat = np.array([
+                transform.transform.rotation.x,
+                transform.transform.rotation.y,
+                transform.transform.rotation.z, 
+                transform.transform.rotation.w
+            ])
+            
+            rotation = Rotation.from_quat(quat).as_matrix()
+            return MathPose(rotation, translation)
+            
+        except Exception as e:
+            self.get_logger().warn(f"Could not get transform from TF: {str(e)}")
+            return None
+        
     def image_callback(self, msg):
         """Process each frame for robot detection"""
-        # Ensure calibration and detector are available
-        if self.camera_from_world is None:
+        # Get transform from TF2 instead of custom topic - CHANGED
+        world_from_camera = self.get_world_from_camera_transform()
+        if world_from_camera is None:
             if not self.calibration_requested:
                 self.request_calibration()
             return
@@ -156,8 +186,11 @@ class BotDetectionNode(Node):
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
             gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
             
-            # Detect robot
-            robot_detection = self.robot_detector.detect(gray, self.camera_from_world.inv(), cv_image)
+            # Use camera_from_world (inverse of world_from_camera) - CHANGED
+            camera_from_world = world_from_camera.inv()
+            
+            # Detect robot - CHANGED: pass camera_from_world instead of world_from_camera
+            robot_detection = self.robot_detector.detect(gray, camera_from_world, cv_image)
             if robot_detection is None:
                 self.get_logger().debug("No robot detected in frame")
                 return

@@ -1,15 +1,10 @@
-import cv2
 import numpy as np
 import pyapriltags as apriltag
 
 class AprilTagDetector:
     def __init__(self, calibration_data):
-        # Accept calibration data directly (dict with 'camera_matrix' key)
-        if isinstance(calibration_data, dict) and 'camera_matrix' in calibration_data:
-            camera_matrix = calibration_data['camera_matrix']
-        else:
-            # If it's an object with get() method (backward compatibility)
-            camera_matrix = calibration_data.get()['camera_matrix']
+        # calibration_data is now always a dict from camera_info
+        camera_matrix = calibration_data['camera_matrix']
             
         fx = camera_matrix[0, 0]
         fy = camera_matrix[1, 1]
@@ -21,48 +16,9 @@ class AprilTagDetector:
         families = 'tagStandard41h12'
         self.detector = apriltag.Detector(families=families)
 
-    def tag_outline(self):
-        APRILTAG_SIZE = 0.150
-        DETECTION_SCALE_RATIO = 1
-
-        april_tag_outline = np.array([
-            [0, APRILTAG_SIZE, 0],
-            [APRILTAG_SIZE, APRILTAG_SIZE, 0],
-            [APRILTAG_SIZE, 0, 0],
-            [0, 0, 0]
-        ], dtype=np.float32)
-        april_tag_outline = DETECTION_SCALE_RATIO * (
-                    april_tag_outline - np.array([APRILTAG_SIZE / 2, APRILTAG_SIZE / 2, 0]))
-
-        return april_tag_outline
-
-    def draw_in_image(self, detection, debug_image=None):
-        if debug_image is not None:
-            for i in range(4):
-                pt1 = tuple(detection.corners[i].astype(int))
-                pt2 = tuple(detection.corners[(i + 1) % 4].astype(int))
-                cv2.line(debug_image, pt1, pt2, (0, 255, 0), 2)
-                cv2.putText(debug_image, f"{i}", pt1,
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-
-            center = tuple(detection.center.astype(int))
-            cv2.circle(debug_image, center, 5, (0, 0, 255), -1)
-
-            cv2.putText(debug_image, f"ID: {detection.tag_id}", (center[0] - 10, center[1] - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
-        return debug_image
-
-    def detect(self, image_gray, tag_size: float, debug_image=None):
+    def detect(self, image_gray, tag_size: float):
         detections = self.detector.detect(image_gray,
                                      estimate_tag_pose=True,
                                      camera_params=self.camera_intrinsics,
                                      tag_size=tag_size)
-        if debug_image is None:
-            return {"aprilTags": detections}
-
-        print(f"Detected AprilTags: {len(detections)}.")
-        for detection in detections:
-            self.draw_in_image(detection, debug_image)
-        cv2.imshow("AprilTagDetector Debug Image", debug_image)
-
         return {"aprilTags": detections}
