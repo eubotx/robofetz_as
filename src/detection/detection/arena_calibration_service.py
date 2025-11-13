@@ -36,7 +36,7 @@ class ArenaCalibrationService(Node):
         self.april_detector = None
         
         # Arena tag configuration
-        self.arena_tag_id = 12
+        self.arena_tag_id = 2
         self.arena_tag_family = 'tagStandard41h12'
         self.arena_tag_size = 0.125
         

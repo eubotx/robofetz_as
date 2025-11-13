@@ -1,106 +1,36 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TransformStamped
 from std_srvs.srv import Trigger
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
-from tf2_ros import Buffer, TransformListener
-from geometry_msgs.msg import TransformStamped
+from tf2_ros import Buffer, TransformListener, TransformBroadcaster
 from scipy.spatial.transform import Rotation
-
 from detection.detector import AprilTagDetector
 from detection.math_funcs import Pose as MathPose
-
-def quaternion_from_vectors(v1, v2):
-    v1 = np.array(v1, dtype=np.float64).squeeze()
-    v2 = np.array(v2, dtype=np.float64).squeeze()
-    v1 /= np.linalg.norm(v1)
-    v2 /= np.linalg.norm(v2)
-    dot = np.dot(v1, v2)
-    
-    if np.allclose(dot, 1.0):
-        return np.array([0.0, 0.0, 0.0, 1.0])
-    elif np.allclose(dot, -1.0):
-        orthogonal = np.array([1.0, 0.0, 0.0])
-        if np.allclose(v1, orthogonal):
-            orthogonal = np.array([0.0, 1.0, 0.0])
-        axis = np.cross(v1, orthogonal)
-        axis /= np.linalg.norm(axis)
-        return np.array([axis[0], axis[1], axis[2], 0.0])
-    
-    axis = np.cross(v1, v2)
-    s = np.sqrt((1.0 + dot) * 2.0)
-    invs = 1.0 / s
-    return np.array([axis[0] * invs, axis[1] * invs, axis[2] * invs, s * 0.5])
-
-class SimpleRobotDetector:
-    def __init__(self, options, calibration_data):
-        self.robot_tags = options['robot_tags']
-        self.calibration_data = calibration_data
-        self.camera_matrix = calibration_data['camera_matrix']
-        self.april_detector = AprilTagDetector(calibration_data)
-        
-        # Define robot outline for enemy detection compatibility
-        self.robot_outline = 0.13 * np.array([
-            [0, -4, 0],
-            [2, 0, 0], 
-            [2, 1, 0],
-            [-2, 1, 0],
-            [-2, 0, 0]
-        ])
-        
-    def project(self, pt3d):
-        """Project 3D points to 2D image coordinates"""
-        pt2d, _ = cv2.projectPoints(
-            objectPoints=pt3d,
-            rvec=np.eye(3),
-            tvec=np.zeros(3),
-            cameraMatrix=self.camera_matrix,
-            distCoeffs=np.zeros(5)  # Assuming rectified image
-        )
-        return pt2d
-        
-    def detect(self, image_gray, worldFromCamera, debug_image=None):
-        """Detect robot using AprilTags and return detection data"""
-        # Detect AprilTags
-        april_tag_detections = self.april_detector.detect(
-            image_gray, self.robot_tags['sizes']
-        )['aprilTags']
-        
-        for tag_detection in april_tag_detections:
-            if (tag_detection.tag_family.decode() == self.robot_tags['family'] and
-                (tag_detection.tag_id == self.robot_tags['top_id'] or
-                 tag_detection.tag_id == self.robot_tags['bottom_id'])):
-                
-                detection = {}
-                detection['cameraFromRobot'] = MathPose(tag_detection.pose_R, tag_detection.pose_t)
-                detection['robotInCamera2D'] = self.project(tag_detection.pose_t).squeeze()
-                detection['worldFromRobot'] = worldFromCamera * detection['cameraFromRobot']
-                
-                # Add robot outline for enemy detection compatibility
-                robotOutlineInCamera2D = []
-                for outline_point in self.robot_outline:
-                    outlineInRobot = MathPose(np.eye(3), outline_point)
-                    pointInCamera = detection['cameraFromRobot'] * outlineInRobot
-                    robotOutlineInCamera2D.append(self.project(pointInCamera.t).squeeze())
-                detection['robotOutlineInCamera2D'] = robotOutlineInCamera2D
-                
-                return detection
-        
-        return None
 
 class BotDetectionNode(Node):
     def __init__(self):
         super().__init__('robot_detection_node')
+        
+        # Configuration
+        self.robot_tags = {
+            'sizes': 0.125, 
+            'family': 'tagStandard41h12', 
+            'top_id': 12, 
+            'bottom_id': 31
+        }
+        self.robot_outline = 0.13 * np.array([
+            [0, -4, 0], [2, 0, 0], [2, 1, 0], [-2, 1, 0], [-2, 0, 0]
+        ])
         
         # Subscribers
         self.image_sub = self.create_subscription(
             Image, 'arena_camera/image_rect', self.image_callback, 10)
         self.camera_info_sub = self.create_subscription(
             CameraInfo, 'arena_camera/camera_info', self.camera_info_callback, 10)
-        self.bridge = CvBridge()
         
         # Publishers
         self.pose_pub = self.create_publisher(PoseStamped, '/bot/pose', 10)
@@ -109,172 +39,217 @@ class BotDetectionNode(Node):
         # Calibration client
         self.calibration_client = self.create_client(Trigger, 'calibrate_arena')
         
-        # TF2 Buffer and Listener - NEW: Replace custom topic with TF2
+        # TF2
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_broadcaster = TransformBroadcaster(self)  # NEW: For bot TF
         
         # State
-        self.camera_info = None
-        self.robot_detector = None
+        self.bridge = CvBridge()
+        self.april_detector = None
+        self.camera_matrix = None
         self.calibration_requested = False
         
-        # Options
-        self.options = {
-            'robot_tags': {'sizes': 0.125, 'family': 'tagStandard41h12', 'top_id': 12, 'bottom_id': 31},
-        }
-        
     def camera_info_callback(self, msg):
-        """Receive camera calibration from camera_info topic"""
-        self.camera_info = msg
-        if self.robot_detector is None and self.camera_info is not None:
-            self.initialize_detector()
+        """Initialize detector when camera info is received"""
+        if self.april_detector is None:
+            self.camera_matrix = np.array(msg.k).reshape(3, 3)
+            calibration_data = {
+                'camera_matrix': self.camera_matrix,
+                'distortion_coefficients': np.array(msg.d)
+            }
+            self.april_detector = AprilTagDetector(calibration_data)
+            self.get_logger().info("AprilTag detector initialized")
         
-    def initialize_detector(self):
-        """Initialize robot detector with camera info"""
-        calibration_data = {
-            'camera_matrix': np.array(self.camera_info.k).reshape(3, 3),
-            'distortion_coefficients': np.array(self.camera_info.d)
-        }
-        self.robot_detector = SimpleRobotDetector(self.options, calibration_data)
-        self.get_logger().info("Robot detector initialized with camera info")
-    
-    def get_world_from_camera_transform(self):
-        """Get world→camera transform from TF2 - NEW: Replaces calibration_callback"""
+    def get_camera_from_world(self):
+        """Get camera_from_world transform from TF2"""
         try:
-            # Lookup the transform from world to camera frame
-            transform: TransformStamped = self.tf_buffer.lookup_transform(
-                'world',        # target frame
-                'camera',       # source frame  
-                rclpy.time.Time()  # get latest available
-            )
+            transform = self.tf_buffer.lookup_transform('world', 'camera', rclpy.time.Time())
             
-            # Convert transform to MathPose
             translation = np.array([
                 transform.transform.translation.x,
                 transform.transform.translation.y, 
                 transform.transform.translation.z
             ])
             
-            quat = np.array([
+            quaternion = np.array([
                 transform.transform.rotation.x,
                 transform.transform.rotation.y,
                 transform.transform.rotation.z, 
                 transform.transform.rotation.w
             ])
             
-            rotation = Rotation.from_quat(quat).as_matrix()
-            return MathPose(rotation, translation)
+            # Convert world_from_camera to camera_from_world (inverse)
+            world_from_camera = MathPose(Rotation.from_quat(quaternion).as_matrix(), translation)
+            return world_from_camera.inv()
             
         except Exception as e:
-            self.get_logger().warn(f"Could not get transform from TF: {str(e)}")
+            self.get_logger().warn(f"TF lookup failed: {str(e)}")
             return None
+    
+    def project_3d_to_2d(self, point_3d):
+        """Project 3D point to 2D image coordinates"""
+        if self.camera_matrix is None:
+            return None
+            
+        point_2d, _ = cv2.projectPoints(
+            point_3d, np.eye(3), np.zeros(3), self.camera_matrix, np.zeros(5)
+        )
+        return point_2d.squeeze()
+    
+    def calculate_robot_outline(self, camera_from_robot):
+        """Calculate robot outline projection - SEPARATED from detection"""
+        outline_2d = []
+        for point in self.robot_outline:
+            point_in_camera = camera_from_robot * MathPose(np.eye(3), point)
+            outline_2d.append(self.project_3d_to_2d(point_in_camera.t))
+        return outline_2d
         
+    def detect_robot(self, image_gray, camera_from_world):
+        """Core robot detection - clean and focused on pose estimation"""
+        if self.april_detector is None:
+            return None
+            
+        detections = self.april_detector.detect(image_gray, self.robot_tags['sizes'])['aprilTags']
+        
+        for detection in detections:
+            if (detection.tag_family.decode() == self.robot_tags['family'] and
+                detection.tag_id in [self.robot_tags['top_id'], self.robot_tags['bottom_id']]):
+                
+                # Core detection logic only
+                camera_from_robot = MathPose(detection.pose_R, detection.pose_t)
+                world_from_robot = camera_from_world * camera_from_robot
+                robot_center_2d = self.project_3d_to_2d(detection.pose_t)
+                
+                return {
+                    'world_pose': world_from_robot,
+                    'camera_from_robot': camera_from_robot,
+                    'center_2d': robot_center_2d
+                }
+        
+        return None
+    
     def image_callback(self, msg):
-        """Process each frame for robot detection"""
-        # Get transform from TF2 instead of custom topic - CHANGED
-        world_from_camera = self.get_world_from_camera_transform()
-        if world_from_camera is None:
+        """Process each camera frame"""
+        camera_from_world = self.get_camera_from_world()
+        if camera_from_world is None:
             if not self.calibration_requested:
                 self.request_calibration()
             return
             
-        if self.robot_detector is None:
-            self.get_logger().debug("Robot detector not initialized yet")
+        if self.april_detector is None:
             return
             
         try:
+            # Convert image
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
             gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
             
-            # Use camera_from_world (inverse of world_from_camera) - CHANGED
-            camera_from_world = world_from_camera.inv()
-            
-            # Detect robot - CHANGED: pass camera_from_world instead of world_from_camera
-            robot_detection = self.robot_detector.detect(gray, camera_from_world, cv_image)
-            if robot_detection is None:
-                self.get_logger().debug("No robot detected in frame")
-                return
+            # Core detection
+            detection = self.detect_robot(gray, camera_from_world)
+            if detection:
+                # Outline generation (separate from detection)
+                outline_2d = self.calculate_robot_outline(detection['camera_from_robot'])
+                detection['outline_2d'] = outline_2d
                 
-            # Publish pose
-            self.publish_robot_pose(robot_detection)
-            
-            # Publish overlay image with detection drawings
-            self.publish_robot_overlay(cv_image, robot_detection)
-            
+                self.publish_pose(detection['world_pose'])
+                self.publish_overlay(cv_image, detection)
+                
         except Exception as e:
-            self.get_logger().error(f"Error in robot detection: {str(e)}")
+            self.get_logger().error(f"Detection error: {str(e)}")
     
-    def publish_robot_overlay(self, cv_image, robot_detection):
-        """Publish detection overlay as ROS Image"""
-        # Create a copy for drawing
-        overlay_image = cv_image.copy()
+    def publish_overlay(self, cv_image, detection):
+        """Publish visualization overlay"""
+        overlay = cv_image.copy()
+        center = tuple(detection['center_2d'].astype(int))
         
         # Draw robot center
-        center = tuple(robot_detection['robotInCamera2D'].astype(int))
-        cv2.circle(overlay_image, center, 5, (0, 255, 0), -1)
-        cv2.putText(overlay_image, f"Robot", (center[0] + 10, center[1]),
+        cv2.circle(overlay, center, 5, (0, 255, 0), -1)
+        cv2.putText(overlay, "Robot", (center[0] + 10, center[1]),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         
         # Draw robot outline
-        outline = robot_detection['robotOutlineInCamera2D']
+        outline = detection['outline_2d']
         for i in range(len(outline)):
             pt1 = tuple(outline[i].astype(int))
             pt2 = tuple(outline[(i + 1) % len(outline)].astype(int))
-            cv2.line(overlay_image, pt1, pt2, (0, 255, 0), 2)
+            cv2.line(overlay, pt1, pt2, (0, 255, 0), 2)
         
-        # Convert to ROS Image and publish
-        overlay_msg = self.bridge.cv2_to_imgmsg(overlay_image, "bgr8")
+        # Publish overlay
+        overlay_msg = self.bridge.cv2_to_imgmsg(overlay, "bgr8")
         overlay_msg.header.stamp = self.get_clock().now().to_msg()
-        overlay_msg.header.frame_id = "camera"
         self.overlay_pub.publish(overlay_msg)
-        
-        self.get_logger().debug("Published robot detection overlay")
     
-    def request_calibration(self):
-        """Request arena calibration if not available"""
-        if not self.calibration_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().warn("Calibration service not available")
-            return
-            
-        self.calibration_requested = True
-        future = self.calibration_client.call_async(Trigger.Request())
-        future.add_done_callback(self.calibration_service_callback)
-        self.get_logger().info("Requesting arena calibration...")
-    
-    def calibration_service_callback(self, future):
-        """Handle calibration service response"""
-        try:
-            response = future.result()
-            if response.success:
-                self.get_logger().info("Calibration service completed successfully")
-            else:
-                self.get_logger().error(f"Calibration service failed: {response.message}")
-                self.calibration_requested = False
-        except Exception as e:
-            self.get_logger().error(f"Calibration service call failed: {str(e)}")
-            self.calibration_requested = False
-    
-    def publish_robot_pose(self, robot_detection):
-        """Publish robot pose to ROS"""
+    def publish_pose(self, world_pose):
+        """Publish robot pose as both message and TF"""
+        # Publish PoseStamped message
         pose_msg = PoseStamped()
         pose_msg.header.frame_id = "world"
         pose_msg.header.stamp = self.get_clock().now().to_msg()
         
         # Position
-        pose_msg.pose.position.x = float(robot_detection['worldFromRobot'].t[0])
-        pose_msg.pose.position.y = float(robot_detection['worldFromRobot'].t[1])
-        pose_msg.pose.position.z = 0.0
+        pose_msg.pose.position.x = float(world_pose.t[0])
+        pose_msg.pose.position.y = float(world_pose.t[1])
+        pose_msg.pose.position.z = 0.0  # Ground robot
         
-        # Orientation
-        robotXInWorld = robot_detection['worldFromRobot'] * np.array([0, -1, 0])
-        q = quaternion_from_vectors(robotXInWorld, np.array([1, 0, 0]))
-        pose_msg.pose.orientation.x = float(q[0])
-        pose_msg.pose.orientation.y = float(q[1])
-        pose_msg.pose.orientation.z = float(q[2])
-        pose_msg.pose.orientation.w = float(q[3])
+        # Orientation from the detected pose
+        rotation = Rotation.from_matrix(world_pose.R)
+        quat = rotation.as_quat()
+        pose_msg.pose.orientation.x = float(quat[0])
+        pose_msg.pose.orientation.y = float(quat[1])
+        pose_msg.pose.orientation.z = float(quat[2])
+        pose_msg.pose.orientation.w = float(quat[3])
         
         self.pose_pub.publish(pose_msg)
-        self.get_logger().debug(f"Published robot pose: [{pose_msg.pose.position.x:.3f}, {pose_msg.pose.position.y:.3f}]")
+        
+        # NEW: Publish TF transform
+        self.publish_bot_tf(world_pose)
+        
+        self.get_logger().info(f"Robot pose: [{pose_msg.pose.position.x:.2f}, {pose_msg.pose.position.y:.2f}]")
+    
+    def publish_bot_tf(self, world_pose):
+        """Publish robot transform to TF tree"""
+        t = TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = "world"
+        t.child_frame_id = "robot"  # Robot frame name
+        
+        # Position
+        t.transform.translation.x = float(world_pose.t[0])
+        t.transform.translation.y = float(world_pose.t[1])
+        t.transform.translation.z = 0.0  # Ground robot
+        
+        # Orientation
+        rotation = Rotation.from_matrix(world_pose.R)
+        quat = rotation.as_quat()
+        t.transform.rotation.x = float(quat[0])
+        t.transform.rotation.y = float(quat[1])
+        t.transform.rotation.z = float(quat[2])
+        t.transform.rotation.w = float(quat[3])
+        
+        self.tf_broadcaster.sendTransform(t)
+        self.get_logger().debug("Published robot transform to TF")
+    
+    def request_calibration(self):
+        """Request arena calibration service"""
+        if self.calibration_client.wait_for_service(timeout_sec=1.0):
+            self.calibration_requested = True
+            future = self.calibration_client.call_async(Trigger.Request())
+            future.add_done_callback(self.calibration_callback)
+            self.get_logger().info("Requesting arena calibration...")
+    
+    def calibration_callback(self, future):
+        """Handle calibration response"""
+        try:
+            response = future.result()
+            if response.success:
+                self.get_logger().info("Calibration successful")
+            else:
+                self.get_logger().warn(f"Calibration failed: {response.message}")
+                self.calibration_requested = False
+        except Exception as e:
+            self.get_logger().error(f"Calibration call failed: {str(e)}")
+            self.calibration_requested = False
 
 
 def main(args=None):
