@@ -124,6 +124,25 @@ def generate_launch_description():
         ]
     )
 
+    # Grayscale Image Republisher Node
+    grayscale_republisher = Node(
+        package='simple_diff_drive_sim',
+        executable='grayscale_republisher',
+        name='grayscale_republisher',
+        parameters=[{'use_sim_time': True}],
+        output='screen'
+    )
+
+    # Camera info publisher for fisheye model
+    camera_info_publisher = Node(
+        package='simple_diff_drive_sim',
+        executable='camera_info_publisher',
+        name='camera_info_publisher',
+        namespace='arena_camera',  # Add namespace to match your topics
+        parameters=[{'use_sim_time': True}],
+        output='screen'
+    )
+
     # Build launch description
     ld = LaunchDescription()
     ld.add_action(gazebo)
@@ -134,5 +153,7 @@ def generate_launch_description():
     ld.add_action(bridge)
     ld.add_action(robot_tf_to_pose)
     ld.add_action(enemy_tf_to_pose)
+    ld.add_action(grayscale_republisher)
+    ld.add_action(camera_info_publisher)
 
     return ld

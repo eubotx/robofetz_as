@@ -40,7 +40,9 @@ setup(
 
     entry_points={
         'console_scripts': [
-            'tf_to_pose = simple_diff_drive_sim.tf_to_pose:main',  # <-- Your node
+            'tf_to_pose = simple_diff_drive_sim.tf_to_pose:main',
+            'grayscale_republisher = simple_diff_drive_sim.grayscale_republisher_node:main',
+            'camera_info_publisher = simple_diff_drive_sim.camera_info_publisher:main',
         ],
     },
 )
