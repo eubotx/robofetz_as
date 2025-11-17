@@ -11,3 +11,6 @@
 	path = src/slider_publisher
 	url = https://github.com/oKermorgant/slider_publisher.git
 	branch = ros2
+[submodule "src/detection/scripts/fisheye-camera-undistortion"]
+	path = src/detection/scripts/fisheye-camera-undistortion
+	url = https://github.com/eubotx/fisheye-camera-undistortion.git

@@ -10,8 +10,8 @@ arena_camera/usb_cam:
     frame_id: "arena_camera_frame"                     # string: TF frame
     
     #Image format  
-    image_width: 640                                   # int: resolution width  #800 is best
-    image_height: 480                                  # int: resolution heigh  #600 is best
+    image_width: 800                                   # int: resolution width  #800 is best
+    image_height: 600                                  # int: resolution heigh  #600 is best
     framerate: 100.0                                   # float: target FPS
     pixel_format: "yuyv"                               # string: 'yuyv', 'mjpeg', 'grey' -> 'yuyv' often also used in greyscale cams
     

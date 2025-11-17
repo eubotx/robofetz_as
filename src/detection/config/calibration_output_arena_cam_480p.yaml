@@ -1,0 +1,26 @@
+image_width: 640
+image_height: 480
+
+camera_name: arena_camera
+
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [363.6412015300698, 0.0, 293.8286824076266, 0.0, 363.3084419622667, 270.55233086040295, 0.0, 0.0, 1.0]
+
+distortion_model: "fisheye"
+
+distortion_coefficients:
+  rows: 1
+  cols: 4
+  data: [-0.029150525560430844, -0.06836118687090936, 0.10550867407533117, -0.05808091994592822]
+
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+  
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [363.6412015300698, 0.0, 293.8286824076266, 0.0, 0.0, 363.3084419622667, 270.55233086040295, 0.0, 0.0, 0.0, 1.0, 0.0]
