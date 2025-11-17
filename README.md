@@ -1,4 +1,4 @@
-# FETZ_AS - Autonomous Battle Bot System Based on ROS2 Jazzy
+# ROBOFETZ_AS - Autonomous Battle Bot System Based on ROS2 Jazzy
 
 Welcome to **FETZ_AS**, an autonomous system designed for a battle bot competition built on **ROS2 Jazzy**. This project aims to control a robot for competitive scenarios, utilizing ROS2, a flexible robotics middleware.
 
@@ -25,7 +25,7 @@ Start by cloning this repository to your local machine:
 
 ```bash
 git clone https://github.com/eubotx/fetz_as.git
-cd fetz_as
+cd robofetz_as
 git submodule update --init --recursive
 ```
 
@@ -102,7 +102,7 @@ After the initial setup, code change or if you pull updates from the repository,
 1. Navigate to your workspace:
 
    ```bash
-   cd fetz_as
+   cd robofetz_as
    ```
 
 2. **Always source the environment** before rebuilding:
@@ -127,7 +127,7 @@ After the initial setup, code change or if you pull updates from the repository,
 1. **Open a new terminal tab** and navigate to the repository:
 
    ```bash
-   cd fetz_as
+   cd robofetz_as
    ```
 
 2. **Source the environment**:
@@ -159,7 +159,7 @@ After the initial setup, code change or if you pull updates from the repository,
 4. **Open another terminal tab** and navigate to the repository: 
 
    ```bash
-   cd fetz_as
+   cd robofetz_as
    ```
 
 5. **Source the environment**:
@@ -183,7 +183,7 @@ After the initial setup, code change or if you pull updates from the repository,
 1. **Open a new terminal tab** and navigate to the repository:
 
    ```bash
-   cd fetz_as
+   cd robofetz_as
    ```
 
 2. **Source the environment**:
@@ -203,7 +203,7 @@ After the initial setup, code change or if you pull updates from the repository,
    - For Xbox controller:
 
      ```bash
-     cd fetz_as
+     cd robofetz_as
      source install/local_setup.bash
      ros2 launch teleop_twist_joy teleop-launch.py joy_config:='xbox'
      ```
@@ -211,7 +211,7 @@ After the initial setup, code change or if you pull updates from the repository,
    - Use a custom configuration if needed:
 
      ```bash
-     cd fetz_as
+     cd robofetz_as
      source install/local_setup.bash
      ros2 launch teleop_twist_joy teleop-launch.py joy_config:='xbox' config_filepath:=config/bot135smallWheel_teleop.config.yaml
      ```
