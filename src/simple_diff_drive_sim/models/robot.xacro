@@ -92,7 +92,7 @@
     <!-- ########################## -->
 
     <!-- Gazebo file for extra Gazebo options and motion driver-->
-    <xacro:include filename="$(find simple_diff_drive_sim)/model/robot.gazebo" />
+    <xacro:include filename="$(find simple_diff_drive_sim)/models/robot.gazebo" />
 
     <!-- ########################## -->
     <!--  Define links and joints   -->

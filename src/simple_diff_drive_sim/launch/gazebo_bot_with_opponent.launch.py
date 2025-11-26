@@ -21,15 +21,15 @@ def generate_launch_description():
 
     # Robot (Main)
     robot_name = 'robot'
-    robot_xacro = os.path.join(get_package_share_directory(pkg_name), 'model/robot.xacro')
+    robot_xacro = os.path.join(get_package_share_directory(pkg_name), 'models/robot.xacro')
     robot_description = xacro.process_file(robot_xacro).toxml()
     robot_pose = ['0.3', '0.3', '0.0', '0.0', '0.0', '0.0']  # x,y,z,R,P,Y
 
-    # Enemy Robot
-    enemy_name = 'enemy'
-    enemy_xacro = os.path.join(get_package_share_directory(pkg_name), 'model/enemy.xacro')
-    enemy_description = xacro.process_file(enemy_xacro).toxml()
-    enemy_pose = ['1.2', '1.2', '0.0', '0.0', '0.0', '3.14']
+    # Opponent Robot
+    opponent_name = 'opponent'
+    opponent_xacro = os.path.join(get_package_share_directory(pkg_name), 'models/opponent.xacro')
+    opponent_description = xacro.process_file(opponent_xacro).toxml()
+    opponent_pose = ['1.2', '1.2', '0.0', '0.0', '0.0', '3.14']
 
     # Gazebo launch
     gazebo = IncludeLaunchDescription(
@@ -51,11 +51,11 @@ def generate_launch_description():
         output='screen'
     )
 
-    enemy_state_pub = Node(
+    opponent_state_pub = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
-        namespace=enemy_name,  # Namespace to avoid topic conflicts
-        parameters=[{'robot_description': enemy_description, 'use_sim_time': True}],
+        namespace=opponent_name,  # Namespace to avoid topic conflicts
+        parameters=[{'robot_description': opponent_description, 'use_sim_time': True}],
         output='screen'
     )
 
@@ -76,19 +76,19 @@ def generate_launch_description():
         output='screen',
     )
 
-    # Spawn Enemy Robot
-    spawn_enemy = Node(
+    # Spawn Opponent Robot
+    spawn_opponent = Node(
         package='ros_gz_sim',
         executable='create',
         arguments=[
-            '-name', enemy_name,
-            '-topic', f'/{enemy_name}/robot_description',  # Namespaced topic
-            '-x', enemy_pose[0],
-            '-y', enemy_pose[1],
-            '-z', enemy_pose[2],
-            '-R', enemy_pose[3],
-            '-P', enemy_pose[4],
-            '-Y', enemy_pose[5]
+            '-name', opponent_name,
+            '-topic', f'/{opponent_name}/robot_description',  # Namespaced topic
+            '-x', opponent_pose[0],
+            '-y', opponent_pose[1],
+            '-z', opponent_pose[2],
+            '-R', opponent_pose[3],
+            '-P', opponent_pose[4],
+            '-Y', opponent_pose[5]
         ],
         output='screen',
     )
@@ -113,14 +113,14 @@ def generate_launch_description():
         ]
     )
     
-    ## Enemy robot tf to pose instance
-    enemy_tf_to_pose = Node(
+    ## Opponent robot tf to pose instance
+    opponent_tf_to_pose = Node(
         package='simple_diff_drive_sim',
         executable='tf_to_pose',
-        name='tf_to_pose_enemy',  # Unique name
+        name='tf_to_pose_opponent',  # Unique name
         parameters=[
-            {'tf_topic': '/sim/enemy/pose_tf'},
-            {'pose_topic': '/camera/enemy/pose'}
+            {'tf_topic': '/sim/opponent/pose_tf'},
+            {'pose_topic': '/camera/opponent/pose'}
         ]
     )
 
@@ -147,12 +147,12 @@ def generate_launch_description():
     ld = LaunchDescription()
     ld.add_action(gazebo)
     ld.add_action(robot_state_pub)
-    ld.add_action(enemy_state_pub)
+    ld.add_action(opponent_state_pub)
     ld.add_action(spawn_robot)
-    ld.add_action(spawn_enemy)
+    ld.add_action(spawn_opponent)
     ld.add_action(bridge)
     ld.add_action(robot_tf_to_pose)
-    ld.add_action(enemy_tf_to_pose)
+    ld.add_action(opponent_tf_to_pose)
     ld.add_action(grayscale_republisher)
     ld.add_action(camera_info_publisher)
 

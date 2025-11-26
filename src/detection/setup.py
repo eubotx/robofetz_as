@@ -33,7 +33,7 @@ setup(
     zip_safe=True,
     maintainer='eubotx',
     maintainer_email='eubotx@mailbox.org',
-    description='Detect robot and enemy robot',
+    description='Detect robot and opponent robot',
     license='GNU GPL',
     tests_require=['pytest'],
     entry_points={
@@ -42,7 +42,7 @@ setup(
             'rectify_fisheye = detection.rectify_fisheye:main',
             'arena_calibration_service = detection.arena_calibration_service:main',
             'robot_detection_node = detection.robot_detection:main',
-            'enemy_detection_node = detection.enemy_detection:main'
+            'opponent_detection_node = detection.opponent_detection:main'
         ],
     },
 )

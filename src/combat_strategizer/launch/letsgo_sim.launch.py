@@ -26,7 +26,7 @@ def generate_launch_description():
             os.path.join(
                 simple_diff_drive_sim_dir,
                 'launch',
-                'gazebo_bot_with_enemy.launch.py'
+                'gazebo_bot_with_opponent.launch.py'
             )
         )
     )
@@ -78,12 +78,12 @@ def generate_launch_description():
     )
 
     # Include teleop launch file for joystick control
-    teleop_enemy = IncludeLaunchDescription(
+    teleop_opponent = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(get_package_share_directory('teleop_twist_joy'), 'launch', 'teleop-launch.py')
         ),
         launch_arguments={
-            'joy_vel': 'enemy/cmd_vel',  # Remap velocity command topic
+            'joy_vel': 'opponent/cmd_vel',  # Remap velocity command topic
             'joy_config': 'xbox',   # Define joystick configuration
             #'joy_dev': '0',        # Joystick device (e.g., /dev/input/js0)
             #'publish_stamped_twist': 'false',  # Whether to publish a stamped twist
@@ -98,5 +98,5 @@ def generate_launch_description():
         weapon_control,
         simple_navigator,
         rviz2,
-        teleop_enemy
+        teleop_opponent
     ])

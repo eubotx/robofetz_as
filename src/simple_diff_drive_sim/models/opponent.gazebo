@@ -51,11 +51,11 @@
             <max_linear_acceleration>10</max_linear_acceleration>
 
             <!-- topic, frames, odometry -->
-            <topic>enemy/cmd_vel</topic>
-            <tf_topic>enemy/pose_with_slip</tf_topic>
-            <odom_topic>enemy/odometry_with_slip</odom_topic>
+            <topic>opponent/cmd_vel</topic>
+            <tf_topic>opponent/pose_with_slip</tf_topic>
+            <odom_topic>opponent/odometry_with_slip</odom_topic>
             <odom_publisher_frequency>30</odom_publisher_frequency>
-            <frame_id>enemy/odom</frame_id>
+            <frame_id>opponent/odom</frame_id>
             <child_frame_id>base_footprint</child_frame_id>
             
         </plugin>
@@ -63,7 +63,7 @@
         <!-- joint state publisher -->
         <plugin filename="gz-sim-joint-state-publisher-system"
           name="gz::sim::systems::JointStatePublisher">
-            <topic>enemy/joint_states</topic>
+            <topic>opponent/joint_states</topic>
             <joint_name>wheel1_joint</joint_name>
             <joint_name>wheel2_joint</joint_name>
         </plugin>
@@ -73,9 +73,9 @@
             <odom_frame>map</odom_frame>
             <robot_base_frame>base_footprint</robot_base_frame>
             <odom_publish_frequency>30</odom_publish_frequency>
-            <odom_topic>enemy/odometry_ground_truth</odom_topic>
-            <odom_covariance_topic>enemy/odometry_ground_truth_with_covariance</odom_covariance_topic>
-            <tf_topic>enemy/pose_ground_truth</tf_topic>
+            <odom_topic>opponent/odometry_ground_truth</odom_topic>
+            <odom_covariance_topic>opponent/odometry_ground_truth_with_covariance</odom_covariance_topic>
+            <tf_topic>opponent/pose_ground_truth</tf_topic>
             <dimensions>2</dimensions>
         </plugin>
 

@@ -17,8 +17,8 @@ def generate_launch_description():
         ),
         # Node(
         #     package='detection',
-        #     executable='enemy_detection',
-        #     name='enemy_detection_node',
-        #     parameters=[{'debug_image': True}]  # Add if enemy detection has debug too
+        #     executable='opponent_detection',
+        #     name='opponent_detection_node',
+        #     parameters=[{'debug_image': True}]  # Add if opponent detection has debug too
         # ),
     ])

@@ -6,10 +6,10 @@ class SimpleAttack(Node):
     def __init__(self):
         super().__init__('simple_attack')  # Node name is simple_attack
 
-        # Create a subscriber to the /camera/enemy/pose topic
+        # Create a subscriber to the /camera/opponent/pose topic
         self.subscription = self.create_subscription(
             PoseStamped,
-            '/camera/enemy/pose',  # Original topic
+            '/camera/opponent/pose',  # Original topic
             self.listener_callback,
             10)
 

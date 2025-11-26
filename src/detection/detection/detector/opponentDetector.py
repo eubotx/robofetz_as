@@ -134,7 +134,7 @@ def draw_outline(outline, image, text=None, color=(0, 255, 0)):
         cv2.putText(image, text, outline[0].astype(int),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
-class EnemyDetector():
+class OpponentDetector():
     def __init__(self, options: dict):
         self.diff_detector = DiffDetector()
         self.detection_last = None
@@ -160,24 +160,24 @@ class EnemyDetector():
                     largest_area = area
             return np.array(contours[largest_ind])
 
-        enemy_contour = get_contour_largest_area(bounding_rects)
-        if enemy_contour is None:
+        opponent_contour = get_contour_largest_area(bounding_rects)
+        if opponent_contour is None:
             if debug_image is not None:
                 if self.detection_last is not None:
-                    cv2.circle(debug_image, self.detection_last['enemyInCamera2D'].astype(int), 5, (0, 0, 255), 2)
-                cv2.imshow("Enemy pos", debug_image)
+                    cv2.circle(debug_image, self.detection_last['opponentInCamera2D'].astype(int), 5, (0, 0, 255), 2)
+                cv2.imshow("Opponent pos", debug_image)
             return self.detection_last
 
         detection = {}
-        detection['enemyBBoxInCamera2D'] = enemy_contour
-        # print(f'enemyContour {enemy_contour}')
-        (x, y, w, h) = enemy_contour
-        detection['enemyInCamera2D'] = np.array([x + w / 2, y + h / 2])
+        detection['opponentBBoxInCamera2D'] = opponent_contour
+        # print(f'opponentContour {opponent_contour}')
+        (x, y, w, h) = opponent_contour
+        detection['opponentInCamera2D'] = np.array([x + w / 2, y + h / 2])
 
         if debug_image is not None:
-            print(f'enemyInCamera2D: {detection["enemyInCamera2D"].astype(int)}')
-            cv2.circle(debug_image, detection['enemyInCamera2D'].astype(int), 5, (0, 255, 0), 2)
-            cv2.imshow("Enemy pos", debug_image)
+            print(f'opponentInCamera2D: {detection["opponentInCamera2D"].astype(int)}')
+            cv2.circle(debug_image, detection['opponentInCamera2D'].astype(int), 5, (0, 255, 0), 2)
+            cv2.imshow("Opponent pos", debug_image)
 
         self.detection_last = detection
         return detection

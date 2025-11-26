@@ -19,11 +19,11 @@ setup(
         # install Gazebo world files
         (os.path.join('share', package_name, 'worlds'), glob('worlds/*.world')),
         # Install xacro files
-        (os.path.join('share', package_name, 'model'), glob('model/*.xacro')),
+        (os.path.join('share', package_name, 'models'), glob('models/*.xacro')),
         # Install gazebo plugin files
-        (os.path.join('share', package_name, 'model'), glob('model/*.gazebo')),
+        (os.path.join('share', package_name, 'models'), glob('models/*.gazebo')),
         # install other Gazebo-related resources (e.g., models)
-        (os.path.join('share', package_name, 'model'), glob('model/**/*.sdf', recursive=True)),
+        (os.path.join('share', package_name, 'models'), glob('models/**/*.sdf', recursive=True)),
         # install other Parameter file (e.g., models)
         (os.path.join('share', package_name, 'parameters'), glob('parameters/*.yaml')),
     ],

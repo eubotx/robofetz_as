@@ -21,7 +21,7 @@ def generate_launch_description():
 
     # Robot (Main)
     robot_name = 'robot'
-    robot_xacro = os.path.join(get_package_share_directory(pkg_name), 'model/robot.xacro')
+    robot_xacro = os.path.join(get_package_share_directory(pkg_name), 'models/robot.xacro')
     robot_description = xacro.process_file(robot_xacro).toxml()
     robot_pose = ['0.3', '0.3', '0.0', '0.0', '0.0', '0.0']  # x,y,z,R,P,Y
 

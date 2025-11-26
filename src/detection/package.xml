@@ -3,7 +3,7 @@
 <package format="3">
   <name>detection</name>
   <version>0.0.0</version>
-  <description>Detect robot and enemy robot</description>
+  <description>Detect robot and opponent robot</description>
   <maintainer email="eubotx@mailbox.org">eubotx</maintainer>
   <license>GNU GPL</license>
 

@@ -41,15 +41,15 @@
   direction: GZ_TO_ROS
   
   # ros topic subscribed by DiffDrive plugin
-- ros_topic_name: "enemy/cmd_vel"
-  gz_topic_name: "enemy/cmd_vel"
+- ros_topic_name: "opponent/cmd_vel"
+  gz_topic_name: "opponent/cmd_vel"
   ros_type_name: "geometry_msgs/msg/Twist"
   gz_type_name: "gz.msgs.Twist"
   direction: ROS_TO_GZ
 
 # gz topic published by Odom plugin
-- ros_topic_name: "sim/enemy/pose_tf"
-  gz_topic_name: "enemy/pose_ground_truth"
+- ros_topic_name: "sim/opponent/pose_tf"
+  gz_topic_name: "opponent/pose_ground_truth"
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"
   direction: GZ_TO_ROS
