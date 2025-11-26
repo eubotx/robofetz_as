@@ -8,7 +8,7 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     # Get package share directories
-    simple_diff_drive_sim_dir = get_package_share_directory('simple_diff_drive_sim')
+    robofetz_gazebo_dir = get_package_share_directory('robofetz_gazebo')
     robot_navigation_dir = get_package_share_directory('robot_navigation')
     
     # Static transform for map to odom
@@ -24,7 +24,7 @@ def generate_launch_description():
     gazebo_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
-                simple_diff_drive_sim_dir,
+                robofetz_gazebo_dir,
                 'launch',
                 'gazebo_bot_with_opponent.launch.py'
             )

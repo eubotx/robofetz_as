@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = 'simple_diff_drive_sim'
+package_name = 'robofetz_gazebo'
 
 setup(
     name=package_name,
@@ -40,9 +40,9 @@ setup(
 
     entry_points={
         'console_scripts': [
-            'tf_to_pose = simple_diff_drive_sim.tf_to_pose:main',
-            'grayscale_republisher = simple_diff_drive_sim.grayscale_republisher_node:main',
-            'camera_info_publisher = simple_diff_drive_sim.camera_info_publisher:main',
+            'tf_to_pose = robofetz_gazebo.tf_to_pose:main',
+            'grayscale_republisher = robofetz_gazebo.grayscale_republisher_node:main',
+            'camera_info_publisher = robofetz_gazebo.camera_info_publisher:main',
         ],
     },
 )

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 
-<robot name="opponent" xmlns:xacro="http://www.ros.org/wiki/xacro">
+<robot name="my_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
     <!-- ########################## -->
     <!--   Geometry and constants   -->
@@ -92,7 +92,7 @@
     <!-- ########################## -->
 
     <!-- Gazebo file for extra Gazebo options and motion driver-->
-    <xacro:include filename="$(find simple_diff_drive_sim)/models/opponent.gazebo" />
+    <xacro:include filename="$(find robofetz_gazebo)/models/robot.gazebo" />
 
     <!-- ########################## -->
     <!--  Define links and joints   -->

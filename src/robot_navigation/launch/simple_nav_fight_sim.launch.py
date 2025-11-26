@@ -12,7 +12,7 @@ def generate_launch_description():
     # Gazebo launch
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(
-            get_package_share_directory('simple_diff_drive_sim'), 
+            get_package_share_directory('robofetz_gazebo'), 
             'launch', 
             'gazebo_bot_with_opponent.launch.py'
         )),
