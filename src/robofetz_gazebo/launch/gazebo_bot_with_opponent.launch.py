@@ -21,13 +21,13 @@ def generate_launch_description():
 
     # Robot (Main)
     robot_name = 'robot'
-    robot_xacro = os.path.join(get_package_share_directory(pkg_name), 'models/robot.xacro')
+    robot_xacro = os.path.join(get_package_share_directory(pkg_name), 'models/simple_diff_drive_robot/simple_diff_drive_robot.xacro')
     robot_description = xacro.process_file(robot_xacro).toxml()
     robot_pose = ['0.3', '0.3', '0.0', '0.0', '0.0', '0.0']  # x,y,z,R,P,Y
 
     # Opponent Robot
     opponent_name = 'opponent'
-    opponent_xacro = os.path.join(get_package_share_directory(pkg_name), 'models/opponent.xacro')
+    opponent_xacro = os.path.join(get_package_share_directory(pkg_name), 'models/simple_diff_drive_opponent/simple_diff_drive_opponent.xacro')
     opponent_description = xacro.process_file(opponent_xacro).toxml()
     opponent_pose = ['1.2', '1.2', '0.0', '0.0', '0.0', '3.14']
 

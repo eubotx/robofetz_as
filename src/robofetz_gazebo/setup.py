@@ -18,12 +18,9 @@ setup(
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
         # install Gazebo world files
         (os.path.join('share', package_name, 'worlds'), glob('worlds/*.world')),
-        # Install xacro files
-        (os.path.join('share', package_name, 'models'), glob('models/*.xacro')),
-        # Install gazebo plugin files
-        (os.path.join('share', package_name, 'models'), glob('models/*.gazebo')),
-        # install other Gazebo-related resources (e.g., models)
-        (os.path.join('share', package_name, 'models'), glob('models/**/*.sdf', recursive=True)),
+        # Install models robot descriptions
+        (os.path.join('share', package_name, 'models/simple_diff_drive_robot'), glob('models/simple_diff_drive_robot/*')),
+        (os.path.join('share', package_name, 'models/simple_diff_drive_opponent'), glob('models/simple_diff_drive_opponent/*')),
         # install other Parameter file (e.g., models)
         (os.path.join('share', package_name, 'parameters'), glob('parameters/*.yaml')),
     ],
