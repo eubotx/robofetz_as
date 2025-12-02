@@ -21,7 +21,12 @@ setup(
         # Install models robot descriptions
         (os.path.join('share', package_name, 'models/simple_diff_drive_robot'), glob('models/simple_diff_drive_robot/*')),
         (os.path.join('share', package_name, 'models/simple_diff_drive_opponent'), glob('models/simple_diff_drive_opponent/*')),
-        # install other Parameter file (e.g., models)
+        # Install world sdfs
+        (os.path.join('share', package_name, 'models/simple_arena'), glob('models/simple_arena/*')),
+        (os.path.join('share', package_name, 'models/arena_camera_wideangle'), glob('models/arena_camera_wideangle/*')),
+        (os.path.join('share', package_name, 'models/arena_camera_pinhole'), glob('models/arena_camera_pinhole/*')),
+
+        # install other Parameter files
         (os.path.join('share', package_name, 'parameters'), glob('parameters/*.yaml')),
     ],
     install_requires=['setuptools'],

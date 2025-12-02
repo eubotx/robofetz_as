@@ -244,3 +244,7 @@ ros2 run rqt_image_view rqt_image_view
 
 sudo apt update
 sudo apt install ros-jazzy-camera-ros
+
+
+
+ros2 launch robofetz_gazebo  gazebo_bot_with_opponent.launch.py world:=robofetz_arena_pinhole.world
