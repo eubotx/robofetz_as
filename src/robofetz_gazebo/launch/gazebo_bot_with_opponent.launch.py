@@ -135,8 +135,8 @@ def generate_launch_description():
         executable='tf_to_pose',
         name='tf_to_pose_robot',
         parameters=[{
-            'tf_topic': '/sim/pose_tf',
-            'pose_topic': '/camera/pose'
+            'tf_topic': '/pose_tf_sim',
+            'pose_topic': '/pose_sim'
         }]
     )
     
@@ -146,8 +146,8 @@ def generate_launch_description():
         executable='tf_to_pose',
         name='tf_to_pose_opponent',
         parameters=[{
-            'tf_topic': '/sim/opponent/pose_tf',
-            'pose_topic': '/camera/opponent/pose'
+            'tf_topic': f'/{opponent_name}/pose_tf_sim',
+            'pose_topic': 'opponent/pose_sim'
         }]
     )
 

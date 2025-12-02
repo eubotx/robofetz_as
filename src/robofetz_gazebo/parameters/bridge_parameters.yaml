@@ -34,7 +34,7 @@
   direction: GZ_TO_ROS
 
   # gz topic published by Odom plugin
-- ros_topic_name: "/sim/pose_tf"
+- ros_topic_name: "pose_tf_sim"
   gz_topic_name: "pose_ground_truth"
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"
@@ -48,7 +48,7 @@
   direction: ROS_TO_GZ
 
 # gz topic published by Odom plugin
-- ros_topic_name: "sim/opponent/pose_tf"
+- ros_topic_name: "opponent/pose_tf_sim"
   gz_topic_name: "opponent/pose_ground_truth"
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"
