@@ -7,64 +7,85 @@ import numpy as np
 from sensor_msgs.msg import Image, CameraInfo, CompressedImage
 from cv_bridge import CvBridge
 
-class FisheyeRectificationNode(Node):
+class CameraRectificationNode(Node):
     def __init__(self):
-        super().__init__('fisheye_rectification_node')
+        super().__init__('camera_rectification_node')
         
         self.bridge = CvBridge()
         self.map1 = None
         self.map2 = None
+        self.needs_rectification = False
+        self.initialized = False  # Track if we've made the decision
         
-        # Use relative topics (without leading slash)
+        # Use relative topics
         self.camera_info_sub = self.create_subscription(
             CameraInfo, 
-            'camera_info',  # Relative to node's namespace
+            'camera_info',
             self.camera_info_callback, 
             10
         )
         
         self.image_sub = self.create_subscription(
             Image,
-            'image_raw',  # Relative to node's namespace
+            'image_raw',
             self.image_callback, 
             10
         )
         
-        # Publishers - use relative topics
+        # Publishers
         self.rectified_image_pub = self.create_publisher(
             Image, 
-            'image_rect',  # Relative to node's namespace
+            'image_rect',
             10
         )
         
         self.rectified_compressed_pub = self.create_publisher(
             CompressedImage,
-            'image_rect/compressed',  # Relative to node's namespace
+            'image_rect/compressed',
             10
         )
 
-        self.get_logger().info("Fisheye rectification node initialized")
+        self.get_logger().info("Camera rectification node initialized")
 
     def camera_info_callback(self, msg):
-        if self.map1 is not None:
-            return  # Already initialized
-            
-        if msg.distortion_model not in ['fisheye', 'rational_polynomial']:
-            self.get_logger().warn(f"Unsupported distortion model: {msg.distortion_model}")
+        # Only initialize once
+        if self.initialized:
             return
-
-        # Extract camera parameters
-        K = np.array(msg.k).reshape(3, 3)
+            
+        self.initialized = True
+        
+        # Check if we need rectification (non-zero distortion with fisheye model)
         D = np.array(msg.d)
+        has_distortion = not np.allclose(D, 0)
+        
+        if not has_distortion:
+            self.get_logger().info("Pinhole camera detected - passing through images")
+            self.needs_rectification = False
+            self.map1 = None
+            self.map2 = None
+            return
+            
+        if msg.distortion_model != 'fisheye':
+            self.get_logger().warn(f"Distortion present but model is {msg.distortion_model} - passing through")
+            self.needs_rectification = False
+            self.map1 = None
+            self.map2 = None
+            return
+        
+        # We have fisheye distortion - setup rectification
+        self.needs_rectification = True
+        K = np.array(msg.k).reshape(3, 3)
         resolution = (msg.width, msg.height)
         
-        self.get_logger().info(f"Setting up rectification for {resolution}")
+        self.get_logger().info(f"Setting up fisheye rectification for {resolution}")
         
-        # Setup fisheye rectification
         try:
+            # Take first 4 coefficients for fisheye
+            D_fisheye = D[:4] if len(D) >= 4 else D
+            
             P = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(
                 K=K,
-                D=D,
+                D=D_fisheye,
                 image_size=resolution,
                 R=np.eye(3),
                 balance=1.0,
@@ -74,27 +95,41 @@ class FisheyeRectificationNode(Node):
             
             self.map1, self.map2 = cv2.fisheye.initUndistortRectifyMap(
                 K=K,
-                D=D,
+                D=D_fisheye,
                 R=np.eye(3),
                 P=P,
                 size=resolution,
                 m1type=cv2.CV_16SC2
             )
             
-            self.get_logger().info("Fisheye rectification maps computed successfully")
+            self.get_logger().info("Fisheye rectification ready")
             
         except Exception as e:
             self.get_logger().error(f"Failed to setup rectification: {str(e)}")
+            self.needs_rectification = False
 
     def image_callback(self, msg):
-        if self.map1 is None or self.map2 is None:
+        if not self.initialized:
+            self.get_logger().warn_once("Waiting for camera info...")
             return
             
         try:
-            # Convert ROS image to OpenCV
+            # For pinhole or failed setup, just republish
+            if not self.needs_rectification or self.map1 is None:
+                # Publish same image to rectified topic
+                rectified_msg = msg  # Just pass through (shallow copy)
+                self.rectified_image_pub.publish(rectified_msg)
+                
+                # For compressed, need to convert
+                cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+                compressed_msg = self.bridge.cv2_to_compressed_imgmsg(cv_image)
+                compressed_msg.header = msg.header
+                self.rectified_compressed_pub.publish(compressed_msg)
+                return
+                
+            # We have fisheye distortion - apply rectification
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             
-            # Apply rectification
             rectified_image = cv2.remap(
                 cv_image, 
                 self.map1, 
@@ -118,7 +153,7 @@ class FisheyeRectificationNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = FisheyeRectificationNode()
+    node = CameraRectificationNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

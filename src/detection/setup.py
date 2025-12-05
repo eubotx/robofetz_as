@@ -39,7 +39,7 @@ setup(
     entry_points={
         'console_scripts': [
             'main_lean = detection.main_lean:main',
-            'rectify_fisheye = detection.rectify_fisheye:main',
+            'camera_rectification_node = detection.camera_rectification_node:main',
             'arena_calibration_service = detection.arena_calibration_service:main',
             'robot_detection_node = detection.robot_detection:main',
             'opponent_detection_node = detection.opponent_detection:main'

@@ -6,15 +6,20 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='detection',
-            executable='arena_detection',  # Corrected executable name
-            name='arena_calibration_service'
+            executable='camera_rectification_node',  # This exists in Jazzy
+            namespace='arena_camera'
         ),
         Node(
             package='detection',
-            executable='robot_detection',  # Corrected executable name
-            name='robot_detection_node',
-            parameters=[{'debug_image': True}]  # Debug images enabled
+            executable='arena_calibration_service',
+            name='arena_calibration_service'
         ),
+        # Node(
+        #    package='detection',
+        #    executable='robot_detection_node',  # Corrected executable name
+        #    name='robot_detection_node',
+        #    parameters=[{'debug_image': True}]  # Debug images enabled
+        # ),
         # Node(
         #     package='detection',
         #     executable='opponent_detection',
