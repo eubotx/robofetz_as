@@ -29,8 +29,10 @@ setup(
         (os.path.join('share', package_name, 'models/arena_apriltag'), glob('models/arena_apriltag/*.sdf')),
         (os.path.join('share', package_name, 'models/arena_apriltag/materials/textures'), glob('models/arena_apriltag/materials/textures/*')),
 
-        # install other Parameter files
+        # install other Parameter and Config files
         (os.path.join('share', package_name, 'parameters'), glob('parameters/*.yaml')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+
     ],
     install_requires=['setuptools'],
     zip_safe=True,

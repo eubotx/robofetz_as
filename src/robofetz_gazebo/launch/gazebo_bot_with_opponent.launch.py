@@ -2,7 +2,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import ExecuteProcess, TimerAction, DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 import xacro
 
@@ -12,6 +12,7 @@ def generate_launch_description():
     pkg_name = 'robofetz_gazebo'
     pkg_share = get_package_share_directory(pkg_name)
     worlds_dir = os.path.join(pkg_share, 'worlds')
+    config_dir = os.path.join(pkg_share, 'config')
     
     # Declare launch argument for world file
     world_arg = DeclareLaunchArgument(
@@ -160,13 +161,23 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Camera info publisher for fisheye model
+    # Use PythonExpression to create conditional config file path
+    config_file = PythonExpression([
+        "'", os.path.join(config_dir, 'camera_pinhole.yaml'), 
+        "' if 'pinhole' in '", world_file, 
+        "' else '", os.path.join(config_dir, 'camera_wideangle.yaml'), "'"
+    ])
+
+    # Camera info publisher
     camera_info_publisher = Node(
         package='robofetz_gazebo',
         executable='camera_info_publisher',
         name='camera_info_publisher',
         namespace='arena_camera',
-        parameters=[{'use_sim_time': True}],
+        parameters=[{
+            'use_sim_time': True,
+            'config_file': config_file
+        }],
         output='screen'
     )
     
