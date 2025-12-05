@@ -32,5 +32,10 @@
       <uri>model://arena_camera_pinhole</uri>
     </include>
     
+    <!-- Include the arena april tag -->
+    <include>
+      <uri>model://arena_apriltag</uri>
+    </include>
+    
   </world>
 </sdf>

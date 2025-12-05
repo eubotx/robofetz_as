@@ -14,3 +14,6 @@
 [submodule "src/detection/scripts/fisheye-camera-undistortion"]
 	path = src/detection/scripts/fisheye-camera-undistortion
 	url = https://github.com/eubotx/fisheye-camera-undistortion.git
+[submodule "src/utils/apriltags/apriltag-imgs"]
+	path = src/utils/apriltags/apriltag-imgs
+	url = https://github.com/AprilRobotics/apriltag-imgs.git
