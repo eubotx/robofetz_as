@@ -55,6 +55,7 @@ class ArenaCalibrationService(Node):
         self.latest_frame = None
         self.camera_info = None
         self.tag_from_camera_optical = None  # Transform from camera_optical to tag
+        self.camera_optical_from_tag = None  # Inverse: transform from tag to camera_optical
         self.initial_calibration_complete = False
         self.april_detector = None
         
@@ -260,18 +261,32 @@ class ArenaCalibrationService(Node):
                 detection.tag_id == self.arena_tag_id):
                 
                 # AprilTag gives us: tag pose in camera optical frame (OpenCV)
+                # This is T_tag_camera_optical: transform FROM camera_optical TO tag
                 tag_from_camera_optical_R = np.array(detection.pose_R)
                 tag_from_camera_optical_t = np.array(detection.pose_t).reshape(3, 1)
                 
-                # Store for TF publishing
+                # Store the direct transform
                 self.tag_from_camera_optical = MathPose(
                     tag_from_camera_optical_R, 
                     tag_from_camera_optical_t.flatten()
                 )
                 
+                # INVERSE: Compute camera_optical FROM tag transform
+                # T_camera_optical_tag = T_tag_camera_optical^(-1)
+                camera_optical_from_tag_R = tag_from_camera_optical_R.T  # Transpose of rotation matrix
+                camera_optical_from_tag_t = -camera_optical_from_tag_R @ tag_from_camera_optical_t
+                
+                # Store the inverse transform
+                self.camera_optical_from_tag = MathPose(
+                    camera_optical_from_tag_R,
+                    camera_optical_from_tag_t.flatten()
+                )
+                
                 self.get_logger().info("=== TAG DETECTED ===")
                 self.get_logger().info(f"Tag position in camera_optical frame: [{tag_from_camera_optical_t[0][0]:.3f}, "
                                       f"{tag_from_camera_optical_t[1][0]:.3f}, {tag_from_camera_optical_t[2][0]:.3f}] m")
+                self.get_logger().info(f"Camera_optical position in tag frame: [{camera_optical_from_tag_t[0][0]:.3f}, "
+                                      f"{camera_optical_from_tag_t[1][0]:.3f}, {camera_optical_from_tag_t[2][0]:.3f}] m")
                 self.get_logger().info(f"Distance to tag: {np.linalg.norm(tag_from_camera_optical_t):.3f} m")
                 
                 return True
@@ -280,21 +295,21 @@ class ArenaCalibrationService(Node):
         return False
     
     def publish_transform(self):
-        """Continuously publish camera_optical -> tag transform"""
-        if not self.initial_calibration_complete or self.tag_from_camera_optical is None:
+        """Continuously publish tag -> camera_optical transform"""
+        if not self.initial_calibration_complete or self.camera_optical_from_tag is None:
             return
             
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = self.frame_camera_optical
-        t.child_frame_id = self.frame_tag
+        t.header.frame_id = self.frame_tag
+        t.child_frame_id = self.frame_camera_optical
         
-        # Transform FROM camera_optical TO tag (what we computed)
-        t.transform.translation.x = float(self.tag_from_camera_optical.t[0])
-        t.transform.translation.y = float(self.tag_from_camera_optical.t[1])
-        t.transform.translation.z = float(self.tag_from_camera_optical.t[2])
+        # Use the INVERSE transform: FROM tag TO camera_optical
+        t.transform.translation.x = float(self.camera_optical_from_tag.t[0])
+        t.transform.translation.y = float(self.camera_optical_from_tag.t[1])
+        t.transform.translation.z = float(self.camera_optical_from_tag.t[2])
         
-        rotation = Rotation.from_matrix(self.tag_from_camera_optical.R)
+        rotation = Rotation.from_matrix(self.camera_optical_from_tag.R)
         quat = rotation.as_quat()
         t.transform.rotation.x = float(quat[0])
         t.transform.rotation.y = float(quat[1])
@@ -302,7 +317,7 @@ class ArenaCalibrationService(Node):
         t.transform.rotation.w = float(quat[3])
         
         self.tf_broadcaster.sendTransform(t)
-        self.get_logger().debug(f"Published DYNAMIC: {self.frame_camera_optical} -> {self.frame_tag}", 
+        self.get_logger().debug(f"Published DYNAMIC: {self.frame_tag} -> {self.frame_camera_optical}", 
                                throttle_duration_sec=10.0)
 
 
