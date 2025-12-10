@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+
+<!-- Gazebio additional description of differential drive robot-->
+
+<robot>
+    <!-- more explaination: https://classic.gazebosim.org/tutorials/?tut=ros_urdf&cat=connect_ros -->
+    <!-- mu1 and mu2 are friction coefficients -->
+    <!-- match reference names with link names in robot.xacro ! -->
+    <!-- wheel torques and speeds need now to be adjusted in robot.xacro with limit_effort and velocity under each joint-->
+    <gazebo reference="body_link">
+        <mu1>0.2</mu1>
+        <mu2>0.2</mu2>
+        <material>Gazebo/Red</material>
+    </gazebo>
+
+    <gazebo reference="wheel1_link">
+        <mu1>0.8</mu1>
+        <mu2>0.8</mu2>
+        <material>Gazebo/Blue</material>
+    </gazebo>
+
+    <gazebo reference="wheel2_link">
+        <mu1>0.8</mu1>
+        <mu2>0.8</mu2>
+        <material>Gazebo/Blue</material>
+    </gazebo>
+
+    <gazebo reference="caster_link">
+        <mu1>0.01</mu1>
+        <mu2>0.01</mu2>
+        <material>Gazebo/Blue</material>
+    </gazebo>
+
+    <!-- Gazebo controller for differential drive robot -->
+    <!-- controller plugin changed from gazebo classic to gazebo harmonic -->
+    <!-- https://gazebosim.org/docs/latest/migrating_gazebo_classic_ros2_packages/#libgazebo-ros-diff-drive-so -->
+
+    <gazebo>
+
+        <!-- Diff Drive plugin -->
+        <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+            <!-- wheels -->
+            <right_joint>wheel1_joint</right_joint>
+            <left_joint>wheel2_joint</left_joint>
+
+            <!-- kinematics -->
+            <wheel_separation>${2*s4}</wheel_separation>
+            <wheel_radius>${r}</wheel_radius>
+
+            <!-- limits -->
+            <max_linear_acceleration>10</max_linear_acceleration>
+
+            <!-- topic, frames, odometry -->
+            <topic>opponent/cmd_vel</topic>
+            <tf_topic>opponent/pose_with_slip</tf_topic>
+            <odom_topic>opponent/odometry_with_slip</odom_topic>
+            <odom_publisher_frequency>30</odom_publisher_frequency>
+            <frame_id>opponent/odom</frame_id>
+            <child_frame_id>base_footprint</child_frame_id>
+            
+        </plugin>
+
+        <!-- joint state publisher -->
+        <plugin filename="gz-sim-joint-state-publisher-system"
+          name="gz::sim::systems::JointStatePublisher">
+            <topic>opponent/joint_states</topic>
+            <joint_name>wheel1_joint</joint_name>
+            <joint_name>wheel2_joint</joint_name>
+        </plugin>
+
+        <plugin filename="gz-sim-odometry-publisher-system"
+        name="gz::sim::systems::OdometryPublisher">
+            <odom_frame>map</odom_frame>
+            <robot_base_frame>base_footprint</robot_base_frame>
+            <odom_publish_frequency>30</odom_publish_frequency>
+            <odom_topic>opponent/odometry_ground_truth</odom_topic>
+            <odom_covariance_topic>opponent/odometry_ground_truth_with_covariance</odom_covariance_topic>
+            <tf_topic>opponent/pose_ground_truth</tf_topic>
+            <dimensions>2</dimensions>
+        </plugin>
+
+
+    </gazebo>
+</robot>

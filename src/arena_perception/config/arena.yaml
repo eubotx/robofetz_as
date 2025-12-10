@@ -1,0 +1,41 @@
+# simple_arena_calibration.yaml
+arena_apriltag:
+  id: 2
+  family: "tagStandard41h12"
+  size: 0.0833
+  role: "arena_origin_finder"
+  # Position of this tag in the arena coordinate system
+  position_in_arena:
+    x: 1.275    # World origin x (typically at one edge or corner)
+    y: 0.375    # World origin y  
+    z: 0.0    # World origin z (typically ground level)
+  # Orientation of this tag relative to arena coordinate system
+  orientation_in_arena:
+    roll: 0.0    # Rotation around X axis (radians)
+    pitch: 0.0   # Rotation around Y axis (radians)
+    yaw: 0.0     # Rotation around Z axis (radians)
+  
+# Arena dimensions and geometry
+arena_geometry:
+  # Physical dimensions of the arena (in meters)
+  dimensions:
+    width: 1.5    # X direction
+    height: 1.5   # Y direction  
+    depth: 0.0    # Z direction
+  
+  # Optional: Arena boundaries relative to origin
+  boundaries:
+    x_min: -0.5
+    x_max: 2.0
+    y_min: -0.5
+    y_max: 2.0
+    z_min: 0.0
+    z_max: 1.0
+    
+# Frame names for TF
+frames:
+  map: "map"
+  world: "world"
+  camera: "arena_camera"
+  camera_optical: "arena_camera_optical"
+  tag: "arena_apriltag"
