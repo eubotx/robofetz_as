@@ -2,7 +2,7 @@
 arena_apriltag:
   id: 2
   family: "tagStandard41h12"
-  size: 0.15
+  size: 0.0833
   role: "arena_origin_finder"
   # Position of this tag in the arena coordinate system
   position_in_arena:
@@ -37,4 +37,5 @@ frames:
   map: "map"
   world: "world"
   camera: "arena_camera"
+  camera_optical: "arena_camera_optical"
   tag: "arena_apriltag"

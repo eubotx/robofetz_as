@@ -41,7 +41,7 @@ class ArenaCalibrationService(Node):
         # TF broadcaster for continuous publishing
         self.tf_broadcaster = TransformBroadcaster(self)
         
-        # STATIC TF broadcaster for world->tag transform
+        # STATIC TF broadcaster
         self.static_tf_broadcaster = StaticTransformBroadcaster(self)
         
         # Subscribers
@@ -54,8 +54,8 @@ class ArenaCalibrationService(Node):
         # State
         self.latest_frame = None
         self.camera_info = None
-        self.camera_from_world = None
-        self.initial_calibration_complete = False  # Track if we've calibrated at least once
+        self.transform_camera_optical_to_tag = None
+        self.initial_calibration_complete = False
         self.april_detector = None
         
         # Timer for continuous TF publishing at 1Hz (only active after initial calibration)
@@ -64,12 +64,11 @@ class ArenaCalibrationService(Node):
         # Initial calibration retry timer - keeps trying until success
         self.initial_calibration_timer = self.create_timer(1.0, self.perform_initial_calibration)
         
-        # Publish static transform IMMEDIATELY on startup (from config)
-        self.publish_static_tag_transform()
+        # Publish static transforms IMMEDIATELY on startup
+        self.publish_static_tag_transform()  # world -> tag
+        self.publish_world_to_map_transform()  # world -> map
+        self.publish_camera_to_optical_transform()  # arena_camera -> arena_camera_optical
         
-        # Publish static identity transform: map -> world (identical frames)
-        self.publish_world_to_map_transform()
-    
     def load_config(self, config_path):
         """Load YAML configuration file"""
         if not os.path.exists(config_path):
@@ -107,43 +106,29 @@ class ArenaCalibrationService(Node):
             orient_config.get('yaw', 0.0)
         ])
         
-        # Arena geometry
-        arena_geom = self.config.get('arena_geometry', {})
-        dims = arena_geom.get('dimensions', {})
-        self.arena_dimensions = np.array([
-            dims.get('width', 1.5),
-            dims.get('height', 1.5),
-            dims.get('depth', 0.0)
-        ])
-        
-        boundaries = arena_geom.get('boundaries', {})
-        self.arena_boundaries = {
-            'x_min': boundaries.get('x_min', -0.5),
-            'x_max': boundaries.get('x_max', 2.0),
-            'y_min': boundaries.get('y_min', -0.5),
-            'y_max': boundaries.get('y_max', 2.0),
-            'z_min': boundaries.get('z_min', 0.0),
-            'z_max': boundaries.get('z_max', 1.0)
-        }
-        
-        # Frame names - also read map frame if present
+        # Frame names
         frames = self.config.get('frames', {})
-        self.map_frame = frames.get('map', 'map')  # Default to 'map'
-        self.world_frame = frames.get('world', 'world')
-        self.camera_frame = frames.get('camera', 'arena_camera')
-        self.tag_frame = frames.get('tag', 'arena_apriltag')
+        self.frame_map = frames.get('map', 'map')
+        self.frame_world = frames.get('world', 'world')
+        self.frame_camera = frames.get('camera', 'arena_camera')  # ROS standard frame
+        self.frame_camera_optical = frames.get('camera_optical', 'arena_camera_optical')  # OpenCV optical frame
+        self.frame_tag = frames.get('tag', 'arena_apriltag')
         
         # Log configuration
         self.get_logger().info(f"Arena tag ID: {self.arena_tag_id}, Family: {self.arena_tag_family}, Size: {self.arena_tag_size}")
-        self.get_logger().info(f"Arena dimensions: {self.arena_dimensions[0]:.2f} x {self.arena_dimensions[1]:.2f} m")
-        self.get_logger().info(f"TF frames: map='{self.map_frame}', world='{self.world_frame}', camera='{self.camera_frame}', tag='{self.tag_frame}'")
+        self.get_logger().info(f"=== FRAME DEFINITIONS ===")
+        self.get_logger().info(f"  {self.frame_camera}: ROS standard frame (X forward, Y left, Z up)")
+        self.get_logger().info(f"  {self.frame_camera_optical}: OpenCV optical frame (X right, Y down, Z forward)")
+        self.get_logger().info(f"  {self.frame_tag}: Tag frame (X right, Y down, Z out of tag)")
+        self.get_logger().info(f"  {self.frame_world}: World frame")
+        self.get_logger().info(f"  {self.frame_map}: Map frame")
         
     def publish_world_to_map_transform(self):
-        """Publish STATIC identity transform from world to map (world is root)"""
+        """Publish STATIC identity transform from world to map"""
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = self.world_frame  # CHANGED: world is parent (root)
-        t.child_frame_id = self.map_frame     # CHANGED: map is child
+        t.header.frame_id = self.frame_world
+        t.child_frame_id = self.frame_map
         
         # Identity transform (same position/orientation)
         t.transform.translation.x = 0.0
@@ -154,9 +139,37 @@ class ArenaCalibrationService(Node):
         t.transform.rotation.z = 0.0
         t.transform.rotation.w = 1.0
         
-        # Send once - this is a static transform
         self.static_tf_broadcaster.sendTransform(t)
-        self.get_logger().info(f"Published STATIC transform: {self.world_frame} -> {self.map_frame} (identity)")
+        self.get_logger().info(f"Published STATIC: {self.frame_world} -> {self.frame_map} (identity)")
+        
+    def publish_camera_to_optical_transform(self):
+        """Publish STATIC transform from ROS camera frame to OpenCV optical frame (REP-103)"""
+        # IMPORTANT: AprilTag library works in OpenCV optical frame
+        # ROS uses standard frame, so we need this transform
+        
+        t = TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = self.frame_camera  # Parent: ROS standard frame
+        t.child_frame_id = self.frame_camera_optical  # Child: OpenCV optical frame
+        
+        # No translation (same origin)
+        t.transform.translation.x = 0.0
+        t.transform.translation.y = 0.0
+        t.transform.translation.z = 0.0
+        
+        # Convert ROS standard (X forward, Y left, Z up) 
+        # to OpenCV optical (X right, Y down, Z forward)
+        # This is a -90° rotation around X axis
+        rotation_ros_to_opencv = Rotation.from_euler('x', -np.pi/2)  # -90 degrees around X
+        quat = rotation_ros_to_opencv.as_quat()
+        
+        t.transform.rotation.x = float(quat[0])
+        t.transform.rotation.y = float(quat[1])
+        t.transform.rotation.z = float(quat[2])
+        t.transform.rotation.w = float(quat[3])
+        
+        self.static_tf_broadcaster.sendTransform(t)
+        self.get_logger().info(f"Published STATIC: {self.frame_camera} -> {self.frame_camera_optical} (ROS to OpenCV)")
         
     def camera_info_callback(self, msg):
         """Receive camera calibration from camera_info topic"""
@@ -224,7 +237,7 @@ class ArenaCalibrationService(Node):
         return response
     
     def detect_arena_tag(self):
-        """Detect arena tag and store cameraFromWorld transform"""
+        """Detect arena tag and store the transform from camera optical to tag"""
         gray = cv2.cvtColor(self.latest_frame, cv2.COLOR_BGR2GRAY)
         april_tag_output = self.april_detector.detect(gray, self.arena_tag_size)
         
@@ -232,31 +245,33 @@ class ArenaCalibrationService(Node):
             if (detection.tag_family.decode() == self.arena_tag_family and
                 detection.tag_id == self.arena_tag_id):
                 
-                # Store the raw tag detection pose (camera_from_tag)
-                camera_from_tag = MathPose(detection.pose_R, detection.pose_t)
+                # CRITICAL: AprilTag library gives us pose in OpenCV optical frame
+                # The pose_R and pose_t represent: tag_optical = camera_optical_from_tag
+                # Where camera_optical_from_tag means transform FROM tag TO camera optical frame
                 
-                # Calculate tag_from_arena transform based on tag's position/orientation in arena
-                tag_rotation = Rotation.from_euler('xyz', self.tag_orientation_in_arena)
-                tag_from_arena_R = tag_rotation.as_matrix()
-                tag_from_arena_t = self.tag_position_in_arena
+                # Get the raw AprilTag output
+                camera_optical_from_tag_R = np.array(detection.pose_R)  # R: tag->camera_optical
+                camera_optical_from_tag_t = np.array(detection.pose_t).reshape(3, 1)  # t: tag->camera_optical
                 
-                # Convert to numpy arrays for easier manipulation
-                camera_from_tag_R = np.array(camera_from_tag.R)
-                camera_from_tag_t = np.array(camera_from_tag.t).reshape(3, 1)
-                tag_from_arena_R = np.array(tag_from_arena_R)
-                tag_from_arena_t = np.array(tag_from_arena_t).reshape(3, 1)
+                # For TF, we need the transform FROM camera_optical TO tag
+                # So we invert the AprilTag transform
+                tag_from_camera_optical_R = camera_optical_from_tag_R.T  # Inverse rotation
+                tag_from_camera_optical_t = -tag_from_camera_optical_R @ camera_optical_from_tag_t  # Inverse translation
                 
-                # Compute camera_from_world = camera_from_tag * tag_from_arena
-                camera_from_arena_R = camera_from_tag_R @ tag_from_arena_R
-                camera_from_arena_t = camera_from_tag_R @ tag_from_arena_t + camera_from_tag_t
+                # Store the transform FROM camera_optical TO tag
+                self.transform_camera_optical_to_tag = MathPose(
+                    tag_from_camera_optical_R, 
+                    tag_from_camera_optical_t.flatten()
+                )
                 
-                # Store the result
-                self.camera_from_world = MathPose(camera_from_arena_R, camera_from_arena_t.flatten())
+                self.get_logger().info("=== AprilTag Detection Results ===")
+                self.get_logger().info(f"Raw AprilTag output (camera_optical_from_tag):")
+                self.get_logger().info(f"  Rotation R (tag->camera_optical): shape {camera_optical_from_tag_R.shape}")
+                self.get_logger().info(f"  Translation t (tag position in camera_optical): [{camera_optical_from_tag_t[0][0]:.3f}, {camera_optical_from_tag_t[1][0]:.3f}, {camera_optical_from_tag_t[2][0]:.3f}] m")
                 
-                self.get_logger().info("Arena tag detected - calibration complete")
-                
-                # Optionally publish tag pose in camera frame for debugging
-                self.publish_tag_transform(camera_from_tag)
+                self.get_logger().info(f"Computed for TF (tag_from_camera_optical):")
+                self.get_logger().info(f"  Camera position in tag frame: [{tag_from_camera_optical_t[0][0]:.3f}, {tag_from_camera_optical_t[1][0]:.3f}, {tag_from_camera_optical_t[2][0]:.3f}] m")
+                self.get_logger().info(f"  Distance: {np.linalg.norm(camera_optical_from_tag_t):.3f} m")
                 
                 return True
         
@@ -267,8 +282,8 @@ class ArenaCalibrationService(Node):
         """Publish STATIC transform from world to tag based on configuration"""
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = self.world_frame
-        t.child_frame_id = self.tag_frame
+        t.header.frame_id = self.frame_world
+        t.child_frame_id = self.frame_tag
         
         # Use the configured tag position in arena
         t.transform.translation.x = float(self.tag_position_in_arena[0])
@@ -283,64 +298,28 @@ class ArenaCalibrationService(Node):
         t.transform.rotation.z = float(quat[2])
         t.transform.rotation.w = float(quat[3])
         
-        # Send once - this is a static transform
         self.static_tf_broadcaster.sendTransform(t)
-        self.get_logger().info(f"Published STATIC transform: {self.world_frame} -> {self.tag_frame}")
-        self.get_logger().info(f"Tag position in world: [{t.transform.translation.x:.3f}, "
-                              f"{t.transform.translation.y:.3f}, {t.transform.translation.z:.3f}]")
-    
-    def publish_tag_transform(self, camera_from_tag):
-        """Publish DYNAMIC tag transform in camera frame (based on actual detection)"""
-        t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = self.camera_frame
-        t.child_frame_id = self.tag_frame
-        
-        # Translation from actual detection
-        t.transform.translation.x = float(camera_from_tag.t[0])
-        t.transform.translation.y = float(camera_from_tag.t[1])
-        t.transform.translation.z = float(camera_from_tag.t[2])
-        
-        # Rotation matrix to quaternion conversion
-        rotation = Rotation.from_matrix(camera_from_tag.R)
-        quat = rotation.as_quat()
-        t.transform.rotation.x = float(quat[0])
-        t.transform.rotation.y = float(quat[1])
-        t.transform.rotation.z = float(quat[2])
-        t.transform.rotation.w = float(quat[3])
-        
-        self.tf_broadcaster.sendTransform(t)
-        self.get_logger().debug(f"Published DYNAMIC tag transform: {self.camera_frame} -> {self.tag_frame}")
-        
-        # Log detection info
-        self.log_calibration_accuracy(camera_from_tag)
-    
-    def log_calibration_accuracy(self, camera_from_tag):
-        """Log how well the detected tag matches the expected position"""
-        # Convert to Python floats before formatting
-        x = float(camera_from_tag.t[0])
-        y = float(camera_from_tag.t[1])
-        z = float(camera_from_tag.t[2])
-        
-        self.get_logger().info(f"Detected tag at camera-relative position: [{x:.3f}, {y:.3f}, {z:.3f}] m")
+        self.get_logger().info(f"Published STATIC: {self.frame_world} -> {self.frame_tag}")
+        self.get_logger().info(f"Tag position in world: [{t.transform.translation.x:.3f}, {t.transform.translation.y:.3f}, {t.transform.translation.z:.3f}]")
     
     def publish_transform(self):
-        """Continuously publish transform at 1Hz ONLY after initial calibration"""
-        if not self.initial_calibration_complete or self.camera_from_world is None:
-            return  # Don't publish until we have initial calibration
+        """Continuously publish dynamic transform from camera_optical to tag"""
+        if not self.initial_calibration_complete or self.transform_camera_optical_to_tag is None:
+            return
             
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = self.world_frame
-        t.child_frame_id = self.camera_frame
+        t.header.frame_id = self.frame_camera_optical  # OpenCV optical frame
+        t.child_frame_id = self.frame_tag              # Tag frame
         
-        # Translation - convert to float first
-        t.transform.translation.x = float(self.camera_from_world.t[0])
-        t.transform.translation.y = float(self.camera_from_world.t[1])
-        t.transform.translation.z = float(self.camera_from_world.t[2])
+        # Use the transform FROM camera_optical TO tag
+        transform = self.transform_camera_optical_to_tag
+        t.transform.translation.x = float(transform.t[0])
+        t.transform.translation.y = float(transform.t[1])
+        t.transform.translation.z = float(transform.t[2])
         
-        # Rotation matrix to quaternion conversion
-        rotation = Rotation.from_matrix(self.camera_from_world.R)
+        # Rotation matrix to quaternion
+        rotation = Rotation.from_matrix(transform.R)
         quat = rotation.as_quat()
         t.transform.rotation.x = float(quat[0])
         t.transform.rotation.y = float(quat[1])
@@ -348,7 +327,7 @@ class ArenaCalibrationService(Node):
         t.transform.rotation.w = float(quat[3])
         
         self.tf_broadcaster.sendTransform(t)
-        self.get_logger().debug(f"Published camera transform to TF: {self.world_frame} -> {self.camera_frame}", 
+        self.get_logger().debug(f"Published DYNAMIC: {self.frame_camera_optical} -> {self.frame_tag}", 
                                throttle_duration_sec=10.0)
 
 
