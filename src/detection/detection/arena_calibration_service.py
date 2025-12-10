@@ -68,7 +68,6 @@ class ArenaCalibrationService(Node):
         # Publish static transforms IMMEDIATELY on startup
         self.publish_static_tag_transform()  # world -> tag (where tag IS in world)
         self.publish_world_to_map_transform()  # world -> map
-        self.publish_camera_to_optical_transform()  # arena_camera -> arena_camera_optical
         
     def load_config(self, config_path):
         """Load YAML configuration file"""
@@ -111,7 +110,6 @@ class ArenaCalibrationService(Node):
         frames = self.config.get('frames', {})
         self.frame_map = frames.get('map', 'map')
         self.frame_world = frames.get('world', 'world')
-        self.frame_camera = frames.get('camera', 'arena_camera')
         self.frame_camera_optical = frames.get('camera_optical', 'arena_camera_optical')
         self.frame_tag = frames.get('tag', 'arena_apriltag')
         
@@ -138,30 +136,6 @@ class ArenaCalibrationService(Node):
         self.static_tf_broadcaster.sendTransform(t)
         self.get_logger().info(f"Published STATIC: {self.frame_world} -> {self.frame_map}")
         
-    def publish_camera_to_optical_transform(self):
-        """Publish STATIC transform from ROS camera frame to OpenCV optical frame"""
-        t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = self.frame_camera
-        t.child_frame_id = self.frame_camera_optical
-        
-        # No translation (same origin)
-        t.transform.translation.x = 0.0
-        t.transform.translation.y = 0.0
-        t.transform.translation.z = 0.0
-        
-        # URDF: camera_link -> camera_link_optical: rpy="-pi/2 0 -pi/2"
-        # This is roll=-90°, pitch=0°, yaw=-90°
-        rotation_ros_to_opencv = Rotation.from_euler('xyz', [-np.pi/2, 0, -np.pi/2])
-        quat = rotation_ros_to_opencv.as_quat()
-        
-        t.transform.rotation.x = float(quat[0])
-        t.transform.rotation.y = float(quat[1])
-        t.transform.rotation.z = float(quat[2])
-        t.transform.rotation.w = float(quat[3])
-        
-        self.static_tf_broadcaster.sendTransform(t)
-        self.get_logger().info(f"Published STATIC: {self.frame_camera} -> {self.frame_camera_optical}")
 
     def publish_static_tag_transform(self):
         """Publish STATIC transform from world to tag based on configuration"""
