@@ -195,7 +195,7 @@ After the initial setup, code change or if you pull updates from the repository,
 3. **Launch the simulation in Gazebo**:
 
    ```bash
-   ros2 launch robofetz_gazebo gazebo_model.launch.py
+   ros2 launch robofetz_gazebo  gazebo_bot_with_opponent.launch.py world:=robofetz_arena_pinhole.world
    ```
 
 4. **Open another terminal tab** and launch the teleoperation control (same as for the real robot):

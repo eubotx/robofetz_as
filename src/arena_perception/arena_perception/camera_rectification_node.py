@@ -16,6 +16,7 @@ class CameraRectificationNode(Node):
         self.map2 = None
         self.needs_rectification = False
         self.initialized = False  # Track if we've made the decision
+        self._warned_for_camera_info = False  # Track if we've already warned
         
         # Use relative topics
         self.camera_info_sub = self.create_subscription(
@@ -110,7 +111,10 @@ class CameraRectificationNode(Node):
 
     def image_callback(self, msg):
         if not self.initialized:
-            self.get_logger().warn_once("Waiting for camera info...")
+            # Only warn once about waiting for camera info
+            if not self._warned_for_camera_info:
+                self.get_logger().warn("Waiting for camera info...")
+                self._warned_for_camera_info = True
             return
             
         try:
