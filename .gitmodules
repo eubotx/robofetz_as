@@ -4,16 +4,10 @@
 [submodule "src/micro_ros_msgs"]
 	path = src/micro_ros_msgs
 	url = https://github.com/micro-ROS/micro_ros_msgs.git
-[submodule "src/arena_perception/calibration/fisheye-camera-undistortion"]
-	path = src/arena_perception/calibration/fisheye-camera-undistortion
-	url = https://github.com/eubotx/fisheye-camera-undistortion.git
 [submodule "src/slider_publisher"]
 	path = src/slider_publisher
 	url = https://github.com/oKermorgant/slider_publisher.git
 	branch = ros2
-[submodule "src/arena_perception/scripts/fisheye-camera-undistortion"]
-	path = src/arena_perception/scripts/fisheye-camera-undistortion
-	url = https://github.com/eubotx/fisheye-camera-undistortion.git
 [submodule "src/utils/apriltags/apriltag-imgs"]
 	path = src/utils/apriltags/apriltag-imgs
 	url = https://github.com/AprilRobotics/apriltag-imgs.git
