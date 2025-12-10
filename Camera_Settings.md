@@ -1,12 +1,12 @@
 # Method 1: Default (video0) - just run
-ros2 launch detection camera.launch.py
+ros2 launch arena_perception camera.launch.py
 
 # Method 2: Environment variable (set once, works forever)
 export ARENA_CAMERA_CONFIG=laptop_camera_params.yaml
-ros2 launch detection camera.launch.py
+ros2 launch arena_perception camera.launch.py
 
 # Method 3: Command line (overrides method 1 & 2)
-ros2 launch detection camera.launch.py video_device:=/dev/video2
+ros2 launch arena_perception camera.launch.py video_device:=/dev/video2
 
 
 
@@ -201,17 +201,17 @@ v4l2-ctl --device=/dev/arena_camera --list-formats
 
 ### Default (Arena Camera)
 ```bash
-ros2 launch detection arena_camera.launch.py
+ros2 launch arena_perception arena_camera.launch.py
 ```
 
 ### Custom Config
 ```bash
-ros2 launch detection arena_camera.launch.py config_file:=laptop_camera_params.yaml
+ros2 launch arena_perception arena_camera.launch.py config_file:=laptop_camera_params.yaml
 ```
 
 ### Override Device
 ```bash
-ros2 launch detection arena_camera.launch.py video_device:=/dev/video2
+ros2 launch arena_perception arena_camera.launch.py video_device:=/dev/video2
 ```
 
 ## File Structure

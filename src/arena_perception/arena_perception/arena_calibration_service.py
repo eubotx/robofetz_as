@@ -7,8 +7,8 @@ from cv_bridge import CvBridge
 import cv2
 import numpy as np
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
-from detection.detector import AprilTagDetector
-from detection.math_funcs import Pose as MathPose
+from arena_perception.detector import AprilTagDetector
+from arena_perception.math_funcs import Pose as MathPose
 from scipy.spatial.transform import Rotation
 import yaml
 import os

@@ -17,7 +17,7 @@ def generate_launch_description():
     
     # Build config path using PathJoinSubstitution (CORRECT WAY)
     config_path = PathJoinSubstitution([
-        FindPackageShare('detection'),
+        FindPackageShare('arena_perception'),
         'config',
         LaunchConfiguration('config_file')
     ])

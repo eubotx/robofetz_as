@@ -34,7 +34,7 @@ def generate_launch_description():
                 "height": 480,
                 "role": "video",
                 "frame_id": "arena_camera_frame",
-                "camera_info_url": "package://detection/config/t490s_camera.yaml"
+                "camera_info_url": "package://arena_perception/config/t490s_camera.yaml"
             }]
         )
     ])

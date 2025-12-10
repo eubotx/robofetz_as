@@ -11,7 +11,7 @@
     
     # Camera info
     frame_id: "arena_camera_frame"
-    camera_info_url: "package://detection/config/t490s_camera.yaml"
+    camera_info_url: "package://arena_perception/config/t490s_camera.yaml"
     
     # Note: 'fps' parameter doesn't exist in static config
     # FPS is determined by the 'role' and camera capabilities

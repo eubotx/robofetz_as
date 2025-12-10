@@ -7,8 +7,8 @@ import cv2
 import numpy as np
 from tf2_ros import Buffer, TransformListener, TransformBroadcaster
 from scipy.spatial.transform import Rotation
-from detection.detector import AprilTagDetector
-from detection.math_funcs import Pose as MathPose
+from arena_perception.detector import AprilTagDetector
+from arena_perception.math_funcs import Pose as MathPose
 
 class BotDetectionNode(Node):
     def __init__(self):

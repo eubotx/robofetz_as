@@ -5,8 +5,8 @@ from geometry_msgs.msg import PoseStamped, Pose
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
-from detection.detector import OpponentDetector
-from detection.math_funcs import Pose as MathPose
+from arena_perception.detector import OpponentDetector
+from arena_perception.math_funcs import Pose as MathPose
 
 class OpponentDetectionNode(Node):
     def __init__(self):

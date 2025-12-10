@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = 'detection'
+package_name = 'arena_perception'
 
 setup(
     name=package_name,
@@ -33,16 +33,15 @@ setup(
     zip_safe=True,
     maintainer='eubotx',
     maintainer_email='eubotx@mailbox.org',
-    description='Detect robot and opponent robot',
+    description='Position camera, detect friendly robot and opponent robot with external arena camera.',
     license='GNU GPL',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'main_lean = detection.main_lean:main',
-            'camera_rectification_node = detection.camera_rectification_node:main',
-            'arena_calibration_service = detection.arena_calibration_service:main',
-            'robot_detection_node = detection.robot_detection:main',
-            'opponent_detection_node = detection.opponent_detection:main'
+            'camera_rectification_node = arena_perception.camera_rectification_node:main',
+            'arena_calibration_service = arena_perception.arena_calibration_service:main',
+            'robot_detection_node = arena_perception.robot_detection:main',
+            'opponent_detection_node = arena_perception.opponent_detection:main'
         ],
     },
 )

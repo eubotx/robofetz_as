@@ -1,6 +1,6 @@
 # ROBOFETZ_AS - Autonomous Battle Bot System Based on ROS2 Jazzy
 
-Welcome to **FETZ_AS**, an autonomous system designed for a battle bot competition built on **ROS2 Jazzy**. This project aims to control a robot for competitive scenarios, utilizing ROS2, a flexible robotics middleware.
+Welcome to **ROBOFETZ_AS**, an autonomous system designed for a battle bot competition built on **ROS2 Jazzy**. This project aims to control a robot for competitive scenarios, utilizing ROS2, a flexible robotics middleware.
 
 ### Prerequisites
 To run this repository, you'll need a system running **Ubuntu 24.04 LTS** as either a native installation or via **WSL2** (Windows Subsystem for Linux). Note that when running on WSL2, some hardware-related functionalities (such as interfacing with the ESP32, gamepads, or cameras) may be limited.
@@ -24,7 +24,7 @@ To run this repository, you'll need a system running **Ubuntu 24.04 LTS** as eit
 Start by cloning this repository to your local machine:
 
 ```bash
-git clone https://github.com/eubotx/fetz_as.git
+git clone https://github.com/eubotx/robofetz_as.git
 cd robofetz_as
 git submodule update --init --recursive
 ```
@@ -246,6 +246,31 @@ Here are some helpful ROS 2 commands for interacting with the robot and troubles
   rqt
   ```
 
+- Launch `rqt image viewer` to view image streams:
+
+  ```bash
+  ros2 run rqt_image_view rqt_image_view
+  ```
+
+- Launch `rviz2` to do various things
+
+  ```bash
+  rviz2
+  ```
+
+- Building selective packages with symlink so you can make changes  without recompiling
+
+  ```bash
+  colcon build --packages-select your_package --symlink-install
+  ```
+
+- Cleaning compiled files
+
+  ```bash
+  rm -rf build install log
+  ```
+
+  
 ---
 
 ## Notes
@@ -260,44 +285,3 @@ Here are some helpful ROS 2 commands for interacting with the robot and troubles
 - If you encounter any issues, refer to the [ROS 2 documentation](https://docs.ros.org/en/jazzy/) or explore relevant troubleshooting guides.
 
 ---
-
-We hope you enjoy building and controlling your autonomous battle bot with **FETZ_AS**! 🚗🤖
-```
-
-### What changed:
-- The **sourcing** step (`source install/local_setup.bash`) is now included **once** at the beginning of each section where terminal tabs are mentioned (i.e., before launching any node). This avoids repeating it before every single command while ensuring it’s still clear when it needs to be done.
-
-Now, sourcing is mentioned only once per terminal tab section, making it a bit more concise and clean. Let me know if this looks better!
-
-## Pip Magic no idea if reproducable worst case we take my desktop PC
-What I did
-python3 -m venv src/detection/detection/venv
-source src/detection/detection/venv/bin/activate
-pip install numpy - optional
-pip install pyapriltags - optional
-pip install src/detection/.
-source install/setup.bash
-deactivate
-
-
-source install/setup.bash
-colcon build --packages-select detection --symlink-install
-source install/setup.bash
-
-ros2 run detection main_lean
-
-
-## Other useful stuff:
-src/detection/requirements.txt
-
-
-rm -rf build install log
-
-colcon build --packages-select detection --symlink-install
-
-python3 -m venv venv
-source src/detection/detection/venv/bin/activate
-
-pip install src/detection/.
-
-ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 1 map odom
