@@ -31,6 +31,10 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'keyboard_node = utils.keyboard_node:main',
+            'create_map = utils.create_map:main',
+            'map_node = utils.map_node:main'
+
         ],
     },
 )
