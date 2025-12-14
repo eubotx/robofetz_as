@@ -11,12 +11,21 @@ def generate_launch_description():
     robofetz_gazebo_dir = get_package_share_directory('robofetz_gazebo')
     robot_navigation_dir = get_package_share_directory('robot_navigation')
     
-    # Static transform for map to odom
+    # Static transform for map to odom (Main Robot)
     static_map_tf = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='static_map_tf_publisher',
         arguments=['0', '0', '0', '0', '0', '0', 'map', 'odom'],
+        output='screen'
+    )
+
+    # Static transform for map to opponent/odom (Opponent Robot)
+    static_opponent_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='static_opponent_tf_publisher',
+        arguments=['0', '0', '0', '0', '0', '0', 'map', 'opponent/odom'],
         output='screen'
     )
 
