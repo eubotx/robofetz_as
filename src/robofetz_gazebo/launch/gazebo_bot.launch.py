@@ -103,7 +103,7 @@ def generate_launch_description():
         executable='tf_to_pose',
         name='tf_to_pose_robot',
         parameters=[{
-            'tf_topic': '/sim/pose_tf',
+            'tf_topic': '/pose_tf_sim',
             'pose_topic': '/camera/pose'
         }]
     )
