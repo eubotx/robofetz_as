@@ -31,7 +31,7 @@ def generate_launch_description():
         )
     )
 
-    # Combat strategizer node
+    # Combat strategizer node behaviour for main robot 
     combat_strategizer = Node(
         package='combat_strategizer',
         executable='simple_attack',
@@ -48,7 +48,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Navigation node
+    # Navigation node - We will replace this with the nav2 planner
     simple_navigator = Node(
         package='robot_navigation',
         executable='simple_navigator',
