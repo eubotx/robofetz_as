@@ -47,12 +47,19 @@ def generate_launch_description():
     # Robot (Main)
     robot_name = 'robot'
     robot_xacro = os.path.join(pkg_share, 'models/simple_diff_drive_robot/simple_diff_drive_robot.xacro')
-    robot_description = xacro.process_file(robot_xacro).toxml()
+    robot_description = xacro.process_file(
+        robot_xacro, 
+        mappings={'prefix': f'{robot_name}/'}
+    ).toxml()
+
 
     # Opponent Robot
     opponent_name = 'opponent'
     opponent_xacro = os.path.join(pkg_share, 'models/simple_diff_drive_opponent/simple_diff_drive_opponent.xacro')
-    opponent_description = xacro.process_file(opponent_xacro).toxml()
+    opponent_description = xacro.process_file(
+        opponent_xacro, 
+        mappings={'prefix': f'{opponent_name}/'}
+    ).toxml()
     
     # Use ExecuteProcess for Gazebo with explicit environment
     gazebo_process = ExecuteProcess(
@@ -75,7 +82,7 @@ def generate_launch_description():
         parameters=[{
             'robot_description': robot_description,
             'use_sim_time': True,
-            'frame_prefix': f'{robot_name}/'
+            # 'frame_prefix': f'{robot_name}/'
         }]
     )
 
@@ -88,7 +95,7 @@ def generate_launch_description():
         parameters=[{
             'robot_description': opponent_description,
             'use_sim_time': True,
-            'frame_prefix': f'{opponent_name}/'
+            # 'frame_prefix': f'{opponent_name}/'
         }]
     )
     
@@ -148,7 +155,7 @@ def generate_launch_description():
         name='tf_to_pose_opponent',
         parameters=[{
             'tf_topic': f'/{opponent_name}/pose_tf_sim',
-            'pose_topic': 'opponent/pose_sim'
+            'pose_topic': 'opponent/pose_sim',
         }]
     )
 
