@@ -28,7 +28,7 @@
 
 # gz topic published by Odom plugin
 - ros_topic_name: "tf"
-  gz_topic_name: "pose_ground_truth"
+  gz_topic_name: "pose_with_slip"
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"
   direction: GZ_TO_ROS
