@@ -40,11 +40,22 @@ def generate_launch_description():
         )
     )
 
+    # Navigation node - Nav2 Stack
+    nav2_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(robot_navigation_dir, 'launch', 'nav2.launch.py')
+        ),
+        launch_arguments={
+            'use_sim_time': 'True',
+            'params_file': os.path.join(robot_navigation_dir, 'config', 'nav2_params.yaml')
+        }.items()
+    )
+
     # Combat strategizer node behaviour for main robot 
     combat_strategizer = Node(
         package='combat_strategizer',
-        executable='simple_attack',
-        name='simple_attack',
+        executable='nav2_attack',
+        name='nav2_attack',
         output='screen',
         parameters=[{'log_level': 'warn'}]
     )
@@ -57,21 +68,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Navigation node - We will replace this with the nav2 planner
-    simple_navigator = Node(
-        package='robot_navigation',
-        executable='simple_navigator',
-        name='simple_navigator',
-        output='screen',
-        parameters=[
-            os.path.join(
-                robot_navigation_dir,
-                'config',
-                'params.yaml'
-            ),
-            {'log_level': 'warn'}
-        ]
-    )
+
 
     # RViz2 node
     rviz2 = Node(
@@ -105,7 +102,7 @@ def generate_launch_description():
         gazebo_sim,
         combat_strategizer,
         weapon_control,
-        simple_navigator,
+        nav2_launch,
         rviz2,
         teleop_opponent
     ])

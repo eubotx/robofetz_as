@@ -1,4 +1,4 @@
-from setuptools import find_packages, setup
+from setuptools import setup
 import os
 from glob import glob
 
@@ -12,11 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-
-        (os.path.join('share', package_name, 'launch'), 
-         glob('launch/*.launch.py')),
-
-        
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -27,7 +23,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'simple_attack = combat_strategizer.simple_attack:main',
+            'nav2_attack = combat_strategizer.nav2_attack:main',
             'weapon_control = combat_strategizer.weapon_control:main',
         ],
     },
