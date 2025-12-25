@@ -1,38 +1,37 @@
-# This script creates a simple map for the simulation environment
-
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import os
+import subprocess
+import sys
+from scipy.ndimage import gaussian_filter
+from PIL import Image
 
-def create_map(corner_data):
+def create_base_map(map_size=256):
     """
-    Create a 256x256 pixel map representing a 1.5x1.5m area.
-    
-    Args:
-        corner_data (list): List of tuples (corner_type, radius)
-    
-    Returns:
-        np.ndarray: 256x256 normalized map array
+    Create a white map (free space).
+    255 = Free space
+    0 = Occupied
     """
-    # Map dimensions
-    map_size = 256  # pixels
-    real_size = 1.5  # meters
-    pixels_per_meter = map_size / real_size
-    
-    # Initialize map with 0.5 values
-    map_array = np.full((map_size, map_size), 0.5, dtype=np.float32)
-    
-    # Create coordinate grids
+    # Initialize map with 255 (White/Free)
+    map_array = np.full((map_size, map_size), 255, dtype=np.uint8)
+    return map_array
+
+def add_corners(map_array, corner_data, pixels_per_meter):
+    """
+    Add black corners to the map.
+    """
+    map_size = map_array.shape[0]
     y_coords, x_coords = np.meshgrid(range(map_size), range(map_size))
     
-    # Process each corner
     for corner_type, radius in corner_data:
-        # Convert radius to pixels
         radius_pixels = int(radius * pixels_per_meter)
         
-        # Define corner coordinates based on corner type
-        if corner_type == 'TL':  # Top Left
+        if corner_type == 'TL':  # Top Left (0,0 in image coords usually top-left)
+            # Note: In numpy (row, col) -> (y, x). 
+            # If origin is bottom-left for ROS, we need to be careful.
+            # Let's assume standard image coordinates for drawing, then flip for ROS if needed.
+            # Standard Image: (0,0) is Top-Left.
             corner_x, corner_y = 0, 0
         elif corner_type == 'TR':  # Top Right
             corner_x, corner_y = map_size - 1, 0
@@ -40,50 +39,88 @@ def create_map(corner_data):
             corner_x, corner_y = 0, map_size - 1
         elif corner_type == 'BR':  # Bottom Right
             corner_x, corner_y = map_size - 1, map_size - 1
-        else:
-            raise ValueError("Corner type must be 'TL', 'TR', 'BL', or 'BR'")
-        
-        # Calculate distance from each pixel to the corner
+            
         distances = np.sqrt((x_coords - corner_x)**2 + (y_coords - corner_y)**2)
-        
-        # Create mask for pixels within the radius
         within_radius = distances <= radius_pixels
         
-        # For pixels within radius, decrease values based on distance
-        # Values decrease from current value to 0.0 as we get closer to the corner
-        normalized_distances = distances / radius_pixels
-        normalized_distances = np.clip(normalized_distances, 0, 1)
+        # Set pixels within radius to 0 (Black/Occupied)
+        map_array[within_radius] = 0
         
-        # Apply the effect: closer to corner = lower value
-        # Use minimum to ensure multiple corners don't increase values
-        corner_effect = map_array[within_radius] * normalized_distances[within_radius]
-        map_array[within_radius] = np.minimum(map_array[within_radius], corner_effect)
-    
     return map_array
 
-def save_map(map_array, corner_data):
+def open_in_gimp(image_path):
     """
-    Save the map array to the utils/map directory.
+    Opens the image in GIMP and waits for the process to close.
+    """
+    print(f"Opening {image_path} in GIMP...")
+    try:
+        # Wait for gimp to close
+        subprocess.run(['gimp', image_path], check=True)
+        print("GIMP closed. Reloading map...")
+        return True
+    except FileNotFoundError:
+        print("Error: GIMP is not installed or not in PATH.")
+        return False
+    except Exception as e:
+        print(f"Error running GIMP: {e}")
+        return False
+
+def save_ros_map(map_array, map_dir, resolution=0.005859):
+    """
+    Save map as .pgm and .yaml for ROS 2.
+    """
+    # 1. Save PGM
+    pgm_filename = "map.pgm"
+    pgm_path = os.path.join(map_dir, pgm_filename)
     
-    Args:
-        map_array (np.ndarray): The map array to save
-        corner_data (list): List of tuples (corner_type, radius)
-    """
-    # Find the source directory by looking for the workspace structure
+    # Convert to image and save
+    # ROS map_server expects: 0 (black) = occupied, 255 (white) = free, 205 = unknown
+    # Our array is already in this format.
+    img = Image.fromarray(map_array)
+    img.save(pgm_path)
+    
+    # 1.1 Save PNG for visualization
+    png_filename = "map_view.png"
+    png_path = os.path.join(map_dir, png_filename)
+    img.save(png_path)
+
+    # 2. Save YAML
+    yaml_filename = "map.yaml"
+    yaml_path = os.path.join(map_dir, yaml_filename)
+    
+    # Calculate origin (bottom-left)
+    # Assuming the robot starts at center (0,0) of the 1.5x1.5m arena
+    # The map origin in YAML is the pose of the lower-left pixel
+    map_size_meters = 1.5
+    origin_x = -map_size_meters / 2.0
+    origin_y = -map_size_meters / 2.0
+    
+    yaml_content = f"""image: {pgm_filename}
+                    mode: trinary
+                    resolution: {resolution}
+                    origin: [{origin_x}, {origin_y}, 0.0]
+                    negate: 0
+                    occupied_thresh: 0.65
+                    free_thresh: 0.196
+                    """
+    
+    with open(yaml_path, 'w') as f:
+        f.write(yaml_content)
+        
+    print(f"Saved ROS map files to {map_dir}")
+    print(f"  - {pgm_filename}")
+    print(f"  - {yaml_filename}")
+    print(f"  - map_view.png")
+
+def get_map_dir():
+    # Logic to find the correct directory (same as before)
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # When running with ros2 run, we're in install/utils/lib/python3.x/site-packages/
-    # We need to find the src/utils/ directory instead
-    current_dir = os.getcwd()  # This should be the workspace root
-    
-    # Look for src/utils directory from current working directory
+    current_dir = os.getcwd()
     src_utils_dir = os.path.join(current_dir, 'src', 'utils')
     
     if os.path.exists(src_utils_dir):
         map_dir = os.path.join(src_utils_dir, 'map')
     else:
-        # Fallback: try to navigate from script location
-        # From install/utils/lib/python3.x/site-packages/ go back to workspace root
         workspace_root = script_dir
         while workspace_root != '/' and not os.path.exists(os.path.join(workspace_root, 'src')):
             workspace_root = os.path.dirname(workspace_root)
@@ -91,109 +128,104 @@ def save_map(map_array, corner_data):
         if os.path.exists(os.path.join(workspace_root, 'src', 'utils')):
             map_dir = os.path.join(workspace_root, 'src', 'utils', 'map')
         else:
-            # Last resort: create in current directory
             map_dir = os.path.join(os.getcwd(), 'src', 'utils', 'map')
-    
+            
     os.makedirs(map_dir, exist_ok=True)
-    
-    # Create filename from corner data
-    corner_str = "_".join([f"{corner}{radius:.1f}" for corner, radius in corner_data])
-    
-    # Save as numpy array
-    filename = f"map_robofetz.npy"
-    filepath = os.path.join(map_dir, filename)
-    np.save(filepath, map_array)
-    
-    # Also save as image for visualization
-    img_filename = f"map_robofetz.png"
-    img_filepath = os.path.join(map_dir, img_filename)
-    
-    plt.figure(figsize=(8, 8))
-    plt.imshow(map_array, cmap='gray', origin='lower', vmin=0, vmax=1)
-    plt.colorbar(label='Normalized Value')
-    
-    # Create title with all corners
-    title_parts = [f"{corner}({radius:.1f}m)" for corner, radius in corner_data]
-    title = f'Robofetz Map - Corners: {", ".join(title_parts)}'
-    plt.title(title)
-    plt.xlabel('X (pixels)')
-    plt.ylabel('Y (pixels)')
-    plt.savefig(img_filepath, dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    print(f"Map saved as: {filepath}")
-    print(f"Visualization saved as: {img_filepath}")
+    return map_dir
 
 def parse_corners(corner_args):
-    """
-    Parse corner arguments into list of (corner_type, radius) tuples.
-    
-    Args:
-        corner_args (list): List of strings in format "CORNER:RADIUS"
-    
-    Returns:
-        list: List of tuples (corner_type, radius)
-    """
+    # ...existing code...
     corner_data = []
-    
     for arg in corner_args:
         if ':' not in arg:
             raise ValueError(f"Invalid format '{arg}'. Use CORNER:RADIUS format (e.g., TL:0.5)")
-        
         corner_type, radius_str = arg.split(':')
-        
         if corner_type not in ['TL', 'TR', 'BL', 'BR']:
             raise ValueError(f"Invalid corner type '{corner_type}'. Must be TL, TR, BL, or BR")
-        
         try:
             radius = float(radius_str)
         except ValueError:
             raise ValueError(f"Invalid radius '{radius_str}'. Must be a number")
-        
         if radius <= 0 or radius > 1.5:
             raise ValueError(f"Radius {radius} must be between 0 and 1.5 meters")
-        
         corner_data.append((corner_type, radius))
-    
     return corner_data
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Create a map with corner effects',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s TL:0.5                    # Single corner: Top-left with 0.5m radius
-  %(prog)s TL:0.3 BR:0.4             # Two corners: Top-left (0.3m) and Bottom-right (0.4m)
-  %(prog)s TL:0.2 TR:0.2 BL:0.2 BR:0.2  # All four corners with 0.2m radius each
-        """
+        description='Create a ROS 2 PGM map with corners and manual editing',
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    
-    parser.add_argument('corners', nargs='+', 
+    parser.add_argument('corners', nargs='*', default=[],
                        help='Corner specifications in format CORNER:RADIUS (e.g., TL:0.5 BR:0.3)')
     
     args = parser.parse_args()
-    
-    # Parse corner arguments
     corner_data = parse_corners(args.corners)
+    
+    # Constants
+    MAP_SIZE = 256
+    REAL_SIZE = 1.5 # meters
+    PIXELS_PER_METER = MAP_SIZE / REAL_SIZE
+    RESOLUTION = REAL_SIZE / MAP_SIZE
     
     print(f"Creating map with corners: {corner_data}")
     
-    # Create the map
-    map_array = create_map(corner_data)
+    # 1. Create Base Map
+    map_array = create_base_map(MAP_SIZE)
     
-    # Save the map
-    save_map(map_array, corner_data)
+    # 2. Add Corners
+    map_array = add_corners(map_array, corner_data, PIXELS_PER_METER)
     
-    # Display statistics
-    print(f"\nMap Statistics:")
-    print(f"Size: {map_array.shape}")
-    print(f"Min value: {map_array.min():.3f}")
-    print(f"Max value: {map_array.max():.3f}")
-    print(f"Mean value: {map_array.mean():.3f}")
+    # 3. Add 5 black pixels border around the map
+    map_array[:5, :] = 0
+    map_array[-5:, :] = 0
+    map_array[:, :5] = 0
+    map_array[:, -5:] = 0
 
+    # Save temporary file for GIMP
+    map_dir = get_map_dir()
+    temp_img_path = os.path.join(map_dir, "temp_map_edit.png")
+    temp_gimp_path = os.path.join(map_dir, "temp_map_edit.xcf")
+    Image.fromarray(map_array).save(temp_img_path)
+    
+    #4. Ask user for obstacles
+    response = input("Do you want to add obstacles manually in GIMP? (y/n): ").lower()
+    
+    if response == 'y':
+        print("Opening GIMP. Please draw black lines/shapes for obstacles.")
+        print("Save and Overwrite the file when done, then close GIMP.")
+        if open_in_gimp(temp_img_path):
+            # Reload the map
+            img = Image.open(temp_img_path).convert('L') # Convert to grayscale
+            map_array = np.array(img)
+
+    # 5. Apply Gaussian Blur
+    print("Applying Gaussian Blur...")
+    # Sigma determines the amount of blur. 
+    # 1.0 is subtle, 3.0 is strong.
+    # This creates a cost gradient around obstacles.
+    # However, for a standard static map, we usually want sharp edges.
+    # If you want a costmap-like gradient baked in, keep the blur.
+    # If you want a standard occupancy grid, we might threshold it back.
+    
+    # Let's apply a slight blur to smooth manual drawing edges, 
+    # but keep it mostly binary for the static map server.
+    blurred_map = gaussian_filter(map_array, sigma=1.0)
+    
+    # Thresholding to ensure clear occupied/free space for the static map
+    # < 50 becomes 0 (Occupied), > 200 becomes 255 (Free), rest is grey
+    # But user asked for blur, so we save the blurred version.
+    # Note: map_server interprets [0, free_thresh) as occupied? No.
+    # Standard: 0=free, 100=occupied. 
+    # PGM: 0=black(occupied), 255=white(free).
+    
+    # 5. Save Final Map
+    save_ros_map(blurred_map.astype(np.uint8), map_dir, RESOLUTION)
+    
+    # Cleanup
+    if os.path.exists(temp_img_path):
+        os.remove(temp_img_path)
+    if os.path.exists(temp_gimp_path):
+        os.remove(temp_gimp_path)
 if __name__ == '__main__':
     main()
-
-
-# ros2 run utils create_map TL:0.3 BR:0.4
