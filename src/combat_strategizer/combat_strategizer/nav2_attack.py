@@ -27,9 +27,9 @@ class Nav2Attack(Node):
 
     def listener_callback(self, msg):
         # Check if we should send a new goal
-        # if self.should_send_new_goal(msg):
-            # self.send_goal(msg)
-        self.send_goal(msg)
+        if self.should_send_new_goal(msg):
+            self.send_goal(msg)
+        # self.send_goal(msg)
 
     def should_send_new_goal(self, current_pose_msg):
         if self.last_goal_pose is None:

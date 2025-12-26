@@ -1,40 +1,40 @@
 bt_navigator:
-  ros__parameters:
+  ros__parameters: 
     use_sim_time: True
     global_frame: map
     robot_base_frame: robot/base_footprint
     odom_topic: /odom
     bt_loop_duration: 10
     default_server_timeout: 20
-    # 'default_nav_through_poses_bt_xml' and 'default_nav_to_pose_bt_xml' are use defaults:
-    # nav2_bt_navigator/navigate_to_pose_w_replanning_and_recovery.xml
-    # nav2_bt_navigator/navigate_through_poses_w_replanning_and_recovery.xml
-    plugin_lib_names:
-    - nav2_compute_path_to_pose_action_bt_node
-    - nav2_compute_path_through_poses_action_bt_node
-    - nav2_smooth_path_action_bt_node
-    - nav2_follow_path_action_bt_node
-    - nav2_spin_action_bt_node
-    - nav2_wait_action_bt_node
-    - nav2_assisted_teleop_action_bt_node
-    - nav2_back_up_action_bt_node
-    - nav2_drive_on_heading_action_bt_node
-    - nav2_clear_costmap_service_bt_node
-    - nav2_is_stuck_condition_bt_node
-    - nav2_goal_reached_condition_bt_node
-    - nav2_goal_updated_condition_bt_node
-    - nav2_globally_updated_goal_condition_bt_node
-    - nav2_is_path_valid_condition_bt_node
-    - nav2_initial_pose_received_condition_bt_node
-    - nav2_reinitialize_global_localization_service_bt_node
-    - nav2_rate_controller_bt_node
-    - nav2_distance_controller_bt_node
-    - nav2_speed_controller_bt_node
-    - nav2_truncate_path_action_bt_node
-    - nav2_timeout_bt_node
-    - nav2_goal_checker_selector_bt_node
-    - nav2_controller_selector_bt_node
-    - nav2_planner_selector_bt_node
+
+    default_nav_to_pose_bt_xml: "/opt/ros/jazzy/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml"
+    default_nav_through_poses_bt_xml: "/opt/ros/jazzy/share/nav2_bt_navigator/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"
+
+
+    # plugin_lib_names:
+    #   - nav2_compute_path_to_pose_action_bt_node
+    #   - nav2_compute_path_through_poses_action_bt_node
+    #   - nav2_smooth_path_action_bt_node
+    #   - nav2_follow_path_action_bt_node
+    #   - nav2_spin_action_bt_node
+    #   - nav2_wait_action_bt_node
+    #   - nav2_back_up_action_bt_node
+    #   - nav2_clear_costmap_service_bt_node
+    #   - nav2_is_stuck_condition_bt_node
+    #   - nav2_goal_reached_condition_bt_node
+    #   - nav2_goal_updated_condition_bt_node
+    #   # - nav2_initial_pose_received_condition_bt_node # Excluded for custom localization
+    #   - nav2_would_a_controller_recovery_help_condition_bt_node
+    #   - nav2_would_a_planner_recovery_help_condition_bt_node
+    #   - nav2_rate_controller_bt_node
+    #   - nav2_distance_controller_bt_node
+    #   - nav2_speed_controller_bt_node
+    #   - nav2_timeout_bt_node
+    #   - nav2_pipeline_sequence_bt_node
+    #   - nav2_round_robin_node
+    #   - nav2_recovery_node
+    #   - nav2_controller_selector_bt_node
+    #   - nav2_planner_selector_bt_node
 
 controller_server:
   ros__parameters:
@@ -115,13 +115,30 @@ local_costmap:
       height: 3
       resolution: 0.05
       introspection_mode: "disabled"
+      plugins: ["obstacle_layer", "inflation_layer"]
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          obstacle_max_range: 2.5
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.55
 
 global_costmap:
   global_costmap:
     ros__parameters:
       update_frequency: 1.0
       publish_frequency: 1.0
-      global_frame: odom
+      global_frame: map
       robot_base_frame: robot/base_footprint
       use_sim_time: True
       robot_radius: 0.15
@@ -160,7 +177,7 @@ planner_server:
     use_sim_time: True
     planner_plugins: ["GridBased"]
     GridBased:
-      plugin: "nav2_navfn_planner/NavfnPlanner"
+      plugin: "nav2_navfn_planner::NavfnPlanner"
       tolerance: 0.5
       use_astar: false
       allow_unknown: true
@@ -179,3 +196,171 @@ waypoint_follower:
       plugin: "nav2_waypoint_follower::WaitAtWaypoint"
       enabled: True
       waypoint_pause_duration: 200
+
+
+collision_monitor: # configured but not used!
+  ros__parameters:
+    enabled: True
+    base_frame_id: "base_footprint"
+    odom_frame_id: "odom"
+    cmd_vel_in_topic: "cmd_vel_smoothed"
+    cmd_vel_out_topic: "cmd_vel"
+    state_topic: "collision_monitor_state"
+    transform_tolerance: 0.5
+    source_timeout: 5.0
+    base_shift_correction: True
+    stop_pub_timeout: 2.0
+    enable_stamped_cmd_vel: True  # False for Jazzy or older
+    use_realtime_priority: false
+    polygons: ["PolygonStop", "PolygonSlow", "FootprintApproach"]
+    PolygonStop:
+      type: "circle"
+      radius: 0.3
+      action_type: "stop"
+      min_points: 4  # max_points: 3 for Humble
+      visualize: True
+      polygon_pub_topic: "polygon_stop"
+      enabled: True
+    PolygonSlow:
+      type: "polygon"
+      points: "[[1.0, 1.0], [1.0, -1.0], [-0.5, -1.0], [-0.5, 1.0]]"
+      action_type: "slowdown"
+      min_points: 4  # max_points: 3 for Humble
+      slowdown_ratio: 0.3
+      visualize: True
+      polygon_pub_topic: "polygon_slowdown"
+      enabled: True
+    PolygonLimit:
+      type: "polygon"
+      points: "[[0.5, 0.5], [0.5, -0.5], [-0.5, -0.5], [-0.5, 0.5]]"
+      action_type: "limit"
+      min_points: 4  # max_points: 3 for Humble
+      linear_limit: 0.4
+      angular_limit: 0.5
+      visualize: True
+      polygon_pub_topic: "polygon_limit"
+      enabled: True
+    FootprintApproach:
+      type: "polygon"
+      action_type: "approach"
+      footprint_topic: "/local_costmap/published_footprint"
+      time_before_collision: 2.0
+      simulation_time_step: 0.02
+      min_points: 6  # max_points: 5 for Humble
+      visualize: False
+      enabled: True
+    VelocityPolygonStop:
+      type: "velocity_polygon"
+      action_type: "stop"
+      min_points: 6
+      visualize: True
+      enabled: True
+      polygon_pub_topic: "velocity_polygon_stop"
+      velocity_polygons: ["rotation", "translation_forward", "translation_backward", "stopped"]
+      holonomic: false
+      rotation:
+        points: "[[0.3, 0.3], [0.3, -0.3], [-0.3, -0.3], [-0.3, 0.3]]"
+        linear_min: 0.0
+        linear_max: 0.05
+        theta_min: -1.0
+        theta_max: 1.0
+      translation_forward:
+        points: "[[0.35, 0.3], [0.35, -0.3], [-0.2, -0.3], [-0.2, 0.3]]"
+        linear_min: 0.0
+        linear_max: 1.0
+        theta_min: -1.0
+        theta_max: 1.0
+      translation_backward:
+        points: "[[0.2, 0.3], [0.2, -0.3], [-0.35, -0.3], [-0.35, 0.3]]"
+        linear_min: -1.0
+        linear_max: 0.0
+        theta_min: -1.0
+        theta_max: 1.0
+      # This is the last polygon to be checked, it should cover the entire range of robot's velocities
+      # It is used as the stopped polygon when the robot is not moving and as a fallback if the velocity
+      # is not covered by any of the other sub-polygons
+      stopped:
+        points: "[[0.25, 0.25], [0.25, -0.25], [-0.25, -0.25], [-0.25, 0.25]]"
+        linear_min: -1.0
+        linear_max: 1.0
+        theta_min: -1.0
+        theta_max: 1.0
+    observation_sources: ["scan", "pointcloud"]
+    scan:
+      source_timeout: 0.2
+      type: "scan"
+      topic: "/scan"
+      enabled: True
+    pointcloud:
+      type: "pointcloud"
+      topic: "/intel_realsense_r200_depth/points"
+      transport_type: "raw"  # raw or/ with compression (zlib, draco, zstd)
+      min_height: 0.1
+      max_height: 0.5
+      min_range: 0.2
+      enabled: True
+
+docking_server: # configured but not used!
+  ros__parameters:
+    controller_frequency: 50.0
+    initial_perception_timeout: 5.0
+    wait_charge_timeout: 5.0
+    dock_approach_timeout: 30.0
+    undock_linear_tolerance: 0.05
+    undock_angular_tolerance: 0.1
+    max_retries: 3
+    base_frame: "base_link"
+    fixed_frame: "odom"
+    odom_topic: "odom"
+    odom_duration: 0.3
+    dock_backwards: false  # Deprecated, use dock_direction in plugin
+    dock_prestaging_tolerance: 0.5
+    introspection_mode: "disabled"
+
+    # Types of docks
+    dock_plugins: ['nova_carter_dock']
+    nova_carter_dock:
+      plugin: 'opennav_docking::SimpleChargingDock'  # Also 'opennav_docking::SimpleNonChargingDock'
+      docking_threshold: 0.05
+      staging_x_offset: -0.7
+      use_external_detection_pose: true
+      detector_service_name: '/detector/toggle'
+      detector_service_timeout: 5.0
+      subscribe_toggle: true
+      use_battery_status: false # true
+      use_stall_detection: false
+      rotate_to_dock: false
+
+      external_detection_timeout: 1.0
+      external_detection_translation_x: -0.18
+      external_detection_translation_y: 0.0
+      external_detection_rotation_roll: -1.57
+      external_detection_rotation_pitch: -1.57
+      external_detection_rotation_yaw: 0.0
+      filter_coef: 0.1
+      dock_direction: "forward" # "backward"
+
+    # Dock instances
+    docks: ['home_dock']
+    home_dock:
+      type: 'nova_carter_dock'
+      frame: map
+      pose: [0.0, 0.0, 0.0]
+      id: 'c67f50cb-e152-4720-85cc-5eb20bd85ce8'
+
+    controller:
+      k_phi: 3.0
+      k_delta: 2.0
+      v_linear_min: 0.15
+      v_linear_max: 0.15
+      v_angular_max: 0.75
+      slowdown_radius: 0.25
+      rotate_to_heading_angular_vel: 1.0
+      rotate_to_heading_max_angular_accel: 3.2
+      use_collision_detection: true
+      costmap_topic: "local_costmap/costmap_raw"
+      footprint_topic: "local_costmap/published_footprint"
+      transform_tolerance: 0.1
+      projection_time: 1.0
+      simulation_time_step: 0.1
+      dock_collision_threshold: 0.3
