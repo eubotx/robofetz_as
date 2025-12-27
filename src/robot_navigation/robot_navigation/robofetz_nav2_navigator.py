@@ -1,3 +1,0 @@
-from nav2_simple_commander.robot_navigator import BasicNavigator
-import rclpy
-
