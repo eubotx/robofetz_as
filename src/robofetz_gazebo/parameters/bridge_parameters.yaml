@@ -27,14 +27,14 @@
   direction: GZ_TO_ROS
 
 # gz topic published by Odom plugin
-- ros_topic_name: "tf"
+- ros_topic_name: "pose_tf_slip"
   gz_topic_name: "pose_with_slip"
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"
   direction: GZ_TO_ROS
 
   # gz topic published by Odom plugin
-- ros_topic_name: "pose_tf_sim"
+- ros_topic_name: "tf"
   gz_topic_name: "pose_ground_truth"
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"
