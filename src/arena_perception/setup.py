@@ -41,7 +41,8 @@ setup(
             'camera_rectification_node = arena_perception.camera_rectification_node:main',
             'arena_calibration_service = arena_perception.arena_calibration_service:main',
             'robot_detection_node = arena_perception.robot_detection:main',
-            'opponent_detection_node = arena_perception.opponent_detection:main'
+            'opponent_detection_node = arena_perception.opponent_detection:main',
+            'opponent_tracker_node = arena_perception.opponent_tracker_node:main'
         ],
     },
 )
