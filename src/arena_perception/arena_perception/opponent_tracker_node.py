@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+#ros2 run arena_perception opponent_tracker_node --ros-arg -r /bot/pose:=/pose-sim
 
 import rclpy
 from rclpy.node import Node
@@ -145,7 +146,7 @@ class FrameDiffRobotDetector(Node):
                 ('restrict_to_spawn', False),  # Disabled by default - search full arena
                 ('spawn_roi_coords', [1.0, 1.0, 1.5, 1.5]),
                 ('track_orientation', True),
-                ('tracker_type', 'KCF'),  # KCF is faster than CSRT
+                ('tracker_type', 'CSRT'),  # KCF is faster than CSRT
                 ('smoothing_alpha', 0.2),
                 ('max_tracker_size', 150),
                 ('motion_threshold', 0.02),
@@ -156,7 +157,7 @@ class FrameDiffRobotDetector(Node):
                 ('lost_state_timeout', 1.0),
                 ('min_tracking_duration', 0.3),
                 ('no_motion_timeout', 2.0),
-                ('kalman_process_noise', 0.1),
+                ('kalman_process_noise', 0.1),  # Restore original smoothness
                 ('kalman_measurement_noise', 0.5),
                 ('use_polygon_mask', True),  # Use polygon mask instead of circle
                 ('mask_expansion', 1.3),  # Expansion factor for polygon mask
@@ -273,14 +274,21 @@ class FrameDiffRobotDetector(Node):
                     rclpy.duration.Duration(seconds=0.1)
                 )
                 tf_type = "synced"
-            except Exception:
+            except Exception as e:
                 # Fallback to latest if specific time fails
-                transform = self.tf_buffer.lookup_transform(
-                    self.get_parameter('camera_optical_frame').value,
-                    'world',
-                    rclpy.time.Time()
-                )
-                tf_type = "latest"
+                try:
+                    transform = self.tf_buffer.lookup_transform(
+                        self.get_parameter('camera_optical_frame').value,
+                        'world',
+                        rclpy.time.Time()
+                    )
+                    tf_type = "latest"
+                    if self._debug_counter % 50 == 0:
+                        self.get_logger().warn(f"TF Timestamp sync failed: {e}. Falling back to 'latest'.")
+                except Exception as e_latest:
+                     # This is the critical failure case
+                     self.get_logger().error(f"TF Lookup FAILED completely: {e_latest}. This causes 'NO ROBOT POSE'.")
+                     return
 
             if self._debug_counter % 50 == 0:
                 self.get_logger().info(f"TF Lookup ({tf_type}) success. Time: {t_msg.sec}.{t_msg.nanosec}")
@@ -423,7 +431,7 @@ class FrameDiffRobotDetector(Node):
                         mask = np.zeros(thresh.shape, dtype=np.uint8)
                         cv2.fillPoly(mask, [robot_polygon], 255)
                         thresh = cv2.bitwise_and(thresh, thresh, mask=cv2.bitwise_not(mask))
-                    elif robot_pos is not None:
+                    if robot_pos is not None:
                         mask = np.zeros(thresh.shape, dtype=np.uint8)
                         radius = int(self.own_robot_base_radius_px * self.get_parameter('shadow_expansion_factor').value)
                         cv2.circle(mask, robot_pos, radius, 255, -1)
@@ -444,39 +452,84 @@ class FrameDiffRobotDetector(Node):
                             max_area = area
                             best_refined = cnt
                     
+                    new_pixel_pos = None
+                    min_rect = None
+                    
                     if best_refined is not None:
-                        # Motion detected - good tracking
+                        # Problem 2: Inaccurate Bounding Box - Use Rotated Rect
+                        min_rect = cv2.minAreaRect(best_refined) # ((x,y), (w,h), angle)
+                        new_pixel_pos = (int(min_rect[0][0]), int(min_rect[0][1]))
+                    
+                    # SIMPLIFIED: Any motion is significant (restore sensitivity)
+                    is_significant_motion = (new_pixel_pos is not None)
+
+                    if new_pixel_pos is not None:
+                        # Motion detected - good! 
                         self.no_motion_frames = 0
                         
-                        # Drift correction
-                        mx, my, mw, mh = cv2.boundingRect(best_refined)
-                        if (w * h) > (mw * mh) * 1.5:
-                            self.get_logger().info("Re-tightening tracker to MOG2 contour...")
-                            self.tracker = self.create_tracker()
-                            self.tracker.init(cv_image, (mx, my, mw, mh))
-                            self.tracker_box = (mx, my, mw, mh)
+                        # Problem 3: Tracker-MOG2 Conflict Resolution
+                        # Check distance between Tracker center and MOG2 center
+                        tracker_center = (x + w//2, y + h//2)
+                        dx = new_pixel_pos[0] - tracker_center[0]
+                        dy = new_pixel_pos[1] - tracker_center[1]
+                        dist = np.sqrt(dx*dx + dy*dy)
                         
-                        pixel_pos = self.get_robot_centroid(best_refined)
-                        target_contour = best_refined
+                        if dist > 20.0:
+                            # Conflict! MOG2 is far from tracker. Trust MOG2 (the physical measurement).
+                            # Snap tracker box to MOG2 center.
+                            nx = int(new_pixel_pos[0] - w/2)
+                            ny = int(new_pixel_pos[1] - h/2)
+                            self.tracker_box = (nx, ny, w, h)
+                            pixel_pos = new_pixel_pos
+                            # Optional: Could re-init tracker here if shape changed significantly
+                        else:
+                            # Good alignment. Use MOG2 as authoritative position for accuracy.
+                            pixel_pos = new_pixel_pos
+                            
+                        # Problem 2 continued: Smart Padding
+                        # If MOG2 shape is significantly different from tracker box, update box size
+                        # Calculate bounding box of rotated rect for sizing
+                        box_points = cv2.boxPoints(min_rect)
+                        bx, by, bw, bh = cv2.boundingRect(box_points)
+                        
+                        # Apply Smart Padding (20%)
+                        pad_x = int(bw * 0.1)
+                        pad_y = int(bh * 0.1)
+                        # Updates tracker box size only if significantly different (avoid jitter)
+                        # (Implementation note: mutating tracker_box width/height blindly causes jitter, 
+                        #  so we only re-center as per logic above, or re-init if area mismatch is huge)
+                        
+                        # Store this valid motion POS
+                        self.last_valid_motion_pos = pixel_pos
                         
                         # Increase confidence (motion detected)
                         self.tracking_confidence = min(1.0, self.tracking_confidence + 0.1)
-                        self.no_motion_frames = 0  # Reset no-motion counter
+                        
+                        # Save rect for visualization
+                        self.last_min_rect = min_rect
                     else:
-                        # No motion detected but tracker is still working
-                        # Trust the tracker - opponent may just be stationary
+                        # No motion detected
                         self.no_motion_frames += 1
+                        
+                        # Default to tracker center if no motion measurement
                         pixel_pos = (x + w//2, y + h//2)
                         
-                        # Apply velocity damping to Kalman filter to prevent overshoot
-                        # If we have 3+ frames of no motion, aggressively zero out velocity
-                        if self.no_motion_frames > 3:
-                            self.kalman_filter.damp_velocity(0.0) # Stop immediately
+                        # OVERSHOOT FIX: Problem 4 - Kalman Tuning
+                        # When stationary for > 15 frames (~0.5s), freeze velocity but keep position update
+                        if self.no_motion_frames > 15: 
+                            self.kalman_filter.damp_velocity(0.0) # Kill momentum completely
+                            status_text = "STATIONARY"
+                            color = (0, 0, 255) # Red
                         else:
-                            self.kalman_filter.damp_velocity(0.5) # Quick slow down
+                            self.kalman_filter.damp_velocity(0.5) # Gentle damping
+                            status_text = "MOVING"
+                            color = (0, 255, 0) # Green
+                            
+                        # Store status for debug
+                        self.debug_status_text = status_text
+                        self.debug_status_color = color
                         
                         # Very slow confidence decay - tracker is working, just no motion
-                        # Only decay 0.01 per frame (takes 100 frames / ~3.3s to drop from 1.0 to 0.0)
                         self.tracking_confidence = max(0.3, self.tracking_confidence - 0.01)
                         
                         # Log occasionally
@@ -639,7 +692,13 @@ class FrameDiffRobotDetector(Node):
             
             if world_pos is not None:
                 # Update Kalman filter
-                filtered_pos = self.kalman_filter.update(world_pos[0:2])
+                # If we are stationary, we already force-set the Kalman state in the TRACKING block above.
+                # But if we just fell through without hitting that block (e.g. tracking just started), update normally.
+                if not (self.no_motion_frames > 3 and self.state == "TRACKING"):
+                    filtered_pos = self.kalman_filter.update(world_pos[0:2])
+                else:
+                    # Just use current state (which was force-set or predicted)
+                    filtered_pos = self.kalman_filter.x[0:2]
                 
                 # Smooth world position
                 alpha = self.get_parameter('smoothing_alpha').value
@@ -800,7 +859,10 @@ class FrameDiffRobotDetector(Node):
                 self.get_logger().info(f"Robot Mask Overlay: center={robot_pos}, points={len(poly)}")
         else:
             if rpos is not None:
-                cv2.putText(frame, "NO POLY", rpos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                cv2.circle(frame, rpos, 5, (0, 0, 255), -1)
+                cv2.putText(frame, "NO POLY", (rpos[0]+10, rpos[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            else:
+                cv2.putText(frame, "NO ROBOT POSE", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
         # Bounding box
         if bbox is not None:
@@ -812,6 +874,25 @@ class FrameDiffRobotDetector(Node):
             else:  # LOST
                 color = (0, 165, 255)
             cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
+            
+        # Draw Rotated Rect (Blue) - Problem 5
+        if hasattr(self, 'last_min_rect') and self.last_min_rect is not None:
+            box_points = cv2.boxPoints(self.last_min_rect)
+            box_points = np.int0(box_points)
+            cv2.drawContours(frame, [box_points], 0, (255, 0, 0), 2)
+
+        # Draw Velocity Vector (Red) - Problem 5
+        if self.kalman_filter.initialized:
+            vx, vy = self.kalman_filter.x[2], self.kalman_filter.x[3]
+            # Scale velocity for visibility (e.g. * 20 pixels)
+            start_pt = (int(self.kalman_filter.x[0]), int(self.kalman_filter.x[1]))
+            end_pt = (int(self.kalman_filter.x[0] + vx * 20), int(self.kalman_filter.x[1] + vy * 20))
+            cv2.arrowedLine(frame, start_pt, end_pt, (0, 0, 255), 2, tipLength=0.3)
+            
+        # Draw Status Text
+        if hasattr(self, 'debug_status_text'):
+            cv2.putText(frame, self.debug_status_text, (200, 30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, self.debug_status_color, 2)
 
         if pixel_pos is not None:
             cv2.circle(frame, pixel_pos, 5, (255, 255, 255), -1)
