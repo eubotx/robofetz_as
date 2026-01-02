@@ -1,7 +1,7 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
@@ -41,14 +41,19 @@ def generate_launch_description():
     )
 
     # Navigation node - Nav2 Stack
-    nav2_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(robot_navigation_dir, 'launch', 'nav2.launch.py')
-        ),
-        launch_arguments={
-            'use_sim_time': 'True',
-            'params_file': os.path.join(robot_navigation_dir, 'config', 'nav2_params.yaml')
-        }.items()
+    nav2_launch = TimerAction(
+        period=10.0,
+        actions=[
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(robot_navigation_dir, 'launch', 'nav2.launch.py')
+                ),
+                launch_arguments={
+                    'use_sim_time': 'True',
+                    'params_file': os.path.join(robot_navigation_dir, 'config', 'nav2_params.yaml')
+                }.items()
+            )
+        ]
     )
 
     # Combat strategizer node behaviour for main robot 
@@ -102,7 +107,7 @@ def generate_launch_description():
         gazebo_sim,
         combat_strategizer,
         weapon_control,
-        nav2_launch,
         rviz2,
-        teleop_opponent
+        teleop_opponent,
+        nav2_launch
     ])

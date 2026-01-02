@@ -29,7 +29,16 @@ class Nav2Attack(Node):
         # Check if we should send a new goal
         if self.should_send_new_goal(msg):
             self.send_goal(msg)
-        # self.send_goal(msg)
+
+            # For testing, send a fixed goal instead of opponent's position
+            # goal_pose = PoseStamped()
+            # goal_pose.header.frame_id = 'map'
+            # goal_pose.header.stamp = self.get_clock().now().to_msg()
+            # goal_pose.pose.position.x = 1.0
+            # goal_pose.pose.position.y = 1.0
+            # goal_pose.pose.position.z = 0.0
+            # goal_pose.pose.orientation = msg.pose.orientation
+            # self.send_goal(goal_pose)
 
     def should_send_new_goal(self, current_pose_msg):
         if self.last_goal_pose is None:
