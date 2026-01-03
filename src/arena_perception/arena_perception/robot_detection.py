@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from cv_bridge import CvBridge
@@ -16,15 +17,15 @@ class BotDetectionNode(Node):
         
         # Declare parameters with descriptions
         self.declare_parameter('debug_image', False, 
-                              descriptor=rclpy.ParameterDescriptor(
+                              descriptor=ParameterDescriptor(  # Use ParameterDescriptor directly
                                   description='Enable debug image publishing'))
         
         self.declare_parameter('robot_tag_to_base_translation', [0.0, 0.0, 0.05],
-                              descriptor=rclpy.ParameterDescriptor(
+                              descriptor=ParameterDescriptor(  # Use ParameterDescriptor directly
                                   description='Translation from robot_tag to robot_base [x, y, z] in meters'))
         
         self.declare_parameter('robot_tag_to_base_rotation', [0.0, 0.0, 0.0, 1.0],
-                              descriptor=rclpy.ParameterDescriptor(
+                              descriptor=ParameterDescriptor(  # Use ParameterDescriptor directly
                                   description='Quaternion rotation from robot_tag to robot_base [x, y, z, w]'))
         
         # Get parameters
@@ -112,25 +113,60 @@ class BotDetectionNode(Node):
             self.get_logger().info("AprilTag detector initialized")
         
     def get_camera_from_world(self):
-        """Get camera_from_world transform from TF2"""
+        """Get camera_from_world transform from TF2 by manually chaining transforms"""
         try:
-            transform = self.tf_buffer.lookup_transform('world', 'camera', rclpy.time.Time())
+            # First get world -> arena_apriltag transform
+            transform_world_to_apriltag = self.tf_buffer.lookup_transform(
+                'world', 'arena_apriltag', rclpy.time.Time()
+            )
             
-            translation = np.array([
-                transform.transform.translation.x,
-                transform.transform.translation.y, 
-                transform.transform.translation.z
+            # Then get arena_apriltag -> arena_camera_optical transform
+            transform_apriltag_to_camera = self.tf_buffer.lookup_transform(
+                'arena_apriltag', 'arena_camera_optical', rclpy.time.Time()
+            )
+            
+            # Convert world -> arena_apriltag to MathPose
+            translation_world_to_apriltag = np.array([
+                transform_world_to_apriltag.transform.translation.x,
+                transform_world_to_apriltag.transform.translation.y, 
+                transform_world_to_apriltag.transform.translation.z
             ])
             
-            quaternion = np.array([
-                transform.transform.rotation.x,
-                transform.transform.rotation.y,
-                transform.transform.rotation.z, 
-                transform.transform.rotation.w
+            quaternion_world_to_apriltag = np.array([
+                transform_world_to_apriltag.transform.rotation.x,
+                transform_world_to_apriltag.transform.rotation.y,
+                transform_world_to_apriltag.transform.rotation.z, 
+                transform_world_to_apriltag.transform.rotation.w
             ])
             
-            # Convert world_from_camera to camera_from_world (inverse)
-            world_from_camera = MathPose(Rotation.from_quat(quaternion).as_matrix(), translation)
+            world_from_apriltag = MathPose(
+                Rotation.from_quat(quaternion_world_to_apriltag).as_matrix(),
+                translation_world_to_apriltag
+            )
+            
+            # Convert arena_apriltag -> arena_camera_optical to MathPose
+            translation_apriltag_to_camera = np.array([
+                transform_apriltag_to_camera.transform.translation.x,
+                transform_apriltag_to_camera.transform.translation.y, 
+                transform_apriltag_to_camera.transform.translation.z
+            ])
+            
+            quaternion_apriltag_to_camera = np.array([
+                transform_apriltag_to_camera.transform.rotation.x,
+                transform_apriltag_to_camera.transform.rotation.y,
+                transform_apriltag_to_camera.transform.rotation.z, 
+                transform_apriltag_to_camera.transform.rotation.w
+            ])
+            
+            apriltag_from_camera = MathPose(
+                Rotation.from_quat(quaternion_apriltag_to_camera).as_matrix(),
+                translation_apriltag_to_camera
+            )
+            
+            # Chain the transforms: world_from_camera = world_from_apriltag * apriltag_from_camera
+            world_from_camera = world_from_apriltag * apriltag_from_camera
+            
+            # Return the inverse: camera_from_world
             return world_from_camera.inv()
             
         except Exception as e:
