@@ -3,6 +3,7 @@ import cv2
 import sys
 
 # Script to resize the april tag to than use in the models or elsewhere
+# example usage: python3 resize_apriltag.py apriltag-imgs/tagStandard41h12/tag41_12_00012.png top_apriltag.png
 
 # Texture size must be power of two
 TARGET_SIZE = 2048

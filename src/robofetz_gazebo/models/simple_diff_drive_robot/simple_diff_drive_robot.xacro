@@ -146,16 +146,15 @@
 
     </link>
 
-    <!-- AprilTag link (added on top of the robot) -->
-    <joint name="tag_joint" type="fixed">
+    <!-- Top AprilTag link (added on top of the robot) -->
+    <joint name="top_tag_joint" type="fixed">
         <parent link="body_link"/>
-        <child link="apriltag_link"/>
-        <!-- Position the tag on top center of robot body -->
-        <!-- body height is b=0.06, tag thickness is 0.002, so place it at s1 + b/2 + tag_thickness/2 -->
+        <child link="top_apriltag_link"/>
+        <!-- Position the tag on top center of robot body, slightly offset to front -->
         <origin xyz="-0.03 0 ${s1 + b/2 + tag_thickness/2}" rpy="0 0 0"/>
     </joint>
 
-    <link name="apriltag_link">
+    <link name="top_apriltag_link">
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
@@ -177,8 +176,40 @@
         <xacro:inertia_tag/>
     </link>
 
-    <!-- Gazebo extension for AprilTag with PBR material (like your working SDF) -->
-    <gazebo reference="apriltag_link">
+    <!-- Bottom AprilTag link (added on bottom of the robot) -->
+    <joint name="bottom_tag_joint" type="fixed">
+        <parent link="body_link"/>
+        <child link="bottom_apriltag_link"/>
+        <!-- Position the tag on bottom center of robot body -->
+        <!-- Rotation 180 degrees around X axis to face downward -->
+        <!-- Position: s1 - b/2 - tag_thickness/2 (below the body) -->
+        <origin xyz="-0.03 0 ${s1 - b/2 - tag_thickness/2}" rpy="${pi_const} 0 0"/>
+    </joint>
+
+    <link name="bottom_apriltag_link">
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <box size="${tag_size} ${tag_size} ${tag_thickness}"/>
+            </geometry>
+            <!-- Basic URDF material (fallback) -->
+            <material name="White">
+                <color rgba="1.0 1.0 1.0 1.0"/>
+            </material>
+        </visual>
+
+        <collision>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <box size="${tag_size} ${tag_size} ${tag_thickness}"/>
+            </geometry>
+        </collision>
+
+        <xacro:inertia_tag/>
+    </link>
+
+    <!-- Gazebo extension for Top AprilTag with PBR material -->
+    <gazebo reference="top_apriltag_link">
         <!-- Physics properties -->
         <kp>1000000.0</kp>
         <kd>100.0</kd>
@@ -189,7 +220,7 @@
         <material>Gazebo/White</material>
         
         <!-- Visual override with PBR material -->
-        <visual name="apriltag_visual">
+        <visual name="top_apriltag_visual">
             <geometry>
                 <box>
                     <size>${tag_size} ${tag_size} ${tag_thickness}</size>
@@ -201,13 +232,41 @@
                 <specular>0.5 0.5 0.5 1</specular>
                 <pbr>
                     <metal>
-                        <!-- Use the texture path that works in your SDF -->
-                        <!-- Option 1: Relative path (like your SDF) -->
                         <albedo_map>file://$(find robofetz_gazebo)/models/simple_diff_drive_robot/top_apriltag.png</albedo_map>
-                        <!-- Option 2: Using find command -->
-                        <!-- <albedo_map>$(find robofetz_gazebo)/models/simple_diff_drive_robot/apriltag.png</albedo_map> -->
-                        <!-- Option 3: Absolute path to your texture -->
-                        <!-- <albedo_map>/home/$(env USER)/catkin_ws/src/robofetz_gazebo/models/simple_diff_drive_robot/apriltag.png</albedo_map> -->
+                        <roughness>0.5</roughness>
+                        <metalness>0.0</metalness>
+                    </metal>
+                </pbr>
+            </material>
+        </visual>
+    </gazebo>
+
+    <!-- Gazebo extension for Bottom AprilTag with PBR material -->
+    <gazebo reference="bottom_apriltag_link">
+        <!-- Physics properties -->
+        <kp>1000000.0</kp>
+        <kd>100.0</kd>
+        <mu1>0.5</mu1>
+        <mu2>0.5</mu2>
+        
+        <!-- Material override for Gazebo -->
+        <material>Gazebo/White</material>
+        
+        <!-- Visual override with PBR material -->
+        <visual name="bottom_apriltag_visual">
+            <geometry>
+                <box>
+                    <size>${tag_size} ${tag_size} ${tag_thickness}</size>
+                </box>
+            </geometry>
+            <material>
+                <ambient>1 1 1 1</ambient>
+                <diffuse>1 1 1 1</diffuse>
+                <specular>0.5 0.5 0.5 1</specular>
+                <pbr>
+                    <metal>
+                        <!-- Use a different texture for bottom tag if desired -->
+                        <albedo_map>file://$(find robofetz_gazebo)/models/simple_diff_drive_robot/bottom_apriltag.png</albedo_map>
                         <roughness>0.5</roughness>
                         <metalness>0.0</metalness>
                     </metal>
