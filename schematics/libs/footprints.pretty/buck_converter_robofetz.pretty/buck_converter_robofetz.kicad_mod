@@ -1,0 +1,113 @@
+(footprint "buck_converter_robofetz"
+	(version 20241229)
+	(generator "pcbnew")
+	(generator_version "9.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 0 5.08 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(uuid "6e3c04c4-518d-45b0-8ac7-5075cc02b623")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+		)
+	)
+	(property "Value" "DCDC"
+		(at 0 1 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "b993cd0b-694b-44a9-9488-b23787e10388")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "a02ee247-11b3-4c06-b9b6-89c5c10154b4")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "63d7e373-b471-4819-b725-4598c22573a9")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_rect
+		(start -12.7 0)
+		(end 10.16 17.78)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(fill no)
+		(layer "F.SilkS")
+		(uuid "77a35544-66d5-4901-9467-c76e22029d4d")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0 2.5 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "593ae87d-4571-47e2-965c-c4ba1b357845")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" thru_hole circle
+		(at -10.2 2.54)
+		(size 2.25 2.25)
+		(drill 0.9)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "3dadc8d4-d660-4c00-9abb-8a70de9ba861")
+	)
+	(pad "1" thru_hole circle
+		(at 7.8 2.54)
+		(size 2.25 2.25)
+		(drill 0.9)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "e72a518d-e937-4155-bcbc-17a4e9a8aae9")
+	)
+	(pad "2" thru_hole circle
+		(at -10.2 14.54)
+		(size 2.25 2.25)
+		(drill 0.9)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "31f7b348-8824-403b-afbe-91c8ccf97dcb")
+	)
+	(pad "2" thru_hole circle
+		(at 7.8 14.54)
+		(size 2.25 2.25)
+		(drill 0.9)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "6e8f7845-8831-4fa5-95f9-5fd62f120df4")
+	)
+	(embedded_fonts no)
+)
