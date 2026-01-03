@@ -5834,7 +5834,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_EH_B2B-EH-A_1x02_P2.50mm_Vertical"
+		(property "Footprint" ""
 			(at 21.59 48.26 0)
 			(effects
 				(font
@@ -5902,7 +5902,7 @@
 				)
 			)
 		)
-		(property "Footprint" "buck_converter_robofetz:buck_converter_robofetz"
+		(property "Footprint" ""
 			(at 101.6 74.93 0)
 			(effects
 				(font
@@ -5969,7 +5969,7 @@
 				(justify right)
 			)
 		)
-		(property "Value" "Weapon Controller"
+		(property "Value" "Conn_01x03_Pin"
 			(at 50.8 114.2999 0)
 			(effects
 				(font
@@ -5978,7 +5978,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_EH_B3B-EH-A_1x03_P2.50mm_Vertical"
+		(property "Footprint" ""
 			(at 49.53 113.03 0)
 			(effects
 				(font
@@ -6115,7 +6115,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_EH_B2B-EH-A_1x02_P2.50mm_Vertical"
+		(property "Footprint" ""
 			(at 35.56 62.23 0)
 			(effects
 				(font
@@ -6249,7 +6249,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_EH_B4B-EH-A_1x04_P2.50mm_Vertical"
+		(property "Footprint" ""
 			(at 35.56 78.74 0)
 			(effects
 				(font
@@ -6324,7 +6324,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_EH_B6B-EH-A_1x06_P2.50mm_Vertical"
+		(property "Footprint" ""
 			(at 251.46 132.08 0)
 			(effects
 				(font
@@ -6405,7 +6405,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_EH_B6B-EH-A_1x06_P2.50mm_Vertical"
+		(property "Footprint" ""
 			(at 251.46 152.4 0)
 			(effects
 				(font
@@ -6683,7 +6683,7 @@
 				)
 			)
 		)
-		(property "Footprint" "ESP32_devboard:buck_converter_robofetz"
+		(property "Footprint" ""
 			(at 138.43 49.53 0)
 			(effects
 				(font
