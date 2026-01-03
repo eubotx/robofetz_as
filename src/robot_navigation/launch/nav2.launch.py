@@ -78,6 +78,13 @@ def generate_launch_description():
         }.items()
     )
 
+    vel_republisher_cmd = Node(
+        package='utils',
+        executable='cmd_vel_relay',
+        name='vel_republisher',
+        output='screen'
+    )
+
     return LaunchDescription([
         declare_use_sim_time_cmd,
         declare_params_file_cmd,
@@ -85,5 +92,6 @@ def generate_launch_description():
         declare_map_cmd,
         map_server_cmd,
         map_lifecycle_manager_cmd,
-        nav2_launch
+        nav2_launch,
+        vel_republisher_cmd
     ])
