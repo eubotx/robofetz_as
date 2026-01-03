@@ -56,6 +56,11 @@
     <!-- caster sphere -->
     <xacro:property name="I_caster" value="${(2.0/5.0)*m3*r*r}" />
 
+    <!-- AprilTag properties -->
+    <xacro:property name="tag_size" value="0.10" /> <!-- Size of AprilTag -->
+    <xacro:property name="tag_thickness" value="0.001" /> <!-- Thickness of tag -->
+    <xacro:property name="tag_mass" value="0.01" /> <!-- Mass of tag (10g) -->
+
     <!-- Complete inertia -->
     <!-- body cuboid-->
     <xacro:macro name="inertia_body">
@@ -84,6 +89,20 @@
             <origin rpy="0 0 0" xyz="0 0 0"/> <!-- rpy in radiants -->
             <mass value="${m3}"/>
             <inertia ixx="${I_caster}" ixy="0.0" ixz="0.0" iyy="${I_caster}" iyz="0.0" izz="${I_caster}" />
+        </inertial>
+    </xacro:macro>
+
+    <!-- AprilTag inertia -->
+    <xacro:macro name="inertia_tag">
+        <inertial>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <mass value="${tag_mass}"/>
+            <inertia ixx="${(1.0/12.0)*tag_mass*(tag_size*tag_size + tag_thickness*tag_thickness)}" 
+                     ixy="0.0" 
+                     ixz="0.0" 
+                     iyy="${(1.0/12.0)*tag_mass*(tag_size*tag_size + tag_thickness*tag_thickness)}" 
+                     iyz="0.0" 
+                     izz="${(1.0/12.0)*tag_mass*(tag_size*tag_size + tag_size*tag_size)}" />
         </inertial>
     </xacro:macro>
 
@@ -127,8 +146,77 @@
 
     </link>
 
-    <!-- Wheel1 of the robot -->
+    <!-- AprilTag link (added on top of the robot) -->
+    <joint name="tag_joint" type="fixed">
+        <parent link="body_link"/>
+        <child link="apriltag_link"/>
+        <!-- Position the tag on top center of robot body -->
+        <!-- body height is b=0.06, tag thickness is 0.002, so place it at s1 + b/2 + tag_thickness/2 -->
+        <origin xyz="-0.03 0 ${s1 + b/2 + tag_thickness/2}" rpy="0 0 0"/>
+    </joint>
 
+    <link name="apriltag_link">
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <box size="${tag_size} ${tag_size} ${tag_thickness}"/>
+            </geometry>
+            <!-- Basic URDF material (fallback) -->
+            <material name="White">
+                <color rgba="1.0 1.0 1.0 1.0"/>
+            </material>
+        </visual>
+
+        <collision>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <box size="${tag_size} ${tag_size} ${tag_thickness}"/>
+            </geometry>
+        </collision>
+
+        <xacro:inertia_tag/>
+    </link>
+
+    <!-- Gazebo extension for AprilTag with PBR material (like your working SDF) -->
+    <gazebo reference="apriltag_link">
+        <!-- Physics properties -->
+        <kp>1000000.0</kp>
+        <kd>100.0</kd>
+        <mu1>0.5</mu1>
+        <mu2>0.5</mu2>
+        
+        <!-- Material override for Gazebo -->
+        <material>Gazebo/White</material>
+        
+        <!-- Visual override with PBR material -->
+        <visual name="apriltag_visual">
+            <geometry>
+                <box>
+                    <size>${tag_size} ${tag_size} ${tag_thickness}</size>
+                </box>
+            </geometry>
+            <material>
+                <ambient>1 1 1 1</ambient>
+                <diffuse>1 1 1 1</diffuse>
+                <specular>0.5 0.5 0.5 1</specular>
+                <pbr>
+                    <metal>
+                        <!-- Use the texture path that works in your SDF -->
+                        <!-- Option 1: Relative path (like your SDF) -->
+                        <albedo_map>file://$(find robofetz_gazebo)/models/simple_diff_drive_robot/top_apriltag.png</albedo_map>
+                        <!-- Option 2: Using find command -->
+                        <!-- <albedo_map>$(find robofetz_gazebo)/models/simple_diff_drive_robot/apriltag.png</albedo_map> -->
+                        <!-- Option 3: Absolute path to your texture -->
+                        <!-- <albedo_map>/home/$(env USER)/catkin_ws/src/robofetz_gazebo/models/simple_diff_drive_robot/apriltag.png</albedo_map> -->
+                        <roughness>0.5</roughness>
+                        <metalness>0.0</metalness>
+                    </metal>
+                </pbr>
+            </material>
+        </visual>
+    </gazebo>
+
+    <!-- Wheel1 of the robot -->
     <joint name="wheel1_joint" type="continuous" >
         <parent link="body_link"/>
         <child link="wheel1_link"/>
@@ -158,7 +246,6 @@
     </link>
 
     <!-- Wheel2 of the robot -->
-
     <joint name="wheel2_joint" type="continuous" >
         <parent link="body_link"/>
         <child link="wheel2_link"/>
@@ -188,7 +275,6 @@
     </link>
 
     <!-- Caster wheel of the robot -->
-
     <joint name="caster_joint" type="fixed" >
         <parent link="body_link"/>
         <child link="caster_link"/>
@@ -213,6 +299,5 @@
         <xacro:inertia_caster/>
 
     </link>
-
 
 </robot>
