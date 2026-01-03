@@ -37,7 +37,8 @@ setup(
         'console_scripts': [
             'keyboard_node = utils.keyboard_node:main',
             'create_map = utils.create_map:main',
-            'map_node = utils.map_node:main'
+            'map_node = utils.map_node:main',
+            'cmd_vel_relay = utils.cmd_vel_relay:main'
 
         ],
     },

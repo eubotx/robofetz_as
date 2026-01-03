@@ -179,7 +179,7 @@ collision_monitor: # configured but not used!
     base_frame_id: "base_footprint"
     odom_frame_id: "odom"
     cmd_vel_in_topic: "cmd_vel_smoothed"
-    cmd_vel_out_topic: "cmd_vel"
+    cmd_vel_out_topic: "cmd_vel_collision"
     state_topic: "collision_monitor_state"
     transform_tolerance: 0.5
     source_timeout: 5.0
