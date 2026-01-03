@@ -56,7 +56,7 @@ class SimpleNavigator(Node):
         # Subscribers
         self.pose_sub = self.create_subscription(
             PoseStamped, 
-            '/camera/pose', 
+            '/pose_sim', 
             self.pose_callback, 
             10)
             

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from tf2_msgs.msg import TFMessage
 from geometry_msgs.msg import PoseStamped
 
@@ -9,8 +10,8 @@ class TFToPoseStamped(Node):
         super().__init__('tf_to_pose_stamped')
         
         # Declare parameters without default values
-        self.declare_parameter('tf_topic')
-        self.declare_parameter('pose_topic')
+        self.declare_parameter('tf_topic') # Type: tf2_msgs/msg/TFMessage
+        self.declare_parameter('pose_topic') # Type: geometry_msgs/msg/PoseStamped
         
         # Get parameter values - these will raise if parameters aren't set
         try:

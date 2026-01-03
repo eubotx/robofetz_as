@@ -11,12 +11,21 @@ def generate_launch_description():
     robofetz_gazebo_dir = get_package_share_directory('robofetz_gazebo')
     robot_navigation_dir = get_package_share_directory('robot_navigation')
     
-    # Static transform for map to odom
+    # Static transform for map to odom (Main Robot)
     static_map_tf = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='static_map_tf_publisher',
         arguments=['0', '0', '0', '0', '0', '0', 'map', 'odom'],
+        output='screen'
+    )
+
+    # Static transform for map to opponent/odom (Opponent Robot)
+    static_opponent_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='static_opponent_tf_publisher',
+        arguments=['0', '0', '0', '0', '0', '0', 'map', 'opponent/odom'],
         output='screen'
     )
 
@@ -31,11 +40,22 @@ def generate_launch_description():
         )
     )
 
-    # Combat strategizer node
+    # Navigation node - Nav2 Stack
+    nav2_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(robot_navigation_dir, 'launch', 'nav2.launch.py')
+        ),
+        launch_arguments={
+            'use_sim_time': 'True',
+            'params_file': os.path.join(robot_navigation_dir, 'config', 'nav2_params.yaml')
+        }.items()
+    )
+
+    # Combat strategizer node behaviour for main robot 
     combat_strategizer = Node(
         package='combat_strategizer',
-        executable='simple_attack',
-        name='simple_attack',
+        executable='nav2_attack',
+        name='nav2_attack',
         output='screen',
         parameters=[{'log_level': 'warn'}]
     )
@@ -48,21 +68,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Navigation node
-    simple_navigator = Node(
-        package='robot_navigation',
-        executable='simple_navigator',
-        name='simple_navigator',
-        output='screen',
-        parameters=[
-            os.path.join(
-                robot_navigation_dir,
-                'config',
-                'params.yaml'
-            ),
-            {'log_level': 'warn'}
-        ]
-    )
+
 
     # RViz2 node
     rviz2 = Node(
@@ -96,7 +102,7 @@ def generate_launch_description():
         gazebo_sim,
         combat_strategizer,
         weapon_control,
-        simple_navigator,
+        nav2_launch,
         rviz2,
         teleop_opponent
     ])
