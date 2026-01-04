@@ -48,11 +48,11 @@ class BotDetectionNode(Node):
         rotation_matrix = Rotation.from_quat(rotation_param).as_matrix()
         self.robot_tag_to_base = MathPose(rotation_matrix, translation)
         
-        self.get_logger().info(f"Robot tag to base transform: translation={translation}")
+        self.get_logger().info(f"Robot tag to base transform: translation={translation.tolist()}")
         
         # Configuration
         self.robot_tags = {
-            'sizes': 0.125, 
+            'sizes': 0.0778, 
             'family': 'tagStandard41h12', 
             'top_id': 12, 
             'bottom_id': 31
@@ -73,6 +73,9 @@ class BotDetectionNode(Node):
         
         # Publishers
         self.pose_pub = self.create_publisher(PoseStamped, '/bot/pose', 10)
+        
+        # Debug publishers
+        self.tag_pose_pub = self.create_publisher(PoseStamped, '/debug/tag_pose', 10)
         
         # Only create overlay publisher if debug images are enabled
         if self.debug_image:
@@ -95,11 +98,20 @@ class BotDetectionNode(Node):
         # Timer for transform publishing
         self.tf_timer = self.create_timer(0.1, self.publish_latest_tf)  # 10Hz
         self.latest_robot_base_pose = None
+        self.latest_camera_from_tag = None  # For debug TF publishing
         
     def publish_latest_tf(self):
         """Publish latest robot_base transform at fixed rate"""
         if self.latest_robot_base_pose is not None:
             self.publish_bot_tf(self.latest_robot_base_pose, 'robot_base')
+        
+        # Also publish debug TF for robot_tag
+        if self.latest_camera_from_tag is not None:
+            # We need world_from_tag for TF, not camera_from_tag
+            camera_from_world = self.get_camera_from_world()
+            if camera_from_world is not None:
+                world_from_tag = camera_from_world * self.latest_camera_from_tag
+                self.publish_bot_tf(world_from_tag, 'debug_robot_tag')
         
     def camera_info_callback(self, msg):
         """Initialize detector when camera info is received"""
@@ -193,9 +205,9 @@ class BotDetectionNode(Node):
         return outline_2d
         
     def detect_robot(self, image_gray, camera_from_world):
-        """Core robot detection - returns robot_base pose in world coordinates"""
+        """Core robot detection - returns robot_base pose in world coordinates and camera_from_tag for debug"""
         if self.april_detector is None:
-            return None
+            return None, None
             
         detections = self.april_detector.detect(image_gray, self.robot_tags['sizes'])['aprilTags']
         
@@ -212,9 +224,10 @@ class BotDetectionNode(Node):
                 # Convert to world_from_robot_base using the static transform
                 world_from_robot_base = world_from_robot_tag * self.robot_tag_to_base
                 
-                return world_from_robot_base
+                # Return both poses for debug
+                return world_from_robot_base, camera_from_robot_tag
         
-        return None
+        return None, None
     
     def image_callback(self, msg):
         """Process each camera frame"""
@@ -231,17 +244,22 @@ class BotDetectionNode(Node):
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
             gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
             
-            # Core detection - now returns just the pose
-            world_pose_base = self.detect_robot(gray, camera_from_world)
-            if world_pose_base is not None:
+            # Core detection - now returns both base and tag poses
+            world_pose_base, camera_pose_tag = self.detect_robot(gray, camera_from_world)
+            
+            if world_pose_base is not None and camera_pose_tag is not None:
                 # Store for TF publishing
                 self.latest_robot_base_pose = world_pose_base
+                self.latest_camera_from_tag = camera_pose_tag
+                
+                # Publish debug poses
+                self.publish_debug_poses(camera_pose_tag, world_pose_base, camera_from_world)
                 
                 # Only publish overlay if debug images are enabled
                 if self.debug_image:
                     # Calculate camera_from_robot_base for overlay
                     camera_from_robot_base = camera_from_world * world_pose_base
-                    self.publish_overlay(cv_image, camera_from_robot_base)
+                    self.publish_overlay(cv_image, camera_from_robot_base, camera_pose_tag)
                 
                 # Publish robot_base pose
                 self.publish_pose(world_pose_base)
@@ -249,7 +267,41 @@ class BotDetectionNode(Node):
         except Exception as e:
             self.get_logger().error(f"Detection error: {str(e)}")
     
-    def publish_overlay(self, cv_image, camera_from_robot_base):
+    def publish_debug_poses(self, camera_pose_tag, world_pose_base, camera_from_world):
+        """Publish debug poses for visualization"""
+        # Publish camera_from_tag pose (in camera frame)
+        tag_pose_msg = PoseStamped()
+        tag_pose_msg.header.frame_id = "arena_camera_optical"
+        tag_pose_msg.header.stamp = self.get_clock().now().to_msg()
+        
+        # Position of tag in camera frame
+        tag_pose_msg.pose.position.x = float(camera_pose_tag.t[0])
+        tag_pose_msg.pose.position.y = float(camera_pose_tag.t[1])
+        tag_pose_msg.pose.position.z = float(camera_pose_tag.t[2])
+        
+        # Orientation of tag in camera frame
+        rotation_tag = Rotation.from_matrix(camera_pose_tag.R)
+        quat_tag = rotation_tag.as_quat()
+        tag_pose_msg.pose.orientation.x = float(quat_tag[0])
+        tag_pose_msg.pose.orientation.y = float(quat_tag[1])
+        tag_pose_msg.pose.orientation.z = float(quat_tag[2])
+        tag_pose_msg.pose.orientation.w = float(quat_tag[3])
+        
+        self.tag_pose_pub.publish(tag_pose_msg)
+        
+        # Log debug information - FIXED: Convert numpy arrays to scalars before formatting
+        tag_pos = camera_pose_tag.t
+        base_pos = world_pose_base.t
+        
+        self.get_logger().debug(
+            f"Tag in camera frame: "
+            f"pos=[{float(tag_pos[0]):.3f}, {float(tag_pos[1]):.3f}, {float(tag_pos[2]):.3f}], "
+            f"Base in world: "
+            f"pos=[{float(base_pos[0]):.3f}, {float(base_pos[1]):.3f}, {float(base_pos[2]):.3f}]",
+            throttle_duration_sec=2.0
+        )
+    
+    def publish_overlay(self, cv_image, camera_from_robot_base, camera_pose_tag):
         """Publish visualization overlay with just the outline based on robot_base"""
         if not self.debug_image or self.overlay_pub is None:
             return
@@ -258,10 +310,27 @@ class BotDetectionNode(Node):
         
         # Draw robot outline based on robot_base
         outline_2d = self.calculate_robot_outline(camera_from_robot_base)
-        for i in range(len(outline_2d)):
-            pt1 = tuple(outline_2d[i].astype(int))
-            pt2 = tuple(outline_2d[(i + 1) % len(outline_2d)].astype(int))
-            cv2.line(overlay, pt1, pt2, (0, 255, 0), 2)
+        if outline_2d and all(p is not None for p in outline_2d):
+            for i in range(len(outline_2d)):
+                pt1 = tuple(outline_2d[i].astype(int))
+                pt2 = tuple(outline_2d[(i + 1) % len(outline_2d)].astype(int))
+                cv2.line(overlay, pt1, pt2, (0, 255, 0), 2)
+        
+        # Draw tag position (project tag center to image)
+        tag_center_2d = self.project_3d_to_2d(camera_pose_tag.t)
+        if tag_center_2d is not None and not np.isnan(tag_center_2d).any():
+            center = tuple(tag_center_2d.astype(int))
+            cv2.circle(overlay, center, 5, (0, 0, 255), -1)  # Red circle at tag center
+            cv2.putText(overlay, "Tag", (center[0]+10, center[1]), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        
+        # Draw base position (project base center to image)
+        base_center_2d = self.project_3d_to_2d(camera_from_robot_base.t)
+        if base_center_2d is not None and not np.isnan(base_center_2d).any():
+            center = tuple(base_center_2d.astype(int))
+            cv2.circle(overlay, center, 5, (255, 0, 0), -1)  # Blue circle at base center
+            cv2.putText(overlay, "Base", (center[0]+10, center[1]), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
         
         # Publish overlay
         overlay_msg = self.bridge.cv2_to_imgmsg(overlay, "bgr8")
@@ -289,8 +358,12 @@ class BotDetectionNode(Node):
         
         self.pose_pub.publish(pose_msg)
         
-        self.get_logger().info(f"Robot BASE pose: [{pose_msg.pose.position.x:.2f}, {pose_msg.pose.position.y:.2f}, {pose_msg.pose.position.z:.2f}]",
-                              throttle_duration_sec=2.0)
+        # FIXED: Convert numpy array elements to floats before formatting
+        base_pos = world_pose_base.t
+        self.get_logger().info(
+            f"Robot BASE pose: [{float(base_pos[0]):.2f}, {float(base_pos[1]):.2f}, {float(base_pos[2]):.2f}]",
+            throttle_duration_sec=2.0
+        )
     
     def publish_bot_tf(self, world_pose, frame_name):
         """Publish robot transform to TF tree"""

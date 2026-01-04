@@ -30,8 +30,8 @@ def generate_launch_description():
             parameters=[{
                 "camera": LaunchConfiguration('camera'),
                 "format": LaunchConfiguration('format'),
-                "width": 640,
-                "height": 480,
+                "width": 800,
+                "height": 600,
                 "role": "video",
                 "frame_id": "arena_camera_frame",
                 "camera_info_url": "package://arena_perception/config/t490s_camera.yaml"
