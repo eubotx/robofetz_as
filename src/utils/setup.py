@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os
+from glob import glob
 
 package_name = 'utils'
 
@@ -12,8 +14,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
 
         # Launch files
-        ('share/' + package_name + '/launch', ['launch/weaponspeed_slider.launch']),
-        ('share/' + package_name + '/launch', ['launch/teleop_rhino.launch.py']),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
 
 
         # Config files

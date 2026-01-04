@@ -25,6 +25,7 @@ setup(
         (os.path.join('share', package_name, 'models/simple_arena'), glob('models/simple_arena/*')),
         (os.path.join('share', package_name, 'models/arena_camera_wideangle'), glob('models/arena_camera_wideangle/*')),
         (os.path.join('share', package_name, 'models/arena_camera_pinhole'), glob('models/arena_camera_pinhole/*')),
+        (os.path.join('share', package_name, 'models/arena_ball'), glob('models/arena_ball/*')),
         (os.path.join('share', package_name, 'models/arena_apriltag'), glob('models/arena_apriltag/*.config')),
         (os.path.join('share', package_name, 'models/arena_apriltag'), glob('models/arena_apriltag/*.sdf')),
         (os.path.join('share', package_name, 'models/arena_apriltag/materials/textures'), glob('models/arena_apriltag/materials/textures/*')),

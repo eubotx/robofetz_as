@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#ros2 run arena_perception opponent_tracker_node --ros-arg -r /bot/pose:=/pose-sim
+#ros2 run arena_perception opponent_tracker_node --ros-arg -r /bot/pose:=/pose_sim
 
 import rclpy
 from rclpy.node import Node
@@ -143,10 +143,9 @@ class FrameDiffRobotDetector(Node):
                 ('debug', True),
                 ('robot_base_frame', 'robot_base'),
                 ('camera_optical_frame', 'arena_camera_optical'),
-                ('restrict_to_spawn', False),  # Disabled by default - search full arena
-                ('spawn_roi_coords', [1.0, 1.0, 1.5, 1.5]),
+
                 ('track_orientation', True),
-                ('tracker_type', 'CSRT'),  # KCF is faster than CSRT
+                ('tracker_type', 'KCF'),  # KCF is faster than CSRT
                 ('smoothing_alpha', 0.2),
                 ('max_tracker_size', 150),
                 ('motion_threshold', 0.02),
@@ -159,15 +158,18 @@ class FrameDiffRobotDetector(Node):
                 ('no_motion_timeout', 2.0),
                 ('kalman_process_noise', 0.1),  # Restore original smoothness
                 ('kalman_measurement_noise', 0.5),
-                ('use_polygon_mask', True),  # Use polygon mask instead of circle
-                ('mask_expansion', 1.3),  # Expansion factor for polygon mask
+                ('use_polygon_mask', False),  # Use polygon mask instead of circle
+                ('mask_expansion', 1.1),  # Expansion factor for polygon mask (Tight fit)
+                ('robot_model_scale', 0.13),  # <= RESIZE MASK HERE (Global scale of the robot model)
             ]
         )
 
-        # =================== ROBOT OUTLINE (same as robot_detection.py) ===================
-        # 3D polygon defining robot shape in robot_base frame (x forward, y left, z up)
-        self.robot_outline_3d = 0.13 * np.array([
-            [0, -4, 0], [2, 0, 0], [2, 1, 0], [-2, 1, 0], [-2, 0, 0]
+        # =================== ROBOT OUTLINE (Rotated 90deg CCW) ===================
+        # Original: [0, -4, 0], [2, 0, 0], [2, 1, 0], [-2, 1, 0], [-2, 0, 0]
+        # Rotated (x'=-y, y'=x):
+        scale = self.get_parameter('robot_model_scale').value
+        self.robot_outline_3d = scale * np.array([
+            [2, 0, 0], [0, 1, 0], [-0.5, 1, 0], [-0.5, -1, 0], [0, -1, 0]
         ])
 
         # =================== INIT ===================
@@ -196,10 +198,13 @@ class FrameDiffRobotDetector(Node):
         self.own_robot_base_radius_px = self.get_parameter('ignore_radius_px').value
         
         # =================== STATE MACHINE ===================
-        self.state = "SEARCHING"  # SEARCHING, TRACKING, LOST
+        self.state = "INITIALIZING"  # Start in INITIALIZING to wait for stable robot pose
         self.tracker = None
         self.tracker_box = None
-        self.first_acquisition = True  # Only use ROI on first search
+        
+        # Robustness Counters/Params
+        self.initialization_frames = 0
+        self.max_jump_distance = 50.0 # Max pixels a robot can move in 1 frame (Anti-Teleport)
         
         # =================== KALMAN FILTER ===================
         process_noise = self.get_parameter('kalman_process_noise').value
@@ -237,6 +242,11 @@ class FrameDiffRobotDetector(Node):
         # Timer for tracking duration updates
         self.last_time = self.get_clock().now()
 
+        # =================== DIAGNOSTICS ===================
+        self.diag_tf_status = "INIT"
+        self.diag_topic_status = None # Timestamp of last msg
+        self.diag_projection_status = "INIT"
+
         self.get_logger().info("Enhanced Opponent Tracker initialized (Kalman + 3-State + Confidence)")
 
     def create_tracker(self):
@@ -264,6 +274,9 @@ class FrameDiffRobotDetector(Node):
     def robot_pose_callback(self, msg):
         """Track own robot position and compute outline polygon for masking with synchronized TF."""
         try:
+            # DIAG: Topic Received
+            self.diag_topic_status = self.get_clock().now()
+            
             # 1. TF Timing Synchronization - use message timestamp
             t_msg = msg.header.stamp
             try:
@@ -274,6 +287,7 @@ class FrameDiffRobotDetector(Node):
                     rclpy.duration.Duration(seconds=0.1)
                 )
                 tf_type = "synced"
+                self.diag_tf_status = "OK (Synced)"
             except Exception as e:
                 # Fallback to latest if specific time fails
                 try:
@@ -283,20 +297,17 @@ class FrameDiffRobotDetector(Node):
                         rclpy.time.Time()
                     )
                     tf_type = "latest"
-                    if self._debug_counter % 50 == 0:
-                        self.get_logger().warn(f"TF Timestamp sync failed: {e}. Falling back to 'latest'.")
+                    self.diag_tf_status = "OK (Latest)"
                 except Exception as e_latest:
                      # This is the critical failure case
                      self.get_logger().error(f"TF Lookup FAILED completely: {e_latest}. This causes 'NO ROBOT POSE'.")
+                     self.diag_tf_status = f"FAIL: {str(e_latest)[:20]}"
                      return
-
-            if self._debug_counter % 50 == 0:
-                self.get_logger().info(f"TF Lookup ({tf_type}) success. Time: {t_msg.sec}.{t_msg.nanosec}")
 
             # Get robot pose in world frame
             robot_position = np.array([msg.pose.position.x, msg.pose.position.y, msg.pose.position.z])
             robot_quat = [msg.pose.orientation.x, msg.pose.orientation.y, 
-                         msg.pose.orientation.z, msg.pose.orientation.w]
+                          msg.pose.orientation.z, msg.pose.orientation.w]
             robot_rotation = Rotation.from_quat(robot_quat)
             
             # Get camera transform
@@ -311,6 +322,7 @@ class FrameDiffRobotDetector(Node):
                 
                 # Z-depth check (Z > 0.01 to avoid singular projection)
                 if robot_in_cam[2] > 0.01:
+                    self.diag_projection_status = "OK"
                     px = int(self.camera_matrix[0, 0] * robot_in_cam[0] / robot_in_cam[2] + self.camera_matrix[0, 2])
                     py = int(self.camera_matrix[1, 1] * robot_in_cam[1] / robot_in_cam[2] + self.camera_matrix[1, 2])
                     
@@ -351,18 +363,18 @@ class FrameDiffRobotDetector(Node):
                         self.own_robot_polygon_px = polygon_px
                         self.own_robot_last_update = self.get_clock().now()
                     
-                    if self._debug_counter % 50 == 0:
-                        self.get_logger().info(f"DEBUG MASK: Robot World={robot_position}, Robot Cam={robot_in_cam}")
-                        self.get_logger().info(f"DEBUG MASK: Cam Matrix (first 3x3 of P):\n{self.camera_matrix}")
-                        self.get_logger().info(f"DEBUG MASK: Robot projected at ({px}, {py}), poly_pts={len(polygon_px) if polygon_px is not None else 0}")
+
                 else:
+                    self.diag_projection_status = f"Z-CLIP ({robot_in_cam[2]:.2f})"
                     if self._debug_counter % 50 == 0:
                         self.get_logger().warn(f"DEBUG MASK: Robot in cam Z <= 0.01: {robot_in_cam[2]:.3f}. Robot World: {robot_position}")
             else:
+                self.diag_projection_status = "WAIT CAM INFO"
                 if self._debug_counter % 50 == 0:
                     self.get_logger().warn("DEBUG MASK: Waiting for camera_matrix in robot_pose_callback")
                         
         except Exception as e:
+            self.diag_tf_status = f"ERROR: {str(e)[:15]}"
             self.get_logger().error(f"DEBUG MASK Error: {str(e)}", throttle_duration_sec=2.0)
 
     def image_callback(self, msg):
@@ -378,12 +390,10 @@ class FrameDiffRobotDetector(Node):
         # IMPORTANT: Ensure deep copy - cv_bridge may return a view
         debug_frame = np.copy(cv_image)
         
-        # Log image info periodically for debugging
+        # Frame counter for throttled logs
         if not hasattr(self, '_debug_counter'):
             self._debug_counter = 0
         self._debug_counter += 1
-        if self._debug_counter % 100 == 1:
-            self.get_logger().info(f"Image received: {cv_image.shape}, dtype={cv_image.dtype}, mean={np.mean(cv_image):.1f}")
         
         if self.camera_matrix is None:
             cv2.putText(debug_frame, "WAITING FOR CAMERA INFO...", (50, 50), 
@@ -403,12 +413,35 @@ class FrameDiffRobotDetector(Node):
         pixel_pos = None
         target_contour = None
         current_bbox = None
-        roi_polygon = None
+
+
+        # ==========================================================
+        # STATE: INITIALIZING
+        # ==========================================================
+        if self.state == "INITIALIZING":
+            # Wait for valid robot pose to stabilize background model and mask
+            if robot_pos is not None:
+                self.initialization_frames += 1
+                
+
+                
+                if self.initialization_frames > 30:
+                    self.get_logger().info("Initialization Complete! Robot pose stable. Starting SEARCH.")
+                    self.state = "SEARCHING"
+            else:
+                # Reset if we lose pose during init (strict check)
+                if self.initialization_frames > 0:
+                     self.get_logger().warn("Robot pose lost during initialization! Resetting...")
+                self.initialization_frames = 0
+                
+                # Display warning on debug frame
+                cv2.putText(debug_frame, "INITIALIZING: WAITING FOR ROBOT POSE...", (50, 400), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
         # ==========================================================
         # STATE: TRACKING
         # ==========================================================
-        if self.state == "TRACKING" and self.tracker is not None:
+        elif self.state == "TRACKING" and self.tracker is not None:
             success, box = self.tracker.update(cv_image)
             if success:
                 self.tracker_box = [int(v) for v in box]
@@ -426,16 +459,21 @@ class FrameDiffRobotDetector(Node):
                     fg_mask = self.bg_subtractor.apply(proc_frame)
                     _, thresh = cv2.threshold(fg_mask, 250, 255, cv2.THRESH_BINARY)
                     
-                    # Ego mask - use polygon if available, else circle
-                    if robot_polygon is not None and len(robot_polygon) >= 3:
-                        mask = np.zeros(thresh.shape, dtype=np.uint8)
-                        cv2.fillPoly(mask, [robot_polygon], 255)
-                        thresh = cv2.bitwise_and(thresh, thresh, mask=cv2.bitwise_not(mask))
-                    if robot_pos is not None:
-                        mask = np.zeros(thresh.shape, dtype=np.uint8)
-                        radius = int(self.own_robot_base_radius_px * self.get_parameter('shadow_expansion_factor').value)
-                        cv2.circle(mask, robot_pos, radius, 255, -1)
-                        thresh = cv2.bitwise_and(thresh, thresh, mask=cv2.bitwise_not(mask))
+                    # Ego mask - Combine Polygon and Circle for maximum safety
+                    ego_mask = np.zeros(thresh.shape, dtype=np.uint8)
+                    
+                    # 1. Add Polygon Mask (Primary)
+                    if self.get_parameter('use_polygon_mask').value:
+                        if robot_polygon is not None and len(robot_polygon) >= 3:
+                            cv2.fillPoly(ego_mask, [robot_polygon], 255)
+                    else:
+                        # 2. Circle Mask (Fallback/Alternative)
+                        if robot_pos is not None:
+                            radius = int(self.own_robot_base_radius_px * self.get_parameter('shadow_expansion_factor').value)
+                            cv2.circle(ego_mask, robot_pos, radius, 255, -1)
+                        
+                    # Apply Mask ONCE: retain only what is NOT the robot
+                    thresh = cv2.bitwise_and(thresh, thresh, mask=cv2.bitwise_not(ego_mask))
                     
                     # Create mask for tracker area
                     local_mask = np.zeros(thresh.shape, dtype=np.uint8)
@@ -456,10 +494,40 @@ class FrameDiffRobotDetector(Node):
                     min_rect = None
                     
                     if best_refined is not None:
-                        # Problem 2: Inaccurate Bounding Box - Use Rotated Rect
+                        # Use Rotated Rect for accurate bounding box
                         min_rect = cv2.minAreaRect(best_refined) # ((x,y), (w,h), angle)
                         new_pixel_pos = (int(min_rect[0][0]), int(min_rect[0][1]))
                     
+                    # === ROBUSTNESS: Anti-Teleport & Collision check ===
+                    valid_motion = False
+                    is_ambiguous = False
+                    
+                    if new_pixel_pos is not None:
+                         tracker_center = (x + w//2, y + h//2)
+                         
+                         # 1. Anti-Teleport Check (Max Jump)
+                         dx = new_pixel_pos[0] - tracker_center[0]
+                         dy = new_pixel_pos[1] - tracker_center[1]
+                         motion_dist = np.sqrt(dx*dx + dy*dy)
+                         
+                         if motion_dist > self.max_jump_distance:
+                             self.get_logger().warn(f"Motion REJECTED: Jump {motion_dist:.1f}px > {self.max_jump_distance}px")
+                             new_pixel_pos = None # Ignore this motion
+                         
+                         # 2. Collision "Danger Zone" Check
+                         elif robot_pos is not None:
+                             rx = new_pixel_pos[0] - robot_pos[0]
+                             ry = new_pixel_pos[1] - robot_pos[1]
+                             dist_to_ego = np.sqrt(rx*rx + ry*ry)
+                             
+                             # Safety radius = Mask radius + Buffer
+                             safety_rad = self.own_robot_base_radius_px * self.get_parameter('mask_expansion').value * 2.0
+                             if dist_to_ego < safety_rad:
+                                 is_ambiguous = True
+                                 # Alert debug
+                                 cv2.putText(debug_frame, "DANGER ZONE: COLLISION RISK", (50, 450), 
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
+
                     # SIMPLIFIED: Any motion is significant (restore sensitivity)
                     is_significant_motion = (new_pixel_pos is not None)
 
@@ -467,15 +535,16 @@ class FrameDiffRobotDetector(Node):
                         # Motion detected - good! 
                         self.no_motion_frames = 0
                         
-                        # Problem 3: Tracker-MOG2 Conflict Resolution
+                        # Resolve conflict between Tracker and MOG2
                         # Check distance between Tracker center and MOG2 center
                         tracker_center = (x + w//2, y + h//2)
                         dx = new_pixel_pos[0] - tracker_center[0]
                         dy = new_pixel_pos[1] - tracker_center[1]
                         dist = np.sqrt(dx*dx + dy*dy)
                         
-                        if dist > 20.0:
-                            # Conflict! MOG2 is far from tracker. Trust MOG2 (the physical measurement).
+                        # Conflict! MOG2 is far from tracker. 
+                        # ONLY trust MOG2 if NOT ambiguous (not touching our robot)
+                        if dist > 20.0 and not is_ambiguous:
                             # Snap tracker box to MOG2 center.
                             nx = int(new_pixel_pos[0] - w/2)
                             ny = int(new_pixel_pos[1] - h/2)
@@ -483,10 +552,11 @@ class FrameDiffRobotDetector(Node):
                             pixel_pos = new_pixel_pos
                             # Optional: Could re-init tracker here if shape changed significantly
                         else:
-                            # Good alignment. Use MOG2 as authoritative position for accuracy.
+                            # Good alignment OR Ambiguous state. 
+                            # Use MOG2 as authoritative position BUT don't snap box if ambiguous
                             pixel_pos = new_pixel_pos
                             
-                        # Problem 2 continued: Smart Padding
+                        # Apply Smart Padding
                         # If MOG2 shape is significantly different from tracker box, update box size
                         # Calculate bounding box of rotated rect for sizing
                         box_points = cv2.boxPoints(min_rect)
@@ -503,7 +573,9 @@ class FrameDiffRobotDetector(Node):
                         self.last_valid_motion_pos = pixel_pos
                         
                         # Increase confidence (motion detected)
-                        self.tracking_confidence = min(1.0, self.tracking_confidence + 0.1)
+                        # Cap confidence if ambiguous!
+                        target_conf = 0.5 if is_ambiguous else 1.0
+                        self.tracking_confidence = min(target_conf, self.tracking_confidence + 0.1)
                         
                         # Save rect for visualization
                         self.last_min_rect = min_rect
@@ -514,7 +586,7 @@ class FrameDiffRobotDetector(Node):
                         # Default to tracker center if no motion measurement
                         pixel_pos = (x + w//2, y + h//2)
                         
-                        # OVERSHOOT FIX: Problem 4 - Kalman Tuning
+                        # Kalman Tuning for stationary objects
                         # When stationary for > 15 frames (~0.5s), freeze velocity but keep position update
                         if self.no_motion_frames > 15: 
                             self.kalman_filter.damp_velocity(0.0) # Kill momentum completely
@@ -554,16 +626,21 @@ class FrameDiffRobotDetector(Node):
             fg_mask = self.bg_subtractor.apply(proc_frame)
             _, thresh = cv2.threshold(fg_mask, 250, 255, cv2.THRESH_BINARY)
             
-            # Ego mask - use polygon if available, else circle
-            if robot_polygon is not None and len(robot_polygon) >= 3:
-                mask = np.zeros(thresh.shape, dtype=np.uint8)
-                cv2.fillPoly(mask, [robot_polygon], 255)
-                thresh = cv2.bitwise_and(thresh, thresh, mask=cv2.bitwise_not(mask))
-            elif robot_pos is not None:
-                mask = np.zeros(thresh.shape, dtype=np.uint8)
-                radius = int(self.own_robot_base_radius_px * self.get_parameter('shadow_expansion_factor').value)
-                cv2.circle(mask, robot_pos, radius, 255, -1)
-                thresh = cv2.bitwise_and(thresh, thresh, mask=cv2.bitwise_not(mask))
+            # Ego mask - Combine Polygon and Circle for maximum safety
+            ego_mask = np.zeros(thresh.shape, dtype=np.uint8)
+            
+            # 1. Add Polygon Mask (Primary)
+            if self.get_parameter('use_polygon_mask').value:
+                if robot_polygon is not None and len(robot_polygon) >= 3:
+                    cv2.fillPoly(ego_mask, [robot_polygon], 255)
+            else:
+                # 2. Circle Mask (Fallback/Alternative)
+                if robot_pos is not None:
+                    radius = int(self.own_robot_base_radius_px * self.get_parameter('shadow_expansion_factor').value)
+                    cv2.circle(ego_mask, robot_pos, radius, 255, -1)
+                
+            # Apply Mask ONCE: retain only what is NOT the robot
+            thresh = cv2.bitwise_and(thresh, thresh, mask=cv2.bitwise_not(ego_mask))
 
             # Find contours
             contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -633,17 +710,7 @@ class FrameDiffRobotDetector(Node):
                 cv2.circle(mask, robot_pos, radius, 255, -1)
                 thresh = cv2.bitwise_and(thresh, thresh, mask=cv2.bitwise_not(mask))
 
-            # ROI mask (ONLY on first acquisition - after that search full arena)
-            if self.get_parameter('restrict_to_spawn').value and self.first_acquisition:
-                coords = self.get_parameter('spawn_roi_coords').value
-                world_corners = [(coords[0], coords[1]), (coords[2], coords[1]), 
-                                 (coords[2], coords[3]), (coords[0], coords[3])]
-                pixel_corners = [self.world_to_pixel(wx, wy) for wx, wy in world_corners]
-                if all(p is not None for p in pixel_corners):
-                    roi_polygon = np.array(pixel_corners, dtype=np.int32)
-                    roi_mask = np.zeros(thresh.shape, dtype=np.uint8)
-                    cv2.fillPoly(roi_mask, [roi_polygon], 255)
-                    thresh = cv2.bitwise_and(thresh, thresh, mask=roi_mask)
+
 
             # Find biggest moving contour
             contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -681,7 +748,7 @@ class FrameDiffRobotDetector(Node):
                 self.tracking_duration = 0.0
                 self.tracking_confidence = 0.5  # Start with medium confidence
                 self.no_motion_frames = 0
-                self.first_acquisition = False  # After first lock, search full arena
+
                 self.get_logger().info(f"Target Locked at {pixel_pos} with bbox {current_bbox}! Transitioning to TRACKING.")
 
         # ==========================================================
@@ -731,7 +798,7 @@ class FrameDiffRobotDetector(Node):
         if self.get_parameter('debug').value:
             orientation = self.smooth_pixel_orientation if self.smooth_pixel_orientation is not None else 0.0
             self.publish_debug(debug_frame, target_contour, pixel_pos, robot_pos, 
-                             orientation, roi_polygon, current_bbox)
+                             orientation, current_bbox)
 
     def update_orientation(self, pixel_pos):
         """Update orientation estimates with smoothing."""
@@ -808,8 +875,11 @@ class FrameDiffRobotDetector(Node):
         )
 
     def publish_debug(self, frame, contour=None, pixel_pos=None, robot_pos=None, 
-                      orientation=0.0, roi_polygon=None, bbox=None):
+                      orientation=0.0, bbox=None):
         """Publish debug visualization."""
+        
+
+
         # State and confidence display
         conf_color = (0, 255, 0) if self.tracking_confidence > 0.7 else (0, 165, 255) if self.tracking_confidence > 0.4 else (0, 0, 255)
         cv2.putText(frame, f"STATE: {self.state}", (10, 30), 
@@ -826,41 +896,52 @@ class FrameDiffRobotDetector(Node):
             cv2.putText(frame, f"LOST: {self.lost_duration:.1f}s", (10, 90), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
 
-        if roi_polygon is not None:
-            cv2.polylines(frame, [roi_polygon], True, (255, 255, 0), 2)
 
-        if robot_pos is not None:
-            radius = int(self.own_robot_base_radius_px * self.get_parameter('shadow_expansion_factor').value)
-            cv2.circle(frame, robot_pos, radius, (0, 255, 0), 1)
-            cv2.circle(frame, robot_pos, 3, (0, 255, 0), -1)
-            
-        # Draw robot polygon if exists (Enhanced Debug Visualization)
+
+        # Draw robot polygon and mask overlay (Enhanced Debug Visualization)
         with self.lock:
             poly = self.own_robot_polygon_px
             rpos = robot_pos
+            use_poly = self.get_parameter('use_polygon_mask').value
             
-        if poly is not None:
-            # Draw shaded overlay for "where no tracking is done"
-            overlay = frame.copy()
-            cv2.fillPoly(overlay, [poly], (0, 100, 100)) # Dark yellow/olive
-            cv2.addWeighted(overlay, 0.4, frame, 0.6, 0, frame)
-            
-            # Draw polygon edges
+        # Create a red tinted overlay for the EXACT area being masked
+        if (use_poly and poly is not None) or (not use_poly and rpos is not None):
+             overlay = frame.copy()
+             mask_viz = np.zeros(frame.shape[:2], dtype=np.uint8)
+             
+             if use_poly and poly is not None:
+                 cv2.fillPoly(mask_viz, [poly], 255)
+             elif not use_poly and rpos is not None:
+                 radius = int(self.own_robot_base_radius_px * self.get_parameter('shadow_expansion_factor').value)
+                 cv2.circle(mask_viz, rpos, radius, 255, -1)
+             
+             # Apply Red Tint to masked area
+             # (B, G, R) -> Red is (0, 0, 255)
+             overlay[mask_viz > 0] = (0, 0, 255) 
+             
+             # Blend: 0.3 opacity red
+             cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
+
+        if use_poly and poly is not None:
+            # Draw polygon edges for detail
             cv2.polylines(frame, [poly], True, (0, 255, 255), 2)
             # Draw numbered points
             for i in range(len(poly)):
                 pt = tuple(poly[i][0])
                 cv2.circle(frame, pt, 3, (255, 255, 0), -1)
                 cv2.putText(frame, str(i), pt, cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-            cv2.putText(frame, "SELF-POLY", tuple(poly[0][0]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+            cv2.putText(frame, "MASKED AREA", tuple(poly[0][0]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
             
-            # Log masking stats periodically
-            if self._debug_counter % 100 == 1:
-                self.get_logger().info(f"Robot Mask Overlay: center={robot_pos}, points={len(poly)}")
         else:
             if rpos is not None:
-                cv2.circle(frame, rpos, 5, (0, 0, 255), -1)
-                cv2.putText(frame, "NO POLY", (rpos[0]+10, rpos[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                if use_poly:
+                     # No polygon but we have pose - show warning
+                     cv2.putText(frame, "NO POLY (See Logs)", (rpos[0]+10, rpos[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                else:
+                    # Circle Mode Visualization
+                    radius = int(self.own_robot_base_radius_px * self.get_parameter('shadow_expansion_factor').value)
+                    cv2.circle(frame, rpos, radius, (0, 0, 255), 2)
+                    cv2.putText(frame, "MASK (CIRCLE)", (rpos[0]+10, rpos[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
             else:
                 cv2.putText(frame, "NO ROBOT POSE", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
@@ -875,13 +956,13 @@ class FrameDiffRobotDetector(Node):
                 color = (0, 165, 255)
             cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
             
-        # Draw Rotated Rect (Blue) - Problem 5
+        # Draw Rotated Rect (Blue)
         if hasattr(self, 'last_min_rect') and self.last_min_rect is not None:
             box_points = cv2.boxPoints(self.last_min_rect)
             box_points = np.int0(box_points)
             cv2.drawContours(frame, [box_points], 0, (255, 0, 0), 2)
 
-        # Draw Velocity Vector (Red) - Problem 5
+        # Draw Velocity Vector (Red)
         if self.kalman_filter.initialized:
             vx, vy = self.kalman_filter.x[2], self.kalman_filter.x[3]
             # Scale velocity for visibility (e.g. * 20 pixels)
@@ -889,10 +970,10 @@ class FrameDiffRobotDetector(Node):
             end_pt = (int(self.kalman_filter.x[0] + vx * 20), int(self.kalman_filter.x[1] + vy * 20))
             cv2.arrowedLine(frame, start_pt, end_pt, (0, 0, 255), 2, tipLength=0.3)
             
-        # Draw Status Text
+        # Draw Status Text (MOVING/STATIONARY) stacked below NO_MOT
         if hasattr(self, 'debug_status_text'):
-            cv2.putText(frame, self.debug_status_text, (200, 30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, self.debug_status_color, 2)
+            cv2.putText(frame, self.debug_status_text, (10, 140), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, self.debug_status_color, 2)
 
         if pixel_pos is not None:
             cv2.circle(frame, pixel_pos, 5, (255, 255, 255), -1)
@@ -900,9 +981,7 @@ class FrameDiffRobotDetector(Node):
                 lx, ly = int(40 * np.cos(orientation)), int(40 * np.sin(orientation))
                 cv2.line(frame, pixel_pos, (pixel_pos[0]+lx, pixel_pos[1]+ly), (255, 255, 0), 2)
 
-        # Debug: log frame info before publishing
-        if self._debug_counter % 100 == 1:
-            self.get_logger().info(f"Debug frame to publish: {frame.shape}, dtype={frame.dtype}, mean={np.mean(frame):.1f}")
+
 
         out_msg = self.bridge.cv2_to_imgmsg(frame, "bgr8")
         out_msg.header.frame_id = self.camera_frame_id

@@ -119,7 +119,21 @@ def generate_launch_description():
         ],
         output='screen',
     )
-    
+
+    # Spawn Arena Ball
+    spawn_ball1 = Node(
+        package='ros_gz_sim',
+        executable='create',
+        name='spawn_ball1',
+        arguments=[
+            '-name', 'arena_ball',
+            '-file', os.path.join(models_path, 'arena_ball/model.sdf'),
+            '-x', '0.75', '-y', '0.75', '-z', '0.1',  # Position above ground
+            '-R', '0.0', '-P', '0.0', '-Y', '0.0'
+        ],
+        output='screen',
+    )
+
     # Bridge
     bridge_params = os.path.join(pkg_share, 'parameters/bridge_parameters.yaml')
     bridge = Node(
@@ -219,5 +233,11 @@ def generate_launch_description():
         period=8.0,
         actions=[grayscale_republisher, camera_info_publisher]
     ))
+
+    # Update the TimerAction at 5.0 seconds to include the ball:
+    ld.add_action(TimerAction(
+        period=9.0,
+        actions=[spawn_ball1]  # Added spawn_ball
+    ))
     
-    return ld
+    return ld                     

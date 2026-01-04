@@ -9,7 +9,7 @@ class SimpleAttack(Node):
         # Create a subscriber to the /camera/opponent/pose topic
         self.subscription = self.create_subscription(
             PoseStamped,
-            '/camera/opponent/pose',  # Original topic
+            '/opponent/pose_sim',  # Original topic
             self.listener_callback,
             10)
 
