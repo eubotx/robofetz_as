@@ -962,14 +962,7 @@ class FrameDiffRobotDetector(Node):
             box_points = np.int0(box_points)
             cv2.drawContours(frame, [box_points], 0, (255, 0, 0), 2)
 
-        # Draw Velocity Vector (Red)
-        if self.kalman_filter.initialized:
-            vx, vy = self.kalman_filter.x[2], self.kalman_filter.x[3]
-            # Scale velocity for visibility (e.g. * 20 pixels)
-            start_pt = (int(self.kalman_filter.x[0]), int(self.kalman_filter.x[1]))
-            end_pt = (int(self.kalman_filter.x[0] + vx * 20), int(self.kalman_filter.x[1] + vy * 20))
-            cv2.arrowedLine(frame, start_pt, end_pt, (0, 0, 255), 2, tipLength=0.3)
-            
+
         # Draw Status Text (MOVING/STATIONARY) stacked below NO_MOT
         if hasattr(self, 'debug_status_text'):
             cv2.putText(frame, self.debug_status_text, (10, 140), 
