@@ -16,7 +16,7 @@
 		)
 	)
 	(property "Value" "DCDC"
-		(at 0 1 0)
+		(at 0 4 0)
 		(unlocked yes)
 		(layer "F.Fab")
 		(uuid "b993cd0b-694b-44a9-9488-b23787e10388")
@@ -55,8 +55,8 @@
 	)
 	(attr smd)
 	(fp_rect
-		(start -12.7 0)
-		(end 10.16 17.78)
+		(start -12.5 2.5)
+		(end 7.5 17.5)
 		(stroke
 			(width 0.1)
 			(type default)
@@ -66,7 +66,7 @@
 		(uuid "77a35544-66d5-4901-9467-c76e22029d4d")
 	)
 	(fp_text user "${REFERENCE}"
-		(at 0 2.5 0)
+		(at 0 5.5 0)
 		(unlocked yes)
 		(layer "F.Fab")
 		(uuid "593ae87d-4571-47e2-965c-c4ba1b357845")
@@ -78,7 +78,7 @@
 		)
 	)
 	(pad "1" thru_hole circle
-		(at -10.2 2.54)
+		(at -10.2 5.54)
 		(size 2.25 2.25)
 		(drill 0.9)
 		(layers "*.Cu" "*.Mask")
@@ -94,7 +94,7 @@
 		(uuid "31f7b348-8824-403b-afbe-91c8ccf97dcb")
 	)
 	(pad "3" thru_hole circle
-		(at 7.8 2.54)
+		(at 5.3 5.54)
 		(size 2.25 2.25)
 		(drill 0.9)
 		(layers "*.Cu" "*.Mask")
@@ -102,7 +102,7 @@
 		(uuid "e72a518d-e937-4155-bcbc-17a4e9a8aae9")
 	)
 	(pad "4" thru_hole circle
-		(at 7.8 14.54)
+		(at 5.3 14.54)
 		(size 2.25 2.25)
 		(drill 0.9)
 		(layers "*.Cu" "*.Mask")
