@@ -11,10 +11,18 @@ from scipy.spatial.transform import Rotation
 import pyapriltags
 import yaml
 import os
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 class BotDetectionNode(Node):
     def __init__(self):
         super().__init__('robot_detection_node')
+        
+        # Use QoS settings for better performance - prevents backpressure
+        qos_profile = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=1  # Only keep the latest message
+        )
         
         # Declare parameters with descriptions
         self.declare_parameter('config_file', '', 
@@ -33,11 +41,11 @@ class BotDetectionNode(Node):
         # Initialize from configuration
         self.initialize_from_config()
         
-        # Subscribers
+        # Subscribers with QoS profile
         self.image_sub = self.create_subscription(
-            Image, 'arena_camera/image_rect', self.image_callback, 10)
+            Image, 'arena_camera/image_rect', self.image_callback, qos_profile=qos_profile)
         self.camera_info_sub = self.create_subscription(
-            CameraInfo, 'arena_camera/camera_info', self.camera_info_callback, 10)
+            CameraInfo, 'arena_camera/camera_info', self.camera_info_callback, qos_profile=qos_profile)
         self.bridge = CvBridge()
         
         # TF2
