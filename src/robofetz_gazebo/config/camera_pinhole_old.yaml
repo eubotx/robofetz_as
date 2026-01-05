@@ -12,7 +12,7 @@ distortion_model: "plumb_bob"
 camera_matrix:
   rows: 3
   cols: 3
-  data: [355.55, 0.0, 400.0, 0.0, 355.56, 300.0, 0.0, 0.0, 1.0]
+  data: [356.0, 0.0, 400.0, 0.0, 356.0, 300.0, 0.0, 0.0, 1.0]
 
 # No distortion for pinhole camera
 distortion_coefficients:
@@ -30,4 +30,4 @@ rectification_matrix:
 projection_matrix:
   rows: 3
   cols: 4
-  data: [355.55, 0.0, 400.0, 0.0, 0.0, 355.56, 300.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+  data: [356.0, 0.0, 400.0, 0.0, 0.0, 356.0, 300.0, 0.0, 0.0, 0.0, 1.0, 0.0]

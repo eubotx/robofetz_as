@@ -52,7 +52,7 @@ class BotDetectionNode(Node):
         
         # Configuration
         self.robot_tags = {
-            'sizes': 0.0778, 
+            'sizes': 0.0556, 
             'family': 'tagStandard41h12', 
             'top_id': 12, 
             'bottom_id': 31

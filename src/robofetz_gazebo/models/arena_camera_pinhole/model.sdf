@@ -3,7 +3,7 @@
   <model name="arena_camera_pinhole">
     <static>true</static>
     <link name="link">
-      <pose>0.75 0.75 1.2 0 1.5708 0</pose>
+      <pose>0.75 0.75 1.0 0 1.5708 0</pose>
       
       <!-- Visual element to see the camera -->
       <visual name="camera_visual">
