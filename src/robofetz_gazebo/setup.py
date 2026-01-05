@@ -28,6 +28,8 @@ setup(
         (os.path.join('share', package_name, 'models/arena_apriltag'), glob('models/arena_apriltag/*.config')),
         (os.path.join('share', package_name, 'models/arena_apriltag'), glob('models/arena_apriltag/*.sdf')),
         (os.path.join('share', package_name, 'models/arena_apriltag/materials/textures'), glob('models/arena_apriltag/materials/textures/*')),
+        (os.path.join('share', package_name, 'models/calibration_checkerboard'), glob('models/calibration_checkerboard/*.config')),
+        (os.path.join('share', package_name, 'models/calibration_checkerboard'), glob('models/calibration_checkerboard/*.sdf')),
 
         # install other Parameter and Config files
         (os.path.join('share', package_name, 'parameters'), glob('parameters/*.yaml')),

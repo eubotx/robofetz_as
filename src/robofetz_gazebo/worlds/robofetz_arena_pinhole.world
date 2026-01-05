@@ -36,6 +36,11 @@
     <include>
       <uri>model://arena_apriltag</uri>
     </include>
+
+    <!-- Include the calibration checkerboard -->
+    <include>
+      <uri>model://calibration_checkerboard</uri>
+    </include>
     
   </world>
 </sdf>
