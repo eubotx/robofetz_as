@@ -1,5 +1,5 @@
 # simple_arena_calibration.yaml
-arena_apriltag:
+arena_tag:
   id: 2
   family: "tagStandard41h12"
   size: 0.0833
@@ -39,4 +39,4 @@ frames:
   world: "world"
   camera: "arena_camera"
   camera_optical: "arena_camera_optical"
-  tag: "arena_apriltag"
+  tag: "arena_tag"

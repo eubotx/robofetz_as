@@ -1,0 +1,62 @@
+# minimal_robot_detection.yaml
+
+# Robot tag configuration
+robot_tags:
+  top_id: 12
+  bottom_id: 31
+  family: "tagStandard41h12"
+  size: 0.0556
+  
+  # Tag to base transform for top tag
+  top_tag_to_base_transform:
+    translation:
+      x: 0.0      # Tag offset in X from robot center (forward/backward)
+      y: 0.0      # Tag offset in Y from robot center (left/right)
+      z: 0.05     # Tag offset in Z from robot center (up/down)
+    
+    orientation:
+      # Euler angles in radians (roll-pitch-yaw convention, X-Y-Z order)
+      # Adjust based on how the tag is mounted on the robot
+      roll: 0.0      # Rotation around X axis (tilt side-to-side)
+      pitch: 0.0     # Rotation around Y axis (tilt forward/backward)
+      yaw: 0.0       # Rotation around Z axis (rotation in ground plane)
+
+  # Tag to base transform for bottom tag
+  bottom_tag_to_base_transform:
+    translation:
+      x: 0.0      # Tag offset in X from robot center (forward/backward)
+      y: 0.0      # Tag offset in Y from robot center (left/right)
+      z: 0.05     # Tag offset in Z from robot center (up/down)
+    
+    orientation:
+      # Euler angles in radians (roll-pitch-yaw convention, X-Y-Z order)
+      # Adjust based on how the tag is mounted on the robot
+      roll: 0.0      # Rotation around X axis (tilt side-to-side)
+      pitch: 0.0     # Rotation around Y axis (tilt forward/backward)
+      yaw: 0.0       # Rotation around Z axis (rotation in ground plane)
+
+# Detection settings  
+detection:
+  debug_image: true
+  
+  # Robot outline definition
+  # Points are relative coordinates that will be scaled by outline_scale
+  # X Y Z around robot base
+  outline_points:
+      - [0.0, -0.52, 0.0]
+      - [0.26, 0.0, 0.0]
+      - [0.26, 0.13, 0.0]
+      - [-0.26, 0.13, 0.0]
+      - [-0.26, 0.0, 0.0]
+
+# Frame names
+frames:
+  robot_base: "robot_base"
+  camera_optical: "arena_camera_optical"
+  world: "world"
+  arena_tag: "arena_tag"
+
+# Topics
+topics:
+  robot_pose: "/robot/pose"
+  detection_overlay: "/arena_camera/image_robot_detection_debug"
