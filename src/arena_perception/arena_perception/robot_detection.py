@@ -198,7 +198,7 @@ class BotDetectionNode(Node):
             self.tf_broadcaster.sendTransform(transforms_to_send)
         else:
             # Only log when nothing is detected
-            self.get_logger().debug("No robot tags found in frame", throttle_duration_sec=2.0)
+            self.get_logger().info("No robot tags found in frame", throttle_duration_sec=2.0)
 
 
 def main(args=None):
