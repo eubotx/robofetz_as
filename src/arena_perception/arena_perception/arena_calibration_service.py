@@ -54,7 +54,6 @@ class ArenaCalibrationService(Node):
         self.latest_frame = None
         self.camera_info = None
         self.projection_matrix = None  # 3x4 projection matrix P for rectified image
-        self.camera_intrinsics = None  # [fx, fy, cx, cy] extracted from P
         self.tag_from_camera_optical = None  # Transform from camera_optical to tag (R, t) tuple
         self.camera_optical_from_tag = None  # Inverse: transform from tag to camera_optical (R, t) tuple
         self.initial_calibration_complete = False
@@ -170,27 +169,24 @@ class ArenaCalibrationService(Node):
         
         # For rectified images (image_rect), we should use the projection matrix P
         # The left 3x3 part of P is the intrinsic matrix for the rectified image
-        # P = [K_rect | t] where K_rect is the rectified camera matrix
         K_rect = self.projection_matrix[:, :3]
         
-        # Extract camera intrinsics from the rectified camera matrix
+        # Extract camera intrinsics from the rectified camera matrix for AprilTag
         fx = K_rect[0, 0]
         fy = K_rect[1, 1]
         cx = K_rect[0, 2]
         cy = K_rect[1, 2]
         
-        self.camera_intrinsics = np.array([fx, fy, cx, cy])
-        
         if self.april_detector is None:
             # Initialize AprilTag detector directly
             self.april_detector = pyapriltags.Detector(families=self.arena_tag_family)
             
+            # Store intrinsics only for AprilTag detector
+            self.april_intrinsics = [fx, fy, cx, cy]
+            
             self.get_logger().info("Camera info received. AprilTag detector initialized")
             self.get_logger().info(f"Using projection matrix P for rectified image (image_rect)")
             self.get_logger().info(f"Rectified camera intrinsics from P: fx={fx:.1f}, fy={fy:.1f}, cx={cx:.1f}, cy={cy:.1f}")
-            
-            # Log the full projection matrix for debugging
-            self.get_logger().debug(f"Projection matrix P:\n{self.projection_matrix}")
         
     def image_callback(self, msg):
         """Store the latest camera frame"""
@@ -254,7 +250,7 @@ class ArenaCalibrationService(Node):
         detections = self.april_detector.detect(
             gray,
             estimate_tag_pose=True,
-            camera_params=self.camera_intrinsics,
+            camera_params=self.april_intrinsics,
             tag_size=self.arena_tag_size
         )
         
