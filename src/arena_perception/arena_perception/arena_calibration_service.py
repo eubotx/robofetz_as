@@ -239,26 +239,16 @@ class ArenaCalibrationService(Node):
                 tag_from_camera_optical_R = np.array(detection.pose_R)
                 tag_from_camera_optical_t = np.array(detection.pose_t).reshape(3, 1)
                 
-                # APPLY THE ADDITIONAL ROTATION to camera optical frame
-                # Rotation (0, pi, -pi/2) in XYZ convention
-                additional_rotation = Rotation.from_euler('xyz', [0, np.pi, np.pi/2])
-                R_additional = additional_rotation.as_matrix()
-                
-                # Apply rotation: new_R = old_R * R_additional^T
-                # Because we're rotating the coordinate frame, not the point
-                corrected_tag_from_camera_optical_R = tag_from_camera_optical_R @ R_additional.T
-                corrected_tag_from_camera_optical_t = tag_from_camera_optical_t  # Translation stays same
-                
-                # Store the corrected transform
+                # Store transform
                 self.tag_from_camera_optical = MathPose(
-                    corrected_tag_from_camera_optical_R, 
-                    corrected_tag_from_camera_optical_t.flatten()
+                    tag_from_camera_optical_R, 
+                    tag_from_camera_optical_t.flatten()
                 )
                 
                 # INVERSE: Compute camera_optical FROM tag transform
                 # T_camera_optical_tag = T_tag_camera_optical^(-1)
-                camera_optical_from_tag_R = corrected_tag_from_camera_optical_R.T
-                camera_optical_from_tag_t = -camera_optical_from_tag_R @ corrected_tag_from_camera_optical_t
+                camera_optical_from_tag_R = tag_from_camera_optical_R.T
+                camera_optical_from_tag_t = -camera_optical_from_tag_R @ tag_from_camera_optical_t
                 
                 # Store the inverse transform
                 self.camera_optical_from_tag = MathPose(
@@ -267,17 +257,11 @@ class ArenaCalibrationService(Node):
                 )
                 
                 self.get_logger().info("=== TAG DETECTED ===")
-                self.get_logger().info(f"Tag position in camera_optical frame: [{corrected_tag_from_camera_optical_t[0][0]:.3f}, "
-                                      f"{corrected_tag_from_camera_optical_t[1][0]:.3f}, {corrected_tag_from_camera_optical_t[2][0]:.3f}] m")
+                self.get_logger().info(f"Tag position in camera_optical frame: [{tag_from_camera_optical_t[0][0]:.3f}, "
+                                      f"{tag_from_camera_optical_t[1][0]:.3f}, {tag_from_camera_optical_t[2][0]:.3f}] m")
                 self.get_logger().info(f"Camera_optical position in tag frame: [{camera_optical_from_tag_t[0][0]:.3f}, "
                                       f"{camera_optical_from_tag_t[1][0]:.3f}, {camera_optical_from_tag_t[2][0]:.3f}] m")
-                self.get_logger().info(f"Distance to tag: {np.linalg.norm(corrected_tag_from_camera_optical_t):.3f} m")
-                
-                # Debug: show the rotation
-                rpy_original = Rotation.from_matrix(tag_from_camera_optical_R).as_euler('xyz', degrees=True)
-                rpy_corrected = Rotation.from_matrix(corrected_tag_from_camera_optical_R).as_euler('xyz', degrees=True)
-                self.get_logger().info(f"Original optical frame RPY (deg): [{rpy_original[0]:.1f}, {rpy_original[1]:.1f}, {rpy_original[2]:.1f}]")
-                self.get_logger().info(f"Corrected optical frame RPY (deg): [{rpy_corrected[0]:.1f}, {rpy_corrected[1]:.1f}, {rpy_corrected[2]:.1f}]")
+                self.get_logger().info(f"Distance to tag: {np.linalg.norm(tag_from_camera_optical_t):.3f} m")
                 
                 return True
         
