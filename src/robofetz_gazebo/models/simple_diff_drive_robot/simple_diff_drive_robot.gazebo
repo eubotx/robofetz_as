@@ -7,25 +7,25 @@
     <!-- mu1 and mu2 are friction coefficients -->
     <!-- match reference names with link names in robot.xacro ! -->
     <!-- wheel torques and speeds need now to be adjusted in robot.xacro with limit_effort and velocity under each joint-->
-    <gazebo reference="body_link">
+    <gazebo reference="$(arg prefix)body_link">
         <mu1>0.2</mu1>
         <mu2>0.2</mu2>
         <material>Gazebo/Green</material>
     </gazebo>
 
-    <gazebo reference="wheel1_link">
+    <gazebo reference="$(arg prefix)wheel1_link">
         <mu1>0.8</mu1>
         <mu2>0.8</mu2>
         <material>Gazebo/Blue</material>
     </gazebo>
 
-    <gazebo reference="wheel2_link">
+    <gazebo reference="$(arg prefix)wheel2_link">
         <mu1>0.8</mu1>
         <mu2>0.8</mu2>
         <material>Gazebo/Blue</material>
     </gazebo>
 
-    <gazebo reference="caster_link">
+    <gazebo reference="$(arg prefix)caster_link">
         <mu1>0.01</mu1>
         <mu2>0.01</mu2>
         <material>Gazebo/Blue</material>
@@ -40,8 +40,8 @@
         <!-- Diff Drive plugin -->
         <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
             <!-- wheels -->
-            <right_joint>wheel1_joint</right_joint>
-            <left_joint>wheel2_joint</left_joint>
+            <right_joint>$(arg prefix)wheel1_joint</right_joint>
+            <left_joint>$(arg prefix)wheel2_joint</left_joint>
 
             <!-- kinematics -->
             <wheel_separation>${2*s4}</wheel_separation>
@@ -56,7 +56,7 @@
             <odom_topic>odometry_with_slip</odom_topic>
             <odom_publisher_frequency>30</odom_publisher_frequency>
             <frame_id>odom</frame_id>
-            <child_frame_id>base_footprint</child_frame_id>
+            <child_frame_id>$(arg prefix)base_footprint</child_frame_id>
             
         </plugin>
 
@@ -64,14 +64,14 @@
         <plugin filename="gz-sim-joint-state-publisher-system"
           name="gz::sim::systems::JointStatePublisher">
             <topic>joint_states</topic>
-            <joint_name>wheel1_joint</joint_name>
-            <joint_name>wheel2_joint</joint_name>
+            <joint_name>$(arg prefix)wheel1_joint</joint_name>
+            <joint_name>$(arg prefix)wheel2_joint</joint_name>
         </plugin>
 
         <plugin filename="gz-sim-odometry-publisher-system"
-        name="gz::sim::systems::OdometryPublisher">
+         name="gz::sim::systems::OdometryPublisher">
             <odom_frame>map</odom_frame>
-            <robot_base_frame>base_footprint</robot_base_frame>
+            <robot_base_frame>$(arg prefix)base_footprint</robot_base_frame>
             <odom_publish_frequency>30</odom_publish_frequency>
             <odom_topic>odometry_ground_truth</odom_topic>
             <odom_covariance_topic>odometry_ground_truth_with_covariance</odom_covariance_topic>

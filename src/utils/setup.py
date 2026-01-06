@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os
+from glob import glob
 
 package_name = 'utils'
 
@@ -20,6 +22,8 @@ setup(
         ('share/' + package_name + '/config/joy_teleop', ['config/joy_teleop/rhinozeros_teleop.config.yaml']),
         ('share/' + package_name + '/config/slider_publisher', ['config/slider_publisher/Float32.yaml']),
         
+        # Map files
+        (os.path.join('share', package_name, 'map'), glob('map/*')),
 
     ],
     install_requires=['setuptools'],
@@ -31,6 +35,11 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'keyboard_node = utils.keyboard_node:main',
+            'create_map = utils.create_map:main',
+            'map_node = utils.map_node:main',
+            'cmd_vel_relay = utils.cmd_vel_relay:main'
+
         ],
     },
 )
