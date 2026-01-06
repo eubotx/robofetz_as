@@ -7,8 +7,7 @@ from cv_bridge import CvBridge
 import cv2
 import numpy as np
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
-from arena_perception.detector import AprilTagDetector
-from arena_perception.math_funcs import Pose as MathPose
+import pyapriltags
 from scipy.spatial.transform import Rotation
 import yaml
 import os
@@ -23,6 +22,10 @@ class ArenaCalibrationService(Node):
                               ParameterDescriptor(
                                   description='Path to YAML configuration file',
                                   type=ParameterType.PARAMETER_STRING))
+        self.declare_parameter('tf_publish_rate', 30.0,
+                              ParameterDescriptor(
+                                  description='Rate (Hz) for publishing TF transforms',
+                                  type=ParameterType.PARAMETER_DOUBLE))
         
         # Load configuration
         config_file = self.get_parameter('config_file').value
@@ -54,13 +57,21 @@ class ArenaCalibrationService(Node):
         # State
         self.latest_frame = None
         self.camera_info = None
-        self.tag_from_camera_optical = None  # Transform from camera_optical to tag
-        self.camera_optical_from_tag = None  # Inverse: transform from tag to camera_optical
+        self.projection_matrix = None  # 3x4 projection matrix P for rectified image
+        self.tag_from_camera_optical = None  # Transform from camera_optical to tag (R, t) tuple
+        self.camera_optical_from_tag = None  # Inverse: transform from tag to camera_optical (R, t) tuple
         self.initial_calibration_complete = False
         self.april_detector = None
         
-        # Timer for continuous TF publishing at 1Hz (only active after initial calibration)
-        self.tf_publish_timer = self.create_timer(1.0, self.publish_transform)
+        # Control flags and counters
+        self.tf_publish_active = False
+        
+        # Get TF publish rate from parameter
+        tf_publish_rate = self.get_parameter('tf_publish_rate').value
+        
+        # Timer for continuous TF publishing (created but not immediately started)
+        self.tf_publish_timer = None
+        self.tf_publish_rate = tf_publish_rate
         
         # Initial calibration retry timer - keeps trying until success
         self.initial_calibration_timer = self.create_timer(1.0, self.perform_initial_calibration)
@@ -84,7 +95,7 @@ class ArenaCalibrationService(Node):
     def initialize_from_config(self):
         """Initialize parameters from configuration"""
         # Arena tag configuration
-        tag_config = self.config.get('arena_apriltag', {})
+        tag_config = self.config.get('arena_tag', {})
         self.arena_tag_id = tag_config.get('id', 2)
         self.arena_tag_family = tag_config.get('family', 'tagStandard41h12')
         self.arena_tag_size = tag_config.get('size', 0.15)
@@ -111,7 +122,7 @@ class ArenaCalibrationService(Node):
         self.frame_map = frames.get('map', 'map')
         self.frame_world = frames.get('world', 'world')
         self.frame_camera_optical = frames.get('camera_optical', 'arena_camera_optical')
-        self.frame_tag = frames.get('tag', 'arena_apriltag')
+        self.frame_tag = frames.get('tag', 'arena_tag')
         
         # Log configuration
         self.get_logger().info(f"Arena tag ID: {self.arena_tag_id}, Family: {self.arena_tag_family}, Size: {self.arena_tag_size}")
@@ -163,13 +174,30 @@ class ArenaCalibrationService(Node):
     def camera_info_callback(self, msg):
         """Receive camera calibration from camera_info topic"""
         self.camera_info = msg
-        if self.april_detector is None and self.camera_info is not None:
-            calibration_data = {
-                'camera_matrix': np.array(self.camera_info.k).reshape(3, 3),
-                'distortion_coefficients': np.array(self.camera_info.d)
-            }
-            self.april_detector = AprilTagDetector(calibration_data)
+        
+        # Extract the projection matrix P (3x4) - this is for rectified images
+        self.projection_matrix = np.array(self.camera_info.p).reshape(3, 4)
+        
+        # For rectified images (image_rect), we should use the projection matrix P
+        # The left 3x3 part of P is the intrinsic matrix for the rectified image
+        K_rect = self.projection_matrix[:, :3]
+        
+        # Extract camera intrinsics from the rectified camera matrix for AprilTag
+        fx = K_rect[0, 0]
+        fy = K_rect[1, 1]
+        cx = K_rect[0, 2]
+        cy = K_rect[1, 2]
+        
+        if self.april_detector is None:
+            # Initialize AprilTag detector directly
+            self.april_detector = pyapriltags.Detector(families=self.arena_tag_family)
+            
+            # Store intrinsics only for AprilTag detector
+            self.april_intrinsics = [fx, fy, cx, cy]
+            
             self.get_logger().info("Camera info received. AprilTag detector initialized")
+            self.get_logger().info(f"Using projection matrix P for rectified image (image_rect)")
+            self.get_logger().info(f"Rectified camera intrinsics from P: fx={fx:.1f}, fy={fy:.1f}, cx={cx:.1f}, cy={cy:.1f}")
         
     def image_callback(self, msg):
         """Store the latest camera frame"""
@@ -195,9 +223,18 @@ class ArenaCalibrationService(Node):
         if success:
             if not self.initial_calibration_complete:
                 self.initial_calibration_complete = True
-                self.get_logger().info("Initial calibration successful - starting continuous TF publishing")
+                # Start the TF publishing timer only after calibration is complete
+                self.start_tf_publishing()
+                self.get_logger().info(f"Initial calibration successful - starting TF publishing at {self.tf_publish_rate} Hz")
         else:
             self.get_logger().warn("Initial calibration failed, will retry in 1 second...")
+    
+    def start_tf_publishing(self):
+        """Start the TF publishing timer"""
+        if self.tf_publish_timer is None:
+            tf_publish_period = 1.0 / self.tf_publish_rate
+            self.tf_publish_timer = self.create_timer(tf_publish_period, self.publish_transform)
+            self.tf_publish_active = True
         
     async def calibrate_callback(self, request, response):
         """External calibration service - can be called by other nodes"""
@@ -217,6 +254,9 @@ class ArenaCalibrationService(Node):
         
         if success:
             self.get_logger().info("Recalibration successful - updated TF transform")
+            # Ensure TF publishing is active
+            if not self.tf_publish_active:
+                self.start_tf_publishing()
             response.success = True
             response.message = "Arena calibration complete and published to TF"
         else:
@@ -228,9 +268,16 @@ class ArenaCalibrationService(Node):
     def detect_arena_tag(self):
         """Detect arena tag and compute tag -> camera_optical transform"""
         gray = cv2.cvtColor(self.latest_frame, cv2.COLOR_BGR2GRAY)
-        april_tag_output = self.april_detector.detect(gray, self.arena_tag_size)
         
-        for detection in april_tag_output["aprilTags"]:
+        # Direct AprilTag detection using the rectified camera intrinsics
+        detections = self.april_detector.detect(
+            gray,
+            estimate_tag_pose=True,
+            camera_params=self.april_intrinsics,
+            tag_size=self.arena_tag_size
+        )
+        
+        for detection in detections:
             if (detection.tag_family.decode() == self.arena_tag_family and
                 detection.tag_id == self.arena_tag_id):
                 
@@ -239,45 +286,23 @@ class ArenaCalibrationService(Node):
                 tag_from_camera_optical_R = np.array(detection.pose_R)
                 tag_from_camera_optical_t = np.array(detection.pose_t).reshape(3, 1)
                 
-                # APPLY THE ADDITIONAL ROTATION to camera optical frame
-                # Rotation (0, pi, -pi/2) in XYZ convention
-                additional_rotation = Rotation.from_euler('xyz', [0, np.pi, np.pi/2])
-                R_additional = additional_rotation.as_matrix()
-                
-                # Apply rotation: new_R = old_R * R_additional^T
-                # Because we're rotating the coordinate frame, not the point
-                corrected_tag_from_camera_optical_R = tag_from_camera_optical_R @ R_additional.T
-                corrected_tag_from_camera_optical_t = tag_from_camera_optical_t  # Translation stays same
-                
-                # Store the corrected transform
-                self.tag_from_camera_optical = MathPose(
-                    corrected_tag_from_camera_optical_R, 
-                    corrected_tag_from_camera_optical_t.flatten()
-                )
+                # Store transform as tuple (R, t)
+                self.tag_from_camera_optical = (tag_from_camera_optical_R, tag_from_camera_optical_t)
                 
                 # INVERSE: Compute camera_optical FROM tag transform
                 # T_camera_optical_tag = T_tag_camera_optical^(-1)
-                camera_optical_from_tag_R = corrected_tag_from_camera_optical_R.T
-                camera_optical_from_tag_t = -camera_optical_from_tag_R @ corrected_tag_from_camera_optical_t
+                camera_optical_from_tag_R = tag_from_camera_optical_R.T
+                camera_optical_from_tag_t = -camera_optical_from_tag_R @ tag_from_camera_optical_t
                 
-                # Store the inverse transform
-                self.camera_optical_from_tag = MathPose(
-                    camera_optical_from_tag_R,
-                    camera_optical_from_tag_t.flatten()
-                )
+                # Store the inverse transform as tuple (R, t)
+                self.camera_optical_from_tag = (camera_optical_from_tag_R, camera_optical_from_tag_t.flatten())
                 
                 self.get_logger().info("=== TAG DETECTED ===")
-                self.get_logger().info(f"Tag position in camera_optical frame: [{corrected_tag_from_camera_optical_t[0][0]:.3f}, "
-                                      f"{corrected_tag_from_camera_optical_t[1][0]:.3f}, {corrected_tag_from_camera_optical_t[2][0]:.3f}] m")
+                self.get_logger().info(f"Tag position in camera_optical frame: [{tag_from_camera_optical_t[0][0]:.3f}, "
+                                      f"{tag_from_camera_optical_t[1][0]:.3f}, {tag_from_camera_optical_t[2][0]:.3f}] m")
                 self.get_logger().info(f"Camera_optical position in tag frame: [{camera_optical_from_tag_t[0][0]:.3f}, "
                                       f"{camera_optical_from_tag_t[1][0]:.3f}, {camera_optical_from_tag_t[2][0]:.3f}] m")
-                self.get_logger().info(f"Distance to tag: {np.linalg.norm(corrected_tag_from_camera_optical_t):.3f} m")
-                
-                # Debug: show the rotation
-                rpy_original = Rotation.from_matrix(tag_from_camera_optical_R).as_euler('xyz', degrees=True)
-                rpy_corrected = Rotation.from_matrix(corrected_tag_from_camera_optical_R).as_euler('xyz', degrees=True)
-                self.get_logger().info(f"Original optical frame RPY (deg): [{rpy_original[0]:.1f}, {rpy_original[1]:.1f}, {rpy_original[2]:.1f}]")
-                self.get_logger().info(f"Corrected optical frame RPY (deg): [{rpy_corrected[0]:.1f}, {rpy_corrected[1]:.1f}, {rpy_corrected[2]:.1f}]")
+                self.get_logger().info(f"Distance to tag: {np.linalg.norm(tag_from_camera_optical_t):.3f} m")
                 
                 return True
         
@@ -289,17 +314,20 @@ class ArenaCalibrationService(Node):
         if not self.initial_calibration_complete or self.camera_optical_from_tag is None:
             return
             
+        # Extract R and t from tuple
+        camera_optical_from_tag_R, camera_optical_from_tag_t = self.camera_optical_from_tag
+        
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = self.frame_tag
         t.child_frame_id = self.frame_camera_optical
         
         # Use the INVERSE transform: FROM tag TO camera_optical
-        t.transform.translation.x = float(self.camera_optical_from_tag.t[0])
-        t.transform.translation.y = float(self.camera_optical_from_tag.t[1])
-        t.transform.translation.z = float(self.camera_optical_from_tag.t[2])
+        t.transform.translation.x = float(camera_optical_from_tag_t[0])
+        t.transform.translation.y = float(camera_optical_from_tag_t[1])
+        t.transform.translation.z = float(camera_optical_from_tag_t[2])
         
-        rotation = Rotation.from_matrix(self.camera_optical_from_tag.R)
+        rotation = Rotation.from_matrix(camera_optical_from_tag_R)
         quat = rotation.as_quat()
         t.transform.rotation.x = float(quat[0])
         t.transform.rotation.y = float(quat[1])
@@ -307,8 +335,6 @@ class ArenaCalibrationService(Node):
         t.transform.rotation.w = float(quat[3])
         
         self.tf_broadcaster.sendTransform(t)
-        self.get_logger().debug(f"Published DYNAMIC: {self.frame_tag} -> {self.frame_camera_optical}", 
-                               throttle_duration_sec=10.0)
 
 
 def main(args=None):

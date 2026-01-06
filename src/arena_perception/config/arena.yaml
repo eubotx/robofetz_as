@@ -1,5 +1,5 @@
 # simple_arena_calibration.yaml
-arena_apriltag:
+arena_tag:
   id: 2
   family: "tagStandard41h12"
   size: 0.0833
@@ -11,9 +11,10 @@ arena_apriltag:
     z: 0.0    # World origin z (typically ground level)
   # Orientation of this tag relative to arena coordinate system
   orientation_in_arena:
+    # needed because april tag coordinate convention differs from ros coordinate convention
     roll: 0.0    # Rotation around X axis (radians)
-    pitch: 0.0   # Rotation around Y axis (radians)
-    yaw: 0.0     # Rotation around Z axis (radians)
+    pitch: 3.14159   # Rotation around Y axis (radians)
+    yaw: 1.5708     # Rotation around Z axis (radians)
   
 # Arena dimensions and geometry
 arena_geometry:
@@ -38,4 +39,4 @@ frames:
   world: "world"
   camera: "arena_camera"
   camera_optical: "arena_camera_optical"
-  tag: "arena_apriltag"
+  tag: "arena_tag"

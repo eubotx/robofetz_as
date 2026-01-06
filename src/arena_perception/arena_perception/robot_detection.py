@@ -1,294 +1,238 @@
 import rclpy
 from rclpy.node import Node
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import PoseStamped, TransformStamped
+from geometry_msgs.msg import TransformStamped
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
-from tf2_ros import Buffer, TransformListener, TransformBroadcaster
+from tf2_ros import TransformBroadcaster
 from scipy.spatial.transform import Rotation
-from arena_perception.detector import AprilTagDetector
-from arena_perception.math_funcs import Pose as MathPose
+import pyapriltags
+import yaml
+import os
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 class BotDetectionNode(Node):
     def __init__(self):
         super().__init__('robot_detection_node')
         
+        # Use QoS settings for better performance - prevents backpressure
+        qos_profile = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=1  # Only keep the latest message
+        )
+        
         # Declare parameters with descriptions
-        self.declare_parameter('debug_image', False, 
-                              descriptor=rclpy.ParameterDescriptor(
-                                  description='Enable debug image publishing'))
+        self.declare_parameter('config_file', '', 
+                              ParameterDescriptor(
+                                  description='Path to YAML configuration file',
+                                  type=ParameterType.PARAMETER_STRING))
         
-        self.declare_parameter('robot_tag_to_base_translation', [0.0, 0.0, 0.05],
-                              descriptor=rclpy.ParameterDescriptor(
-                                  description='Translation from robot_tag to robot_base [x, y, z] in meters'))
+        # Load configuration
+        config_file = self.get_parameter('config_file').value
+        if not config_file:
+            self.get_logger().error("No configuration file specified. Use '--ros-args -p config_file:=/path/to/config.yaml'")
+            raise ValueError("Configuration file path is required")
         
-        self.declare_parameter('robot_tag_to_base_rotation', [0.0, 0.0, 0.0, 1.0],
-                              descriptor=rclpy.ParameterDescriptor(
-                                  description='Quaternion rotation from robot_tag to robot_base [x, y, z, w]'))
+        self.config = self.load_config(config_file)
         
-        # Get parameters
-        self.debug_image = self.get_parameter('debug_image').get_parameter_value().bool_value
+        # Initialize from configuration
+        self.initialize_from_config()
         
-        translation_param = self.get_parameter('robot_tag_to_base_translation').get_parameter_value().double_array_value
-        rotation_param = self.get_parameter('robot_tag_to_base_rotation').get_parameter_value().double_array_value
-        
-        # Validate and create transform
-        if len(translation_param) != 3:
-            self.get_logger().error("Invalid translation parameter, using default [0,0,0]")
-            translation_param = [0.0, 0.0, 0.0]
-        
-        if len(rotation_param) != 4:
-            self.get_logger().error("Invalid rotation parameter, using default identity")
-            rotation_param = [0.0, 0.0, 0.0, 1.0]
-        
-        # Create robot_tag to robot_base transform from parameters
-        translation = np.array(translation_param)
-        rotation_matrix = Rotation.from_quat(rotation_param).as_matrix()
-        self.robot_tag_to_base = MathPose(rotation_matrix, translation)
-        
-        self.get_logger().info(f"Robot tag to base transform: translation={translation}")
-        
-        # Configuration
-        self.robot_tags = {
-            'sizes': 0.125, 
-            'family': 'tagStandard41h12', 
-            'top_id': 12, 
-            'bottom_id': 31
-        }
-        self.robot_outline = 0.13 * np.array([
-            [0, -4, 0], [2, 0, 0], [2, 1, 0], [-2, 1, 0], [-2, 0, 0]
-        ])
-        
-        # QoS profiles
-        image_qos = rclpy.qos.qos_profile_sensor_data
-        info_qos = rclpy.qos.QoSProfile(depth=10)
-        
-        # Subscribers with appropriate QoS
+        # Subscribers with QoS profile
         self.image_sub = self.create_subscription(
-            Image, 'arena_camera/image_rect', self.image_callback, image_qos)
+            Image, 'arena_camera/image_rect', self.image_callback, qos_profile=qos_profile)
         self.camera_info_sub = self.create_subscription(
-            CameraInfo, 'arena_camera/camera_info', self.camera_info_callback, info_qos)
-        
-        # Publishers
-        self.pose_pub = self.create_publisher(PoseStamped, '/bot/pose', 10)
-        
-        # Only create overlay publisher if debug images are enabled
-        if self.debug_image:
-            self.overlay_pub = self.create_publisher(Image, '/detection/robot_overlay', 10)
-            self.get_logger().info("Debug image publishing ENABLED")
-        else:
-            self.overlay_pub = None
-            self.get_logger().info("Debug image publishing DISABLED")
+            CameraInfo, 'arena_camera/camera_info', self.camera_info_callback, qos_profile=qos_profile)
+        self.bridge = CvBridge()
         
         # TF2
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
         self.tf_broadcaster = TransformBroadcaster(self)
         
         # State
-        self.bridge = CvBridge()
+        self.latest_frame = None
+        self.camera_info = None
         self.april_detector = None
-        self.camera_matrix = None
+        self.april_intrinsics = None
+        self.has_published_once = False
         
-        # Timer for transform publishing
-        self.tf_timer = self.create_timer(0.1, self.publish_latest_tf)  # 10Hz
-        self.latest_robot_base_pose = None
+    def load_config(self, config_path):
+        """Load YAML configuration file"""
+        if not os.path.exists(config_path):
+            self.get_logger().error(f"Configuration file not found: {config_path}")
+            raise FileNotFoundError(f"Config file not found: {config_path}")
         
-    def publish_latest_tf(self):
-        """Publish latest robot_base transform at fixed rate"""
-        if self.latest_robot_base_pose is not None:
-            self.publish_bot_tf(self.latest_robot_base_pose, 'robot_base')
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        self.get_logger().info(f"Loaded configuration from {config_path}")
+        return config
+    
+    def initialize_from_config(self):
+        """Initialize parameters from configuration"""
+        # Robot tags configuration
+        robot_tags_config = self.config.get('robot_tags', {})
+        self.robot_tags = {
+            'top_id': robot_tags_config.get('top_id', 12),
+            'bottom_id': robot_tags_config.get('bottom_id', 31),
+            'family': robot_tags_config.get('family', 'tagStandard41h12'),
+            'size': robot_tags_config.get('size', 0.0556)
+        }
+        
+        # Frame names
+        frames_config = self.config.get('frames', {})
+        self.frames = {
+            'robot_base': frames_config.get('robot_base', 'robot_base'),
+            'camera_optical': frames_config.get('camera_optical', 'arena_camera_optical'),
+            'world': frames_config.get('world', 'world'),
+            'arena_tag': frames_config.get('arena_tag', 'arena_tag'),
+            'robot_top_tag': frames_config.get('robot_top_tag', 'robot_top_tag'),
+            'robot_bottom_tag': frames_config.get('robot_bottom_tag', 'robot_bottom_tag')
+        }
+        
+        # Log configuration
+        self.get_logger().info(f"Robot tags: ID={self.robot_tags['top_id']}/{self.robot_tags['bottom_id']}, Family={self.robot_tags['family']}, Size={self.robot_tags['size']}")
+        self.get_logger().info(f"Frame names: camera_optical={self.frames['camera_optical']}, top_tag={self.frames['robot_top_tag']}, bottom_tag={self.frames['robot_bottom_tag']}")
         
     def camera_info_callback(self, msg):
-        """Initialize detector when camera info is received"""
+        """Receive camera calibration from camera_info topic"""
+        
         if self.april_detector is None:
-            self.camera_matrix = np.array(msg.k).reshape(3, 3)
-            calibration_data = {
-                'camera_matrix': self.camera_matrix,
-                'distortion_coefficients': np.array(msg.d)
-            }
-            self.april_detector = AprilTagDetector(calibration_data)
-            self.get_logger().info("AprilTag detector initialized")
         
-    def get_camera_from_world(self):
-        """Get camera_from_world transform from TF2"""
-        try:
-            transform = self.tf_buffer.lookup_transform('world', 'camera', rclpy.time.Time())
+            self.camera_info = msg
             
-            translation = np.array([
-                transform.transform.translation.x,
-                transform.transform.translation.y, 
-                transform.transform.translation.z
-            ])
+            # Extract the projection matrix P (3x4) - this is for rectified images
+            projection_matrix = np.array(self.camera_info.p).reshape(3, 4)
             
-            quaternion = np.array([
-                transform.transform.rotation.x,
-                transform.transform.rotation.y,
-                transform.transform.rotation.z, 
-                transform.transform.rotation.w
-            ])
+            # For rectified images (image_rect), we should use the projection matrix P
+            # The left 3x3 part of P is the intrinsic matrix for the rectified image
+            K_rect = projection_matrix[:, :3]
             
-            # Convert world_from_camera to camera_from_world (inverse)
-            world_from_camera = MathPose(Rotation.from_quat(quaternion).as_matrix(), translation)
-            return world_from_camera.inv()
-            
-        except Exception as e:
-            self.get_logger().warn(f"TF lookup failed: {str(e)}", throttle_duration_sec=5.0)
-            return None
-    
-    def project_3d_to_2d(self, point_3d):
-        """Project 3D point to 2D image coordinates"""
-        if self.camera_matrix is None:
-            return None
-            
-        point_2d, _ = cv2.projectPoints(
-            point_3d, np.eye(3), np.zeros(3), self.camera_matrix, np.zeros(5)
-        )
-        return point_2d.squeeze()
-    
-    def calculate_robot_outline(self, camera_from_robot_base):
-        """Calculate robot outline projection based on robot_base"""
-        outline_2d = []
-        for point in self.robot_outline:
-            # Transform point from robot_base to camera directly
-            point_in_camera = camera_from_robot_base * MathPose(np.eye(3), point)
-            outline_2d.append(self.project_3d_to_2d(point_in_camera.t))
-        return outline_2d
+            # Extract camera intrinsics from the rectified camera matrix for AprilTag
+            fx = K_rect[0, 0]
+            fy = K_rect[1, 1]
+            cx = K_rect[0, 2]
+            cy = K_rect[1, 2]
         
-    def detect_robot(self, image_gray, camera_from_world):
-        """Core robot detection - returns robot_base pose in world coordinates"""
-        if self.april_detector is None:
-            return None
+            # Initialize AprilTag detector directly
+            self.april_detector = pyapriltags.Detector(families=self.robot_tags['family'])
             
-        detections = self.april_detector.detect(image_gray, self.robot_tags['sizes'])['aprilTags']
+            # Store intrinsics only for AprilTag detector
+            self.april_intrinsics = [fx, fy, cx, cy]
+            
+            self.get_logger().info("Camera info received. AprilTag detector initialized")
         
-        for detection in detections:
-            if (detection.tag_family.decode() == self.robot_tags['family'] and
-                detection.tag_id in [self.robot_tags['top_id'], self.robot_tags['bottom_id']]):
-                
-                # Get camera_from_robot_tag from detection
-                camera_from_robot_tag = MathPose(detection.pose_R, detection.pose_t)
-                
-                # Convert to world_from_robot_tag
-                world_from_robot_tag = camera_from_world * camera_from_robot_tag
-                
-                # Convert to world_from_robot_base using the static transform
-                world_from_robot_base = world_from_robot_tag * self.robot_tag_to_base
-                
-                return world_from_robot_base
-        
-        return None
-    
     def image_callback(self, msg):
         """Process each camera frame"""
-        camera_from_world = self.get_camera_from_world()
-        if camera_from_world is None:
-            return
-            
         if self.april_detector is None:
             self.get_logger().warn("Waiting for camera info...", throttle_duration_sec=5.0)
             return
             
         try:
             # Convert image
-            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-            gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+            self.latest_frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            gray = cv2.cvtColor(self.latest_frame, cv2.COLOR_BGR2GRAY)
             
-            # Core detection - now returns just the pose
-            world_pose_base = self.detect_robot(gray, camera_from_world)
-            if world_pose_base is not None:
-                # Store for TF publishing
-                self.latest_robot_base_pose = world_pose_base
-                
-                # Only publish overlay if debug images are enabled
-                if self.debug_image:
-                    # Calculate camera_from_robot_base for overlay
-                    camera_from_robot_base = camera_from_world * world_pose_base
-                    self.publish_overlay(cv_image, camera_from_robot_base)
-                
-                # Publish robot_base pose
-                self.publish_pose(world_pose_base)
+            # Core detection
+            self.detect_tags(gray)
                 
         except Exception as e:
             self.get_logger().error(f"Detection error: {str(e)}")
     
-    def publish_overlay(self, cv_image, camera_from_robot_base):
-        """Publish visualization overlay with just the outline based on robot_base"""
-        if not self.debug_image or self.overlay_pub is None:
-            return
+    def detect_tags(self, image_gray):
+        """Detect tags and publish their transforms relative to camera_optical"""
+        # Direct AprilTag detection using the rectified camera intrinsics
+        detections = self.april_detector.detect(
+            image_gray,
+            estimate_tag_pose=True,
+            camera_params=self.april_intrinsics,
+            tag_size=self.robot_tags['size']
+        )
+        
+        transforms_to_send = []
+        
+        for detection in detections:
+            if (detection.tag_family.decode() == self.robot_tags['family'] and
+                detection.tag_id in [self.robot_tags['top_id'], self.robot_tags['bottom_id']]):
+                
+                tag_id = detection.tag_id
+                
+                # AprilTag gives us: tag pose in camera optical frame (OpenCV)
+                # This is T_tag_camera_optical: transform FROM camera_optical TO tag
+                # Meaning: tag = R * camera + t
+                # This is the EXACT transform we want for TF: camera_optical -> tag
+                tag_from_camera_R = np.array(detection.pose_R)
+                tag_from_camera_t = np.array(detection.pose_t).reshape(3, 1)
+                
+                # Create transform from camera_optical to tag
+                tag_transform = TransformStamped()
+                tag_transform.header.stamp = self.get_clock().now().to_msg()
+                tag_transform.header.frame_id = self.frames['camera_optical']
+                
+                # Set child frame based on which tag was detected
+                if tag_id == self.robot_tags['top_id']:
+                    tag_transform.child_frame_id = self.frames['robot_top_tag']
+                elif tag_id == self.robot_tags['bottom_id']:
+                    tag_transform.child_frame_id = self.frames['robot_bottom_tag']
+                else:
+                    continue
+                
+                # Fill transform directly from AprilTag output
+                # This is camera_optical -> tag transform
+                tag_transform.transform.translation.x = float(tag_from_camera_t[0])
+                tag_transform.transform.translation.y = float(tag_from_camera_t[1])
+                tag_transform.transform.translation.z = float(tag_from_camera_t[2])
+                
+                # AprilTag uses OpenCV camera coordinates: +X right, +Y down, +Z forward
+                # ROS uses: +X right, +Y down, +Z forward (for camera_optical frame)
+                # So rotation matrix can be used directly
+                rotation = Rotation.from_matrix(tag_from_camera_R)
+                quat = rotation.as_quat()
+                tag_transform.transform.rotation.x = float(quat[0])
+                tag_transform.transform.rotation.y = float(quat[1])
+                tag_transform.transform.rotation.z = float(quat[2])
+                tag_transform.transform.rotation.w = float(quat[3])
+                
+                transforms_to_send.append(tag_transform)
+
+        # Send all transforms if any tags were found
+        if transforms_to_send:
+            if not self.has_published_once:
+                self.get_logger().info("Started publishing tag transforms")
+                self.has_published_once = True
             
-        overlay = cv_image.copy()
-        
-        # Draw robot outline based on robot_base
-        outline_2d = self.calculate_robot_outline(camera_from_robot_base)
-        for i in range(len(outline_2d)):
-            pt1 = tuple(outline_2d[i].astype(int))
-            pt2 = tuple(outline_2d[(i + 1) % len(outline_2d)].astype(int))
-            cv2.line(overlay, pt1, pt2, (0, 255, 0), 2)
-        
-        # Publish overlay
-        overlay_msg = self.bridge.cv2_to_imgmsg(overlay, "bgr8")
-        overlay_msg.header.stamp = self.get_clock().now().to_msg()
-        self.overlay_pub.publish(overlay_msg)
-    
-    def publish_pose(self, world_pose_base):
-        """Publish robot_base pose as message"""
-        pose_msg = PoseStamped()
-        pose_msg.header.frame_id = "world"
-        pose_msg.header.stamp = self.get_clock().now().to_msg()
-        
-        # Position of robot_base
-        pose_msg.pose.position.x = float(world_pose_base.t[0])
-        pose_msg.pose.position.y = float(world_pose_base.t[1])
-        pose_msg.pose.position.z = float(world_pose_base.t[2])
-        
-        # Orientation of robot_base
-        rotation = Rotation.from_matrix(world_pose_base.R)
-        quat = rotation.as_quat()
-        pose_msg.pose.orientation.x = float(quat[0])
-        pose_msg.pose.orientation.y = float(quat[1])
-        pose_msg.pose.orientation.z = float(quat[2])
-        pose_msg.pose.orientation.w = float(quat[3])
-        
-        self.pose_pub.publish(pose_msg)
-        
-        self.get_logger().info(f"Robot BASE pose: [{pose_msg.pose.position.x:.2f}, {pose_msg.pose.position.y:.2f}, {pose_msg.pose.position.z:.2f}]",
-                              throttle_duration_sec=2.0)
-    
-    def publish_bot_tf(self, world_pose, frame_name):
-        """Publish robot transform to TF tree"""
-        t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = "world"
-        t.child_frame_id = frame_name
-        
-        # Position
-        t.transform.translation.x = float(world_pose.t[0])
-        t.transform.translation.y = float(world_pose.t[1])
-        t.transform.translation.z = float(world_pose.t[2])
-        
-        # Orientation
-        rotation = Rotation.from_matrix(world_pose.R)
-        quat = rotation.as_quat()
-        t.transform.rotation.x = float(quat[0])
-        t.transform.rotation.y = float(quat[1])
-        t.transform.rotation.z = float(quat[2])
-        t.transform.rotation.w = float(quat[3])
-        
-        self.tf_broadcaster.sendTransform(t)
+            self.tf_broadcaster.sendTransform(transforms_to_send)
+        else:
+            # Only log when nothing is detected
+            self.get_logger().info("No robot tags found in frame", throttle_duration_sec=2.0)
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = BotDetectionNode()
+    
+    node = None
     try:
+        node = BotDetectionNode()
         rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
+    except ValueError as e:
+        if node:
+            node.get_logger().error(f"Configuration error: {e}")
+        else:
+            print(f"Configuration error: {e}")
+        return 1
+    except Exception as e:
+        if node:
+            node.get_logger().error(f"Node failed with error: {e}")
+        else:
+            print(f"Node failed with error: {e}")
+        return 1
     finally:
-        node.destroy_node()
+        if node:
+            node.destroy_node()
         rclpy.shutdown()
+    return 0
 
 if __name__ == '__main__':
     main()
