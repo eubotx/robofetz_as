@@ -22,6 +22,10 @@ class ArenaCalibrationService(Node):
                               ParameterDescriptor(
                                   description='Path to YAML configuration file',
                                   type=ParameterType.PARAMETER_STRING))
+        self.declare_parameter('tf_publish_rate', 30.0,
+                              ParameterDescriptor(
+                                  description='Rate (Hz) for publishing TF transforms',
+                                  type=ParameterType.PARAMETER_DOUBLE))
         
         # Load configuration
         config_file = self.get_parameter('config_file').value
@@ -59,8 +63,15 @@ class ArenaCalibrationService(Node):
         self.initial_calibration_complete = False
         self.april_detector = None
         
-        # Timer for continuous TF publishing at 1Hz (only active after initial calibration)
-        self.tf_publish_timer = self.create_timer(1.0, self.publish_transform)
+        # Control flags and counters
+        self.tf_publish_active = False
+        
+        # Get TF publish rate from parameter
+        tf_publish_rate = self.get_parameter('tf_publish_rate').value
+        
+        # Timer for continuous TF publishing (created but not immediately started)
+        self.tf_publish_timer = None
+        self.tf_publish_rate = tf_publish_rate
         
         # Initial calibration retry timer - keeps trying until success
         self.initial_calibration_timer = self.create_timer(1.0, self.perform_initial_calibration)
@@ -212,9 +223,18 @@ class ArenaCalibrationService(Node):
         if success:
             if not self.initial_calibration_complete:
                 self.initial_calibration_complete = True
-                self.get_logger().info("Initial calibration successful - starting continuous TF publishing")
+                # Start the TF publishing timer only after calibration is complete
+                self.start_tf_publishing()
+                self.get_logger().info(f"Initial calibration successful - starting TF publishing at {self.tf_publish_rate} Hz")
         else:
             self.get_logger().warn("Initial calibration failed, will retry in 1 second...")
+    
+    def start_tf_publishing(self):
+        """Start the TF publishing timer"""
+        if self.tf_publish_timer is None:
+            tf_publish_period = 1.0 / self.tf_publish_rate
+            self.tf_publish_timer = self.create_timer(tf_publish_period, self.publish_transform)
+            self.tf_publish_active = True
         
     async def calibrate_callback(self, request, response):
         """External calibration service - can be called by other nodes"""
@@ -234,6 +254,9 @@ class ArenaCalibrationService(Node):
         
         if success:
             self.get_logger().info("Recalibration successful - updated TF transform")
+            # Ensure TF publishing is active
+            if not self.tf_publish_active:
+                self.start_tf_publishing()
             response.success = True
             response.message = "Arena calibration complete and published to TF"
         else:
@@ -312,8 +335,6 @@ class ArenaCalibrationService(Node):
         t.transform.rotation.w = float(quat[3])
         
         self.tf_broadcaster.sendTransform(t)
-        self.get_logger().debug(f"Published DYNAMIC: {self.frame_tag} -> {self.frame_camera_optical}", 
-                               throttle_duration_sec=10.0)
 
 
 def main(args=None):
