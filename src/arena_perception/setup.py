@@ -29,6 +29,7 @@ setup(
         'scipy>=1.15.2',
         'pyapriltags>=3.3.0.3',
         'bitstring',
+        'pyyaml>=6.0',
     ],
     zip_safe=True,
     maintainer='eubotx',
@@ -41,7 +42,8 @@ setup(
             'camera_rectification_node = arena_perception.camera_rectification_node:main',
             'arena_calibration_service = arena_perception.arena_calibration_service:main',
             'robot_detection_node = arena_perception.robot_detection:main',
-            'opponent_detection_node = arena_perception.opponent_detection:main'
+            'opponent_detection_node = arena_perception.opponent_detection:main',
+            'filter_transform_node = arena_perception.filter_transform_node:main',
         ],
     },
 )
