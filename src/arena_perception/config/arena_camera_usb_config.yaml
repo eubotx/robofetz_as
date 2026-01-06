@@ -5,15 +5,15 @@ arena_camera/usb_cam:
     # Hardware
     #video device to be set as launch argument or environment variable ARENA_CAMERA_DEVICE
     video_device: "/dev/arena_camera"                         # video device, can be overridden via launch argument
-    camera_name: "arena_camera"                        # string: camera name
-    camera_info_url: "package://arena_perception/config/arena_camera_info_600p_usb.yaml"                              # string: calibration file
-    frame_id: "arena_camera_frame"                     # string: TF frame
+    camera_name: "GlobalShutterCamera_GlobalS___SB__PCI0_XHC__RHUB_HS03_3_1_0_32e4_0144_800x600"                        # string: camera name
+    camera_info_url: "package://arena_perception/config/arena_camera_info_600p.yaml"                              # string: calibration file
+    frame_id: "arena_camera_optical"                     # string: TF frame
     
     #Image format  
     image_width: 800                                   # int: resolution width  #800 is best
     image_height: 600                                  # int: resolution heigh  #600 is best
     framerate: 100.0                                   # float: target FPS
-    pixel_format: "yuyv"                               # string: 'yuyv', 'mjpeg', 'grey' -> 'yuyv' often also used in greyscale cams
+    pixel_format: "mjpeg2rgb"                               # string: 'yuyv', 'mjpeg', 'grey' -> 'yuyv' often also used in greyscale cams
     
     #Exposure tuning (uncomment to override)
     autoexposure: False                                # bool: true, false

@@ -1,17 +1,10 @@
-/arena_camera/camera_node:
+# arena_camera_ros_config.yaml
+/**:
   ros__parameters:
-    # Camera selection
-    camera: "_SB_.PCI0.XHC_.RHUB.HS03-3:1.0-32e4:0144"
-    
-    # Stream configuration
-    role: "video"  # Use "video" instead of "viewfinder" for higher FPS
-    format: "YUYV"
-    width: 640
-    height: 480
-    
-    # Camera info
-    frame_id: "arena_camera_frame"
-    camera_info_url: "package://arena_perception/config/t490s_camera.yaml"
-    
-    # Note: 'fps' parameter doesn't exist in static config
-    # FPS is determined by the 'role' and camera capabilities
+    camera: "\\_SB_.PCI0.XHC_.RHUB.HS03-3:1.0-32e4:0144" 
+    format: "MJPEG" #needed for 60 fps
+    width: 800
+    height: 600
+    role: "video"
+    frame_id: "arena_camera_optical"
+    camera_info_url: "package://arena_perception/config/arena_camera_info_600p.yaml"

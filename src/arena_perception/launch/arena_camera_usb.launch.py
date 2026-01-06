@@ -11,8 +11,8 @@ def generate_launch_description():
     # Config file override argument
     config_file_arg = DeclareLaunchArgument(
         'config_file',
-        default_value=EnvironmentVariable('ARENA_CAMERA_CONFIG', default_value='arena_camera_params.yaml'),
-        description='Camera config file name (e.g., arena_camera_params.yaml, laptop_camera_params.yaml)'
+        default_value='arena_camera_usb_config.yaml',
+        description='Config file name of .yaml)'
     )
     
     # Build config path using PathJoinSubstitution (CORRECT WAY)

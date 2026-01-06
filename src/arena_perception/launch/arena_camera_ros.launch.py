@@ -1,40 +1,40 @@
 #!/usr/bin/env python3
 
+import os
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
-
-    # Use the EXACT camera name from the log (with backslashes)
-    camera_arg = DeclareLaunchArgument(
-        'camera',
-        default_value='\\_SB_.PCI0.XHC_.RHUB.HS03-3:1.0-32e4:0144',  # Add backslash
-        description='Camera ID or name'
+    # Declare config file argument
+    config_arg = DeclareLaunchArgument(
+        'config_file',
+        default_value='arena_camera_ros_config.yaml',
+        description='Config file name of .yaml)'
     )
     
-    format_arg = DeclareLaunchArgument(
-        'format',
-        default_value='YUYV',
-        description='Pixel format'
-    )
-
+    # Build full path to config file
+    config_path = PathJoinSubstitution([
+        get_package_share_directory('arena_perception'),
+        'config',
+        LaunchConfiguration('config_file')
+    ])
+    
     return LaunchDescription([
-        camera_arg,
-        format_arg,
+        config_arg,
         Node(
             package='camera_ros',
             executable='camera_node',
             namespace='arena_camera',
-            parameters=[{
-                "camera": LaunchConfiguration('camera'),
-                "format": LaunchConfiguration('format'),
-                "width": 800,
-                "height": 600,
-                "role": "video",
-                "frame_id": "arena_camera_frame",
-                "camera_info_url": "package://arena_perception/config/arena_camera_info_600p.yaml"
-            }]
+            remappings=[
+                # Remap all camera topics to remove the "camera" prefix
+                ('camera/image_raw', 'image_raw'),
+                ('camera/camera_info', 'camera_info'),
+                ('camera/image_raw/compressed', 'image_raw/compressed'),
+
+            ],
+            parameters=[config_path]
         )
     ])
