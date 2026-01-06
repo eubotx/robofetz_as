@@ -39,11 +39,30 @@ class FilterTransformNode(Node):
                                   description='Path to YAML configuration file',
                                   type=ParameterType.PARAMETER_STRING))
         
+        # Single frame parameters (instead of tag_mappings)
+        self.declare_parameter('input_frame', '', 
+                              ParameterDescriptor(
+                                  description='Input TF frame name to filter',
+                                  type=ParameterType.PARAMETER_STRING))
+        
+        self.declare_parameter('output_frame', '', 
+                              ParameterDescriptor(
+                                  description='Output TF frame name (filtered)',
+                                  type=ParameterType.PARAMETER_STRING))
+        
         # Load configuration
         config_file = self.get_parameter('config_file').value
         if not config_file:
             self.get_logger().error("No configuration file specified. Use '--ros-args -p config_file:=/path/to/config.yaml'")
             raise ValueError("Configuration file path is required")
+        
+        # Get frame parameters
+        self.input_frame = self.get_parameter('input_frame').value
+        self.output_frame = self.get_parameter('output_frame').value
+        
+        if not self.input_frame or not self.output_frame:
+            self.get_logger().error("Both input_frame and output_frame parameters are required")
+            raise ValueError("input_frame and output_frame must be specified")
         
         self.config = self.load_config(config_file)
         
@@ -55,35 +74,83 @@ class FilterTransformNode(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.tf_broadcaster = TransformBroadcaster(self)
         
-        # Filter state
-        self.data_buffers = {}
-        self.last_poses = {}
-        self.kalman_states = {}
-        self.lock = threading.RLock()
+        # Filter state (single frame only)
+        self.data_buffer = {
+            'positions': deque(maxlen=self.window_size),
+            'rotations': deque(maxlen=self.window_size),
+            'timestamps': deque(maxlen=self.window_size),
+            'raw_positions': deque(maxlen=self.window_size),
+            'raw_rotations': deque(maxlen=self.window_size)
+        }
+        
+        self.last_pose = None
+        self.kalman_state = {
+            'x': np.zeros(6),  # [pos_x, pos_y, pos_z, vel_x, vel_y, vel_z]
+            'P': np.eye(6) * 10.0,
+            'last_time': None,
+            'initialized': False
+        }
         
         # Butterworth filter state
-        self.butterworth_states = {}
+        self.butterworth_state = None
         
         # Complementary filter state
-        self.complementary_states = {}
+        self.complementary_state = {
+            'position': None,
+            'rotation': None,
+            'velocity': np.zeros(3),
+            'last_time': None
+        }
+        
+        self.lock = threading.RLock()
+        
+        # Initialize butterworth filter if needed
+        if self.filter_type == FilterType.BUTTERWORTH:
+            nyquist = 0.5 * self.publish_rate
+            normal_cutoff = self.cutoff_freq / nyquist
+            b, a = butter(self.order, normal_cutoff, btype='low', analog=False)
+            
+            # Initial conditions for each dimension
+            self.butterworth_state = {
+                'b': b,
+                'a': a,
+                'position_zi': [np.zeros(max(len(b), len(a)) - 1) for _ in range(3)],
+                'rotation_zi': [np.zeros(max(len(b), len(a)) - 1) for _ in range(4)]
+            }
         
         # Statistics
         self.frame_count = 0
         self.missed_frames = 0
         
-        # Initialize for each tag mapping
-        for tag_mapping in self.tag_mappings:
-            input_frame = tag_mapping['input']
-            self.initialize_filter_state(input_frame)
+        # State to track if transform is available
+        self.transform_available = False
+        self.last_transform_time = None
         
-        # Timer for processing
-        self.timer = self.create_timer(1.0 / self.publish_rate, self.process_and_publish)
+        # Timer for processing - will adjust based on TF availability
+        self.timer = None
+        self.create_adaptive_timer()
         
         # Diagnostics timer
         self.diagnostics_timer = self.create_timer(5.0, self.publish_diagnostics)
         
         self.get_logger().info(f"Filter initialized with {self.filter_type.value} filter")
-        self.get_logger().info(f"Tracking {len(self.tag_mappings)} tag(s) at {self.publish_rate}Hz")
+        self.get_logger().info(f"Tracking {self.input_frame} -> {self.output_frame} at up to {self.publish_rate}Hz")
+        self.get_logger().info(f"Parent frame: {self.parent_frame}")
+    
+    def create_adaptive_timer(self):
+        """Create timer that adapts to TF availability"""
+        # Start with slower rate until we get first transform
+        if self.timer is not None:
+            self.timer.cancel()
+        
+        if self.transform_available:
+            # Use configured rate when transform is available
+            rate = 1.0 / self.publish_rate
+        else:
+            # Use slower rate (1Hz) when waiting for transform
+            rate = 1.0
+        
+        self.timer = self.create_timer(rate, self.process_and_publish)
     
     def destroy_node(self):
         """Override destroy_node to properly clean up TF listener"""
@@ -96,9 +163,15 @@ class FilterTransformNode(Node):
                     pass
                 self.tf_listener = None
             
+            # Cancel timers
+            if self.timer:
+                self.timer.cancel()
+            if self.diagnostics_timer:
+                self.diagnostics_timer.cancel()
+            
             # Call parent destroy
             super().destroy_node()
-        
+    
     def load_config(self, config_path):
         """Load YAML configuration file"""
         if not os.path.exists(config_path):
@@ -141,185 +214,108 @@ class FilterTransformNode(Node):
         
         # Parent frame (usually camera)
         self.parent_frame = frames_config.get('parent_frame', 'arena_camera_optical')
-        
-        # Tag mappings - list of input->output pairs
-        self.tag_mappings = frames_config.get('tag_mappings', [])
-        
-        if not self.tag_mappings:
-            # Default mappings for backward compatibility
-            self.tag_mappings = [
-                {'input': 'robot/top_apriltag_link', 'output': 'robot/top_apriltag_link_filtered'},
-                {'input': 'robot/bottom_apriltag_link', 'output': 'robot/bottom_apriltag_link_filtered'}
-            ]
-            self.get_logger().warning("No tag_mappings specified, using defaults")
-        
-        # Validate tag mappings
-        for mapping in self.tag_mappings:
-            if 'input' not in mapping or 'output' not in mapping:
-                self.get_logger().error(f"Invalid tag mapping: {mapping}")
-                raise ValueError("Each tag mapping must have 'input' and 'output' keys")
-        
-        self.get_logger().info(f"Parent frame: {self.parent_frame}")
-        for mapping in self.tag_mappings:
-            self.get_logger().info(f"  {mapping['input']} -> {mapping['output']}")
     
-    def initialize_filter_state(self, input_frame):
-        """Initialize filter state for a specific input frame"""
-        with self.lock:
-            # Data buffers
-            self.data_buffers[input_frame] = {
-                'positions': deque(maxlen=self.window_size),
-                'rotations': deque(maxlen=self.window_size),
-                'timestamps': deque(maxlen=self.window_size),
-                'raw_positions': deque(maxlen=self.window_size),
-                'raw_rotations': deque(maxlen=self.window_size)
-            }
-            
-            # Last poses for EWMA/Complementary
-            self.last_poses[input_frame] = None
-            
-            # Kalman filter state
-            self.kalman_states[input_frame] = {
-                'x': np.zeros(6),  # [pos_x, pos_y, pos_z, vel_x, vel_y, vel_z]
-                'P': np.eye(6) * 10.0,
-                'last_time': None,
-                'initialized': False
-            }
-            
-            # Butterworth filter state
-            if self.filter_type == FilterType.BUTTERWORTH:
-                nyquist = 0.5 * self.publish_rate
-                normal_cutoff = self.cutoff_freq / nyquist
-                b, a = butter(self.order, normal_cutoff, btype='low', analog=False)
-                
-                # Initial conditions for each dimension
-                self.butterworth_states[input_frame] = {
-                    'b': b,
-                    'a': a,
-                    'position_zi': [np.zeros(max(len(b), len(a)) - 1) for _ in range(3)],
-                    'rotation_zi': [np.zeros(max(len(b), len(a)) - 1) for _ in range(4)]
-                }
-            
-            # Complementary filter state
-            self.complementary_states[input_frame] = {
-                'position': None,
-                'rotation': None,
-                'velocity': np.zeros(3),
-                'last_time': None
-            }
-    
-    def get_latest_transform(self, target_frame, source_frame):
-        """Get the latest transform between frames"""
+    def get_latest_transform(self):
+        """Get the latest transform for our specific frame"""
         try:
             # Try to get the most recent transform
             transform = self.tf_buffer.lookup_transform(
-                target_frame,
-                source_frame,
+                self.parent_frame,
+                self.input_frame,
                 rclpy.time.Time()
             )
             return transform
         except TransformException as e:
             self.missed_frames += 1
-            # Only log occasionally to avoid spam
-            if self.missed_frames % 100 == 0:
-                self.get_logger().debug(f"TF lookup failed for {source_frame}: {e}")
             return None
     
     def process_and_publish(self):
-        """Main processing loop"""
+        """Main processing loop - only runs when timer triggers"""
         with self.lock:
-            current_time = self.get_clock().now()
-            transforms_published = 0
+            # Get transform from parent frame to input frame
+            transform = self.get_latest_transform()
             
-            for tag_mapping in self.tag_mappings:
-                input_frame = tag_mapping['input']
-                output_frame = tag_mapping['output']
+            if transform is None:
+                # No transform available, slow down timer
+                if self.transform_available:
+                    self.transform_available = False
+                    self.create_adaptive_timer()
+                return
+            
+            # Transform is available
+            if not self.transform_available:
+                self.transform_available = True
+                self.create_adaptive_timer()  # Speed up timer
+            
+            self.frame_count += 1
+            
+            # Extract pose from transform
+            position = np.array([
+                transform.transform.translation.x,
+                transform.transform.translation.y,
+                transform.transform.translation.z
+            ])
+            
+            rotation = np.array([
+                transform.transform.rotation.x,
+                transform.transform.rotation.y,
+                transform.transform.rotation.z,
+                transform.transform.rotation.w
+            ])
+            
+            timestamp = transform.header.stamp.sec + transform.header.stamp.nanosec * 1e-9
+            
+            # Store raw data
+            self.data_buffer['raw_positions'].append(position.copy())
+            self.data_buffer['raw_rotations'].append(rotation.copy())
+            self.data_buffer['timestamps'].append(timestamp)
+            
+            # Apply filter
+            filtered_position, filtered_rotation = self.apply_filter(position, rotation, timestamp)
+            
+            if filtered_position is not None and filtered_rotation is not None:
+                # Publish filtered transform
+                current_time = self.get_clock().now()
+                self.publish_transform(filtered_position, filtered_rotation, current_time)
                 
-                # Get transform from parent frame to input frame
-                transform = self.get_latest_transform(self.parent_frame, input_frame)
-                
-                if transform is None:
-                    continue
-                
-                self.frame_count += 1
-                
-                # Extract pose from transform
-                position = np.array([
-                    transform.transform.translation.x,
-                    transform.transform.translation.y,
-                    transform.transform.translation.z
-                ])
-                
-                rotation = np.array([
-                    transform.transform.rotation.x,
-                    transform.transform.rotation.y,
-                    transform.transform.rotation.z,
-                    transform.transform.rotation.w
-                ])
-                
-                timestamp = transform.header.stamp.sec + transform.header.stamp.nanosec * 1e-9
-                
-                # Store raw data
-                buffer = self.data_buffers[input_frame]
-                buffer['raw_positions'].append(position.copy())
-                buffer['raw_rotations'].append(rotation.copy())
-                buffer['timestamps'].append(timestamp)
-                
-                # Apply filter
-                filtered_position, filtered_rotation = self.apply_filter(
-                    input_frame, position, rotation, timestamp
-                )
-                
-                if filtered_position is not None and filtered_rotation is not None:
-                    # Publish filtered transform
-                    self.publish_transform(
-                        output_frame, 
-                        filtered_position, 
-                        filtered_rotation, 
-                        current_time
-                    )
-                    transforms_published += 1
-                    
-                    # Store filtered data
-                    buffer['positions'].append(filtered_position.copy())
-                    buffer['rotations'].append(filtered_rotation.copy())
+                # Store filtered data
+                self.data_buffer['positions'].append(filtered_position.copy())
+                self.data_buffer['rotations'].append(filtered_rotation.copy())
     
-    def apply_filter(self, input_frame, position, rotation, timestamp):
+    def apply_filter(self, position, rotation, timestamp):
         """Apply the selected filter to the pose"""
-        buffer = self.data_buffers[input_frame]
-        
         try:
             if self.filter_type == FilterType.MOVING_AVERAGE:
-                return self.moving_average_filter(buffer, position, rotation)
+                return self.moving_average_filter(position, rotation)
             elif self.filter_type == FilterType.EWMA:
-                return self.ewma_filter(input_frame, buffer, position, rotation)
+                return self.ewma_filter(position, rotation)
             elif self.filter_type == FilterType.KALMAN:
-                return self.kalman_filter(input_frame, buffer, position, rotation, timestamp)
+                return self.kalman_filter(position, rotation, timestamp)
             elif self.filter_type == FilterType.COMPLEMENTARY:
-                return self.complementary_filter(input_frame, buffer, position, rotation, timestamp)
+                return self.complementary_filter(position, rotation, timestamp)
             elif self.filter_type == FilterType.MEDIAN:
-                return self.median_filter(buffer, position, rotation)
+                return self.median_filter(position, rotation)
             elif self.filter_type == FilterType.BUTTERWORTH:
-                return self.butterworth_filter(input_frame, buffer, position, rotation)
+                return self.butterworth_filter(position, rotation)
             elif self.filter_type == FilterType.NO_FILTER:
                 return position, rotation
             else:
-                return self.ewma_filter(input_frame, buffer, position, rotation)
+                return self.ewma_filter(position, rotation)
         except Exception as e:
-            self.get_logger().error(f"Filter error for {input_frame}: {str(e)}", throttle_duration_sec=1.0)
+            self.get_logger().error(f"Filter error for {self.input_frame}: {str(e)}", throttle_duration_sec=5.0)
             return position, rotation  # Fall back to raw data
     
-    def moving_average_filter(self, buffer, position, rotation):
+    def moving_average_filter(self, position, rotation):
         """Simple moving average filter"""
-        if len(buffer['raw_positions']) == 0:
+        if len(self.data_buffer['raw_positions']) == 0:
             return position, rotation
         
         # Average positions
-        positions = np.array(list(buffer['raw_positions']))
+        positions = np.array(list(self.data_buffer['raw_positions']))
         filtered_position = np.mean(positions, axis=0)
         
         # Average rotations using quaternion averaging
-        rotations = np.array(list(buffer['raw_rotations']))
+        rotations = np.array(list(self.data_buffer['raw_rotations']))
         if len(rotations) == 1:
             filtered_rotation = rotations[0]
         else:
@@ -327,13 +323,13 @@ class FilterTransformNode(Node):
         
         return filtered_position, filtered_rotation
     
-    def ewma_filter(self, input_frame, buffer, position, rotation):
+    def ewma_filter(self, position, rotation):
         """Exponentially Weighted Moving Average"""
-        if self.last_poses[input_frame] is None:
-            self.last_poses[input_frame] = (position.copy(), rotation.copy())
+        if self.last_pose is None:
+            self.last_pose = (position.copy(), rotation.copy())
             return position, rotation
         
-        last_position, last_rotation = self.last_poses[input_frame]
+        last_position, last_rotation = self.last_pose
         
         # Apply EWMA to position
         filtered_position = self.alpha * position + (1 - self.alpha) * last_position
@@ -342,19 +338,19 @@ class FilterTransformNode(Node):
         new_rot = Rotation.from_quat(rotation)
         last_rot = Rotation.from_quat(last_rotation)
         
-        # Interpolate with alpha weight - FIXED: using Slerp class
+        # Interpolate with alpha weight
         slerp = Slerp([0, 1], Rotation.concatenate([last_rot, new_rot]))
         filtered_rot = slerp(self.alpha)
         filtered_rotation = filtered_rot.as_quat()
         
         # Update last pose
-        self.last_poses[input_frame] = (filtered_position.copy(), filtered_rotation.copy())
+        self.last_pose = (filtered_position.copy(), filtered_rotation.copy())
         
         return filtered_position, filtered_rotation
     
-    def kalman_filter(self, input_frame, buffer, position, rotation, timestamp):
+    def kalman_filter(self, position, rotation, timestamp):
         """Kalman filter with constant velocity model"""
-        state = self.kalman_states[input_frame]
+        state = self.kalman_state
         
         # Initialize if first measurement
         if not state['initialized']:
@@ -400,25 +396,25 @@ class FilterTransformNode(Node):
         state['last_time'] = timestamp
         
         # For rotation, use EWMA
-        if self.last_poses[input_frame] is not None:
-            last_position, last_rotation = self.last_poses[input_frame]
+        if self.last_pose is not None:
+            last_position, last_rotation = self.last_pose
             new_rot = Rotation.from_quat(rotation)
             last_rot = Rotation.from_quat(last_rotation)
             slerp = Slerp([0, 1], Rotation.concatenate([last_rot, new_rot]))
-            filtered_rot = slerp(0.3)  # FIXED: using Slerp class
+            filtered_rot = slerp(0.3)
             filtered_rotation = filtered_rot.as_quat()
         else:
             filtered_rotation = rotation
         
         # Update last pose
         filtered_position = state['x'][:3]
-        self.last_poses[input_frame] = (filtered_position.copy(), filtered_rotation.copy())
+        self.last_pose = (filtered_position.copy(), filtered_rotation.copy())
         
         return filtered_position, filtered_rotation
     
-    def complementary_filter(self, input_frame, buffer, position, rotation, timestamp):
+    def complementary_filter(self, position, rotation, timestamp):
         """Complementary filter - fuses prediction with measurement"""
-        state = self.complementary_states[input_frame]
+        state = self.complementary_state
         
         # Initialize if first measurement
         if state['position'] is None:
@@ -436,10 +432,10 @@ class FilterTransformNode(Node):
         predicted_position = state['position'] + state['velocity'] * dt
         
         # Update velocity estimate
-        if len(buffer['raw_positions']) >= 2:
-            positions = list(buffer['raw_positions'])
+        if len(self.data_buffer['raw_positions']) >= 2:
+            positions = list(self.data_buffer['raw_positions'])
             if len(positions) >= 2:
-                dt_hist = buffer['timestamps'][-1] - buffer['timestamps'][-2]
+                dt_hist = self.data_buffer['timestamps'][-1] - self.data_buffer['timestamps'][-2]
                 if dt_hist > 0:
                     state['velocity'] = (positions[-1] - positions[-2]) / dt_hist
         
@@ -451,7 +447,7 @@ class FilterTransformNode(Node):
         new_rot = Rotation.from_quat(rotation)
         last_rot = Rotation.from_quat(state['rotation'])
         slerp = Slerp([0, 1], Rotation.concatenate([last_rot, new_rot]))
-        filtered_rot = slerp(1 - self.complementary_alpha)  # FIXED: using Slerp class
+        filtered_rot = slerp(1 - self.complementary_alpha)
         filtered_rotation = filtered_rot.as_quat()
         
         # Update state
@@ -461,55 +457,60 @@ class FilterTransformNode(Node):
         
         return filtered_position, filtered_rotation
     
-    def median_filter(self, buffer, position, rotation):
+    def median_filter(self, position, rotation):
         """Median filter - removes outliers"""
-        if len(buffer['raw_positions']) < self.median_window:
+        if len(self.data_buffer['raw_positions']) < self.median_window:
             return position, rotation
         
         # Median of positions
-        positions = np.array(list(buffer['raw_positions'])[-self.median_window:])
+        positions = np.array(list(self.data_buffer['raw_positions'])[-self.median_window:])
         filtered_position = np.median(positions, axis=0)
         
         # For rotation, use median of Euler angles
-        rotations = np.array(list(buffer['raw_rotations'])[-self.median_window:])
+        rotations = np.array(list(self.data_buffer['raw_rotations'])[-self.median_window:])
         eulers = np.array([Rotation.from_quat(r).as_euler('xyz', degrees=False) for r in rotations])
         median_euler = np.median(eulers, axis=0)
         filtered_rotation = Rotation.from_euler('xyz', median_euler).as_quat()
         
         return filtered_position, filtered_rotation
     
-    def butterworth_filter(self, input_frame, buffer, position, rotation):
+    def butterworth_filter(self, position, rotation):
         """Butterworth low-pass filter"""
-        state = self.butterworth_states[input_frame]
+        if self.butterworth_state is None:
+            return position, rotation
         
-        if len(buffer['raw_positions']) < len(state['b']):
+        if len(self.data_buffer['raw_positions']) < len(self.butterworth_state['b']):
             return position, rotation
         
         # Apply filter to position components
         filtered_position = np.zeros(3)
         for i in range(3):
             # Get historical data for this component
-            hist_data = [p[i] for p in buffer['raw_positions']]
+            hist_data = [p[i] for p in self.data_buffer['raw_positions']]
             
             # Apply filter
-            filtered_comp, state['position_zi'][i] = filtfilt(
-                state['b'], state['a'], hist_data[-len(state['b']):],
-                zi=state['position_zi'][i]
+            filtered_comp, self.butterworth_state['position_zi'][i] = filtfilt(
+                self.butterworth_state['b'], 
+                self.butterworth_state['a'], 
+                hist_data[-len(self.butterworth_state['b']):],
+                zi=self.butterworth_state['position_zi'][i]
             )
             filtered_position[i] = filtered_comp[-1]
         
         # Apply filter to rotation (via Euler angles for simplicity)
-        if len(buffer['raw_rotations']) >= len(state['b']):
+        if len(self.data_buffer['raw_rotations']) >= len(self.butterworth_state['b']):
             # Convert to Euler angles
             eulers = [Rotation.from_quat(r).as_euler('xyz', degrees=False) 
-                     for r in buffer['raw_rotations']]
+                     for r in self.data_buffer['raw_rotations']]
             
             filtered_euler = np.zeros(3)
             for i in range(3):
                 hist_data = [e[i] for e in eulers]
-                filtered_comp, state['rotation_zi'][i] = filtfilt(
-                    state['b'], state['a'], hist_data[-len(state['b']):],
-                    zi=state['rotation_zi'][i]
+                filtered_comp, self.butterworth_state['rotation_zi'][i] = filtfilt(
+                    self.butterworth_state['b'], 
+                    self.butterworth_state['a'], 
+                    hist_data[-len(self.butterworth_state['b']):],
+                    zi=self.butterworth_state['rotation_zi'][i]
                 )
                 filtered_euler[i] = filtered_comp[-1]
             
@@ -532,14 +533,14 @@ class FilterTransformNode(Node):
         else:
             return np.array([0, 0, 0, 1])
     
-    def publish_transform(self, child_frame, position, rotation, stamp):
+    def publish_transform(self, position, rotation, stamp):
         """Publish a transform"""
         transform = TransformStamped()
         
         # Header
         transform.header.stamp = stamp.to_msg()
         transform.header.frame_id = self.parent_frame
-        transform.child_frame_id = child_frame
+        transform.child_frame_id = self.output_frame
         
         # Position
         transform.transform.translation.x = float(position[0])
@@ -558,11 +559,13 @@ class FilterTransformNode(Node):
     def publish_diagnostics(self):
         """Publish diagnostic information"""
         if self.frame_count > 0:
-            # Ensure success rate is between 0-100%
             success_frames = max(0, self.frame_count - self.missed_frames)
             success_rate = 100.0 * success_frames / self.frame_count
+            status = "ACTIVE" if self.transform_available else "WAITING"
+            
             self.get_logger().info(
-                f"Filter diagnostics: "
+                f"Filter for {self.input_frame}: "
+                f"Status={status}, "
                 f"Frames={self.frame_count}, "
                 f"Missed={self.missed_frames}, "
                 f"Success={success_rate:.1f}%, "

@@ -16,7 +16,7 @@ filter:
   
   # General parameters
   window_size: 10        # Number of samples for moving average/median
-  publish_rate: 30.0     # Publishing rate in Hz
+  publish_rate: 30.0     # Publishing rate in Hz (when transform is available)
   
   # EWMA parameters (alpha = smoothing factor, 0-1)
   # Higher alpha = more responsive, lower alpha = smoother
@@ -35,7 +35,7 @@ filter:
   measurement_noise: 0.1 # R matrix scaling
   
   # Median filter parameters
-  median_window: 10      # Window size for median filter
+  median_window: 3      # Reduced from 10 for lower latency (3-5 is good for real-time)
 
 # Frame Configuration
 # ------------------
@@ -44,24 +44,6 @@ frames:
   # This should match the frame_id from your detection node
   parent_frame: "arena_camera_optical"
   
-  # Tag mappings - define input and output frames for each tag
-  # Each mapping has:
-  #   input:  The raw/unfiltered TF frame name (from detection node)
-  #   output: The filtered TF frame name (published by this node)
-  tag_mappings:
-    # Robot top tag
-    - input: "robot/top_apriltag_link"
-      output: "robot/top_apriltag_link_filtered"
-    
-    # Robot bottom tag  
-    - input: "robot/bottom_apriltag_link"
-      output: "robot/bottom_apriltag_link_filtered"
-    
-    # Example: Additional tags can be added like this:
-    # - input: "arena_tag_1"
-    #   output: "arena_tag_1_filtered"
-    # - input: "arena_tag_2"
-    #   output: "arena_tag_2_filtered"
 
 # Performance Tuning
 # ------------------

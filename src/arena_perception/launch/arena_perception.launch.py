@@ -39,8 +39,6 @@ def generate_launch_description():
             name='arena_calibration_service',
             parameters=[
                 {'config_file': arena_config_file},
-                # You can also set the TF publish rate here if desired
-                # {'tf_publish_rate': 30.0}
             ]
         ),
         
@@ -54,13 +52,27 @@ def generate_launch_description():
             ]
         ),
         
-        # Filter transform node - ADDED HERE
+        # Filter transform node for TOP tag
         Node(
             package='arena_perception',
             executable='filter_transform_node',
-            name='filter_transform_node',
+            name='top_tag_filter_node',
             parameters=[
-                {'config_file': filter_config_file}
+                {'config_file': filter_config_file},
+                {'input_frame': 'robot/top_apriltag_link'},
+                {'output_frame': 'robot/top_apriltag_link_filtered'}
+            ]
+        ),
+        
+        # Filter transform node for BOTTOM tag
+        Node(
+            package='arena_perception',
+            executable='filter_transform_node',
+            name='bottom_tag_filter_node',
+            parameters=[
+                {'config_file': filter_config_file},
+                {'input_frame': 'robot/bottom_apriltag_link'},
+                {'output_frame': 'robot/bottom_apriltag_link_filtered'}
             ]
         ),
     ])
