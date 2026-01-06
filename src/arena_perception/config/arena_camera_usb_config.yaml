@@ -6,7 +6,7 @@ arena_camera/usb_cam:
     #video device to be set as launch argument or environment variable ARENA_CAMERA_DEVICE
     video_device: "/dev/arena_camera"                         # video device, can be overridden via launch argument
     camera_name: "arena_camera"                        # string: camera name
-    camera_info_url: "package://arena_perception/config/arena_camera.yaml"                              # string: calibration file
+    camera_info_url: "package://arena_perception/config/arena_camera_info_600p_usb.yaml"                              # string: calibration file
     frame_id: "arena_camera_frame"                     # string: TF frame
     
     #Image format  

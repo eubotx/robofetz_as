@@ -31,13 +31,3 @@ def generate_launch_description():
             parameters=[config_path]
         )
     ])
-
-    # return LaunchDescription([
-    #     config_file_arg,
-    #     Node(
-    #         package='camera_ros',
-    #         executable='camera_node',
-    #         namespace='arena_camera',
-    #         parameters=[config_path]
-    #     )
-    # ])
