@@ -83,7 +83,7 @@ class MapNode(Node):
         draw = ImageDraw.Draw(current_map)
         
         if self.opponent_pose:
-            py, px = self.world_to_map(self.opponent_pose.pose.position.x, self.opponent_pose.pose.position.y)
+            px, py = self.world_to_map(self.opponent_pose.pose.position.x, self.opponent_pose.pose.position.y)
             
             # Draw Hole
             r = 20 # User said "big black hole". 20px radius ~ 12cm radius.
