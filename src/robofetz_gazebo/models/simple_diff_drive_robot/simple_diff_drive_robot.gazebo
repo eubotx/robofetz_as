@@ -13,6 +13,18 @@
         <material>Gazebo/Green</material>
     </gazebo>
 
+    <gazebo reference="$(arg prefix)front_left_support_link">
+        <mu1>0.2</mu1>
+        <mu2>0.2</mu2>
+        <material>Gazebo/Green</material>
+    </gazebo>
+
+    <gazebo reference="$(arg prefix)front_right_support_link">
+        <mu1>0.2</mu1>
+        <mu2>0.2</mu2>
+        <material>Gazebo/Green</material>
+    </gazebo>
+
     <gazebo reference="$(arg prefix)wheel1_link">
         <mu1>0.8</mu1>
         <mu2>0.8</mu2>
@@ -25,7 +37,25 @@
         <material>Gazebo/Blue</material>
     </gazebo>
 
-    <gazebo reference="$(arg prefix)caster_link">
+    <gazebo reference="$(arg prefix)front_left_support_bottom_caster_link">
+        <mu1>0.01</mu1>
+        <mu2>0.01</mu2>
+        <material>Gazebo/Blue</material>
+    </gazebo>
+
+    <gazebo reference="$(arg prefix)front_left_support_top_caster_link">
+        <mu1>0.01</mu1>
+        <mu2>0.01</mu2>
+        <material>Gazebo/Blue</material>
+    </gazebo>
+
+     <gazebo reference="$(arg prefix)front_right_support_bottom_caster_link">
+        <mu1>0.01</mu1>
+        <mu2>0.01</mu2>
+        <material>Gazebo/Blue</material>
+    </gazebo>
+
+    <gazebo reference="$(arg prefix)front_right_support_top_caster_link">
         <mu1>0.01</mu1>
         <mu2>0.01</mu2>
         <material>Gazebo/Blue</material>
