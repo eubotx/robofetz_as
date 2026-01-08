@@ -11,20 +11,30 @@
     <xacro:property name="pi_const" value="3.14159265" />
 
     <!-- Body Dimensions -->
-    <xacro:property name="a" value="0.18" />
-    <xacro:property name="b" value="0.06" />
-    <xacro:property name="c" value="0.13" />
+    <!-- Length -->
+    <xacro:property name="a" value="0.140" />
+    <!-- Height -->
+    <xacro:property name="b" value="0.054" />
+    <!-- Width -->
+    <xacro:property name="c" value="0.14" />
 
     <!-- Wheel and caster radius -->
-    <xacro:property name="r" value="0.04" />
+    <xacro:property name="r" value="0.034" />
 
     <!-- Wheel width -->
-    <xacro:property name="d" value="0.01" />
+    <xacro:property name="d" value="0.026" />
+
+    <!-- Wheel Offset to chassis in Y axis -->
+    <xacro:property name="e" value="0.00675" />
 
     <xacro:property name="s1" value="${r}" />
-    <xacro:property name="s2" value="${a/2.0-r/2.0}" />
-    <xacro:property name="s3" value="${a/2.0-r}" />
-    <xacro:property name="s4" value="${c/2.0+d/2.0}" />
+    <!-- Wheel Position relative to body center X axis -->
+    <xacro:property name="s2" value="${a/2.0-0.04075}" />
+
+    <!-- Caster Offset -->
+    <xacro:property name="s3" value="${a+r}" />
+    <!-- Wheel position relative to body center Y axis -->
+    <xacro:property name="s4" value="${c/2.0+d/2+e}" />
 
     <!-- ########################## -->
     <!--      Mass and inertia      -->
@@ -58,7 +68,7 @@
     <xacro:property name="I_caster" value="${(2.0/5.0)*m3*r*r}" />
 
     <!-- AprilTag properties -->
-    <xacro:property name="tag_size" value="0.10" /> <!-- Size of AprilTag -->
+    <xacro:property name="tag_size" value="0.14" /> <!-- Size of AprilTag -->
     <xacro:property name="tag_thickness" value="0.001" /> <!-- Thickness of tag -->
     <xacro:property name="tag_mass" value="0.01" /> <!-- Mass of tag (10g) -->
 
@@ -152,7 +162,7 @@
         <parent link="$(arg prefix)body_link"/>
         <child link="$(arg prefix)top_apriltag_link"/>
         <!-- Position the tag on top center of robot body, slightly offset to front -->
-        <origin xyz="-0.03 0 ${s1 + b/2 + tag_thickness/2}" rpy="0 0 0"/>
+        <origin xyz="0 0 ${s1 + b/2 + tag_thickness/2}" rpy="0 0 0"/>
     </joint>
 
     <link name="$(arg prefix)top_apriltag_link">
@@ -184,7 +194,7 @@
         <!-- Position the tag on bottom center of robot body -->
         <!-- Rotation 180 degrees around X axis to face downward -->
         <!-- Position: s1 - b/2 - tag_thickness/2 (below the body) -->
-        <origin xyz="-0.03 0 ${s1 - b/2 - tag_thickness/2}" rpy="${pi_const} 0 0"/>
+        <origin xyz="0 0 ${s1 - b/2 - tag_thickness/2}" rpy="${pi_const} 0 0"/>
     </joint>
 
     <link name="$(arg prefix)bottom_apriltag_link">

@@ -9,9 +9,9 @@ def generate_launch_description():
     pkg_dir = get_package_share_directory('arena_perception')
     
     # Path to your config files
-    arena_config_file = os.path.join(pkg_dir, 'config', 'arena.yaml')
-    robot_config_file = os.path.join(pkg_dir, 'config', 'robot.yaml')
-    filter_config_file = os.path.join(pkg_dir, 'config', 'filter_config.yaml')
+    arena_config_file = os.path.join(pkg_dir, 'config', 'arena_detection_config.yaml')
+    robot_config_file = os.path.join(pkg_dir, 'config', 'robot_detection_config.yaml')
+    filter_config_file = os.path.join(pkg_dir, 'config', 'robot_detection_filter_config.yaml')
     
     # Verify the files exist (helpful for debugging)
     if not os.path.exists(arena_config_file):
