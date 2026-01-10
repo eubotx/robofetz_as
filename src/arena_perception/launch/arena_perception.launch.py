@@ -75,4 +75,13 @@ def generate_launch_description():
                 {'output_frame': 'robot/bottom_apriltag_link_filtered'}
             ]
         ),
+
+        # Filter transform node for BOTTOM tag
+        Node(
+            package='arena_perception',
+            executable='static_tag_position_publisher',
+            name='static_tag_position_publisher',
+            parameters=[
+            ]
+        ),
     ])

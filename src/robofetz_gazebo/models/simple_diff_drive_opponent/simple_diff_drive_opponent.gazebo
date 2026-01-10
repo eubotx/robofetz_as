@@ -47,16 +47,17 @@
             <wheel_separation>${2*s4}</wheel_separation>
             <wheel_radius>${r}</wheel_radius>
 
+            <!-- topic, frames, odometry -->
+            <odom_publisher_frequency>30</odom_publisher_frequency>
+            <topic>opponent/cmd_vel</topic>
+            <odom_topic>opponent/wheel_odometry</odom_topic>
+            <tf_topic>opponent/pose_with_slip</tf_topic>
+            <frame_id>opponent/odom</frame_id>
+            <child_frame_id>opponent/base_footprint</child_frame_id>
+
             <!-- limits -->
             <max_linear_acceleration>10</max_linear_acceleration>
-
-            <!-- topic, frames, odometry -->
-            <topic>opponent/cmd_vel</topic>
-            <tf_topic>opponent/pose_with_slip</tf_topic>
-            <odom_topic>opponent/odometry_with_slip</odom_topic>
-            <odom_publisher_frequency>30</odom_publisher_frequency>
-            <frame_id>opponent/odom</frame_id>
-            <child_frame_id>$(arg prefix)base_footprint</child_frame_id>
+            <!-- more actuator behavior could also be set here  https://gazebosim.org/api/sim/8/classgz_1_1sim_1_1systems_1_1DiffDrive.html-->
             
         </plugin>
 
@@ -71,7 +72,7 @@
         <plugin filename="gz-sim-odometry-publisher-system"
         name="gz::sim::systems::OdometryPublisher">
             <odom_frame>map</odom_frame>
-            <robot_base_frame>$(arg prefix)base_footprint</robot_base_frame>
+            <robot_base_frame>$opponent/base_footprint</robot_base_frame>
             <odom_publish_frequency>30</odom_publish_frequency>
             <odom_topic>opponent/odometry_ground_truth</odom_topic>
             <odom_covariance_topic>opponent/odometry_ground_truth_with_covariance</odom_covariance_topic>

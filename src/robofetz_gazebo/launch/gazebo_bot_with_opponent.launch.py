@@ -190,11 +190,23 @@ def generate_launch_description():
         }],
         output='screen'
     )
+
+    # Static transform for robot/odom to /robot_footprint until we use odom 
+    static_map_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='static_map_tf_publisher',
+        arguments=['0', '0', '0', '0', '0', '0', 'robot/odom', 'robot/base_footprint'],
+        output='screen'
+    )
     
     # Build launch description with timing
     ld = LaunchDescription()
     
     ld.add_action(world_arg)
+
+    #ld.add_action(static_map_tf)
+
     
     # 1. Start Gazebo first
     ld.add_action(gazebo_process)
