@@ -10,15 +10,15 @@ def generate_launch_description():
     
     # Path to your config files
     arena_config_file = os.path.join(pkg_dir, 'config', 'arena_detection_config.yaml')
-    robot_config_file = os.path.join(pkg_dir, 'config', 'robot_detection_config.yaml')
+    apriltag_config_file = os.path.join(pkg_dir, 'config', 'apriltag_detection_config.yaml')
     filter_config_file = os.path.join(pkg_dir, 'config', 'robot_detection_filter_config.yaml')
     
     # Verify the files exist (helpful for debugging)
     if not os.path.exists(arena_config_file):
         raise FileNotFoundError(f"Arena config file not found: {arena_config_file}")
     
-    if not os.path.exists(robot_config_file):
-        raise FileNotFoundError(f"Robot config file not found: {robot_config_file}")
+    if not os.path.exists(apriltag_config_file):
+        raise FileNotFoundError(f"Apriltag config file not found: {apriltag_config_file}")
     
     if not os.path.exists(filter_config_file):
         raise FileNotFoundError(f"Filter config file not found: {filter_config_file}")
@@ -42,13 +42,13 @@ def generate_launch_description():
             ]
         ),
         
-        # April detection node, swap with premade ros one for efficiency
+        # Apriltag detection node, swap with premade ros one for efficiency
         Node(
             package='arena_perception',
-            executable='april_detection_node',
-            name='april_detection_node',
+            executable='apriltag_detection_node',
+            name='apriltag_detection_node',
             parameters=[
-                {'config_file': robot_config_file}
+                {'config_file': apriltag_config_file}
             ]
         ),
         

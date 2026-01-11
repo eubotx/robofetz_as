@@ -41,7 +41,7 @@ setup(
         'console_scripts': [
             'camera_rectification_node = arena_perception.camera_rectification_node:main',
             'arena_calibration_service = arena_perception.arena_calibration_service:main',
-            'april_detection_node = arena_perception.april_detection_node:main',
+            'apriltag_detection_node = arena_perception.apriltag_detection_node:main',
             'opponent_detection_node = arena_perception.opponent_detection:main',
             'filter_transform_node = arena_perception.filter_transform_node:main',
             'static_tag_position_publisher = arena_perception.static_tag_position_publisher:main',

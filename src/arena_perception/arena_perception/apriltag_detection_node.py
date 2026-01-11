@@ -51,6 +51,11 @@ class ApriltagDetectionNode(Node):
         # TF2
         self.tf_broadcaster = TransformBroadcaster(self)
         
+        # Debug image publisher (if enabled)
+        if self.debug_enabled:
+            self.debug_pub = self.create_publisher(
+                Image, self.debug_image_topic, qos_profile=qos_profile)
+        
         # State
         self.latest_frame = None
         self.camera_info = None
@@ -78,6 +83,10 @@ class ApriltagDetectionNode(Node):
         
         # Camera frame
         self.camera_frame = self.config.get('camera_frame', 'camera_optical')
+        
+        # Debug configuration
+        self.debug_enabled = self.config.get('debug_image', False)
+        self.debug_image_topic = self.config.get('debug_image_topic', 'apriltag_detection/debug')
         
         # Tag configuration
         tag_config = self.config.get('tag', {})
@@ -118,6 +127,9 @@ class ApriltagDetectionNode(Node):
         self.get_logger().info(f"Topics: camera_info={self.camera_info_topic}, image={self.image_topic}")
         self.get_logger().info(f"Camera frame: {self.camera_frame}")
         self.get_logger().info(f"Tag family: {self.tag_family}")
+        self.get_logger().info(f"Debug image: {'enabled' if self.debug_enabled else 'disabled'}")
+        if self.debug_enabled:
+            self.get_logger().info(f"Debug image topic: {self.debug_image_topic}")
         self.get_logger().info(f"Configured {len(self.tag_ids)} tags:")
         for i, tag_id in enumerate(self.tag_ids):
             self.get_logger().info(f"  ID {tag_id}: frame='{self.tag_frames[i]}', size={self.tag_sizes[i]}m")
@@ -161,16 +173,33 @@ class ApriltagDetectionNode(Node):
             self.latest_frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
             gray = cv2.cvtColor(self.latest_frame, cv2.COLOR_BGR2GRAY)
             
+            # Create a copy for debug visualization if enabled
+            if self.debug_enabled:
+                debug_frame = self.latest_frame.copy()
+            else:
+                debug_frame = None
+            
             # Core detection
-            self.detect_tags(gray)
+            transforms_to_send = self.detect_tags(gray, debug_frame)
+            
+            # Publish debug image if enabled and frame was modified
+            if self.debug_enabled and debug_frame is not None:
+                self.publish_debug_image(debug_frame)
+            
+            # Send transforms if any tags were found
+            if transforms_to_send:
+                if not self.has_published_once:
+                    self.get_logger().info("Started publishing tag transforms")
+                    self.has_published_once = True
+                
+                self.tf_broadcaster.sendTransform(transforms_to_send)
                 
         except Exception as e:
             self.get_logger().error(f"Detection error: {str(e)}")
     
-    def detect_tags(self, image_gray):
+    def detect_tags(self, image_gray, debug_frame=None):
         """Detect tags and publish their transforms relative to camera_optical"""
         
-        # We need to detect tags one by one with their specific sizes
         transforms_to_send = []
         
         for tag_id, tag_info in self.tag_mapping.items():
@@ -215,33 +244,82 @@ class ApriltagDetectionNode(Node):
                     
                     transforms_to_send.append(tag_transform)
                     
-                    # Debug visualization (optional)
-                    if self.latest_frame is not None:
-                        pts = detection.corners.astype(int)
-                        cv2.polylines(self.latest_frame, [pts], True, (0, 255, 0), 2)
-                        center = pts.mean(axis=0).astype(int)
-                        cv2.putText(self.latest_frame, f"ID: {tag_id}", 
-                                   tuple(center - np.array([0, 20])), 
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-        # Send all transforms if any tags were found
-        if transforms_to_send:
-            if not self.has_published_once:
-                self.get_logger().info("Started publishing tag transforms")
-                self.has_published_once = True
-            
-            self.tf_broadcaster.sendTransform(transforms_to_send)
-            
-            # Optionally publish visualization image
-            # self.publish_debug_image()
-        else:
-            # Only log when nothing is detected
+                    # Debug visualization (if enabled)
+                    if debug_frame is not None:
+                        self.draw_tag_detection(debug_frame, detection, tag_id)
+        
+        # Log if no tags were found
+        if not transforms_to_send:
             self.get_logger().info("No configured tags found in frame", throttle_duration_sec=2.0)
+        
+        return transforms_to_send
     
-    def publish_debug_image(self):
-        """Optional: Publish debug image with tag detection visualization"""
-        # You can add an image publisher here if needed
-        pass
+    def draw_tag_detection(self, frame, detection, tag_id):
+        """Draw tag detection on frame: red dot in center and bounding box"""
+        # Convert corners to integer for drawing
+        corners = detection.corners.astype(int)
+
+        # Draw bounding box (square) - red color
+        # Points are in order: bottom-left, bottom-right, top-right, top-left
+        cv2.polylines(frame, [corners], isClosed=True, color=(0, 0, 255), thickness=2)
+
+        # Calculate center point (average of all corners)
+        center = np.mean(corners, axis=0).astype(int)
+
+        # Draw red dot in the center
+        cv2.circle(frame, tuple(center), radius=4, color=(0, 0, 255), thickness=-1)  # -1 for filled circle
+
+        # Draw tag ID near the center
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.6
+        text = f"ID: {tag_id}"
+
+        # Calculate text size for background rectangle
+        (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, 1)
+
+        # Draw background rectangle for text
+        text_x = center[0] - text_width // 2
+        text_y = center[1] + text_height + 20  # Position below the red dot
+        cv2.rectangle(frame, 
+                        (text_x - 2, text_y - text_height - 2),
+                        (text_x + text_width + 2, text_y + 2),
+                        (0, 0, 255), -1)  # Red background
+
+        # Draw text in white
+        cv2.putText(frame, text, 
+                    (text_x, text_y), 
+                    font, font_scale, (255, 255, 255), 1, cv2.LINE_AA)
+
+        # Optional: Draw small coordinate axes on the tag
+        # This helps visualize tag orientation
+        axis_length = 20
+
+        # Use detection center (which is already 2D image coordinates)
+        center_pt = detection.center.astype(int)
+
+        # Get rotation matrix and convert to proper 2D vectors
+        # We need to project the 3D axes onto the image plane
+        # For simplicity, we can draw using the corners to estimate orientation
+
+        # Draw x-axis (red) - from center to midpoint of right side
+        right_mid = ((corners[1] + corners[2]) / 2).astype(int)
+        cv2.arrowedLine(frame, tuple(center_pt), tuple(right_mid), 
+                        (0, 0, 255), 2, tipLength=0.3)
+
+        # Draw y-axis (green) - from center to midpoint of bottom side  
+        bottom_mid = ((corners[0] + corners[1]) / 2).astype(int)
+        cv2.arrowedLine(frame, tuple(center_pt), tuple(bottom_mid), 
+                        (0, 255, 0), 2, tipLength=0.3)
+    
+    def publish_debug_image(self, frame):
+        """Publish debug image with tag detection visualization"""
+        try:
+            debug_msg = self.bridge.cv2_to_imgmsg(frame, "bgr8")
+            debug_msg.header.stamp = self.get_clock().now().to_msg()
+            debug_msg.header.frame_id = self.camera_frame
+            self.debug_pub.publish(debug_msg)
+        except Exception as e:
+            self.get_logger().error(f"Failed to publish debug image: {str(e)}")
 
 
 def main(args=None):
