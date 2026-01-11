@@ -88,9 +88,8 @@ class MapNode(Node):
             # Draw Hole
             r = 20 # User said "big black hole". 20px radius ~ 12cm radius.
             # Black = 0
-            px = self.width - 1 - px # Convert to PIL coords
-            draw.ellipse((py-r, px-r, py+r, px+r), fill=0)
-            draw.ellipse((py-r*2, px-r*2, py+r*2, px+r*2), fill=255//2) # White center
+            draw.ellipse((px-r, py-r, px+r, py+r), fill=0)
+            draw.ellipse((px-r*2, py-r*2, px+r*2, py+r*2), fill=255//2) # White center
             
         # Convert to OccupancyGrid msg
         grid_msg = OccupancyGrid()

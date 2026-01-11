@@ -77,7 +77,9 @@ def save_ros_map(map_array, map_dir, resolution=0.005859):
     # ROS map_server expects: 0 (black) = occupied, 255 (white) = free, 205 = unknown
     # Our array is already in this format.
     img = Image.fromarray(map_array)
-    img.save(pgm_path)
+    # Rotate 90 degrees to fix orientation
+    img_pgm = img.rotate(-90, expand=True)
+    img_pgm.save(pgm_path)
     
     # 1.1 Save PNG for visualization
     png_filename = "map_view.png"
