@@ -144,6 +144,14 @@
         <xacro:inertia_tag/>
     </link>
 
+    <!-- Top AprilTag Optical Frame -->
+    <joint name="$(arg prefix)top_tag_optical_joint" type="fixed">
+        <parent link="$(arg prefix)top_apriltag_link"/>
+        <child link="$(arg prefix)top_apriltag_optical"/>
+        <origin xyz="0 0 0" rpy="0 ${pi_const} ${pi_const/2}"/>
+    </joint>
+    <link name="$(arg prefix)top_apriltag_optical"/>
+
     <!-- Bottom AprilTag -->
     <joint name="$(arg prefix)bottom_tag_joint" type="fixed">
         <parent link="$(arg prefix)body_link"/>
@@ -162,6 +170,14 @@
         </collision>
         <xacro:inertia_tag/>
     </link>
+
+    <!-- Bottom AprilTag Optical Frame -->
+    <joint name="$(arg prefix)bottom_tag_optical_joint" type="fixed">
+        <parent link="$(arg prefix)bottom_apriltag_link"/>
+        <child link="$(arg prefix)bottom_apriltag_optical"/>
+                <origin xyz="0 0 0" rpy="0 0 ${pi_const/2}"/>
+    </joint>
+    <link name="$(arg prefix)bottom_apriltag_optical"/>
 
     <!-- Wheels -->
     <joint name="$(arg prefix)wheel1_joint" type="continuous">

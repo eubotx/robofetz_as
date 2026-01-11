@@ -36,11 +36,11 @@ class CameraToBaseTransform(Node):
                     
                     # Get corresponding static transform
                     if tag_type == 'top':
-                        static_target = 'robot/top_apriltag_link'
+                        static_target = 'robot/top_apriltag_optical'
                     else:
-                        static_target = 'robot/bottom_apriltag_link'
+                        static_target = 'robot/bottom_apriltag_optical'
                     
-                    # Get static transform: base_footprint -> apriltag_link
+                    # Get static transform: base_footprint -> apriltag_optical
                     base_to_apriltag = self.tf_buffer.lookup_transform(
                         'robot/base_footprint',
                         static_target,

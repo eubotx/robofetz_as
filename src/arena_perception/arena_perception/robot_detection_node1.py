@@ -67,10 +67,10 @@ class CameraToBaseTransform(Node):
         try:
             # Get the corresponding static transform from robot state publisher
             if tag_type == 'top':
-                base_to_tag_link = 'robot/top_apriltag_link'
+                base_to_tag_link = 'robot/top_apriltag_optical'
                 tag_name = 'arena_perception/robot_top_tag'
             else:  # bottom
-                base_to_tag_link = 'robot/bottom_apriltag_link'
+                base_to_tag_link = 'robot/bottom_apriltag_optical'
                 tag_name = 'arena_perception/robot_bottom_tag'
             
             # Get the static transform (base_footprint -> apriltag_link)
