@@ -1,0 +1,12 @@
+
+camera_info_topic: "arena_camera/camera_info" #p is used
+input_image_topic: "arena_camera/image_rect"  #must be rectified
+
+camera_frame: "arena_camera_optical"
+
+tag:
+  ids:    [12, 31]         # tag IDs for which to publish transform
+  frames: ["arena_perception/robot_top_tag", "arena_perception/robot_bottom_tag"]   # frame names
+  sizes:  [0.0778, 0.0778]     # tag-specific edge size, overrides the default 'size'
+
+debug_image: true

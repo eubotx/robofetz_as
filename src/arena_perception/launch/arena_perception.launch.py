@@ -31,15 +31,6 @@ def generate_launch_description():
             namespace='arena_camera',
             name='camera_rectification'
         ),
-
-        # Static transform for robot/odom to /robot_footprint until we use odom 
-        Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_map_tf_publisher',
-            arguments=['0', '0', '0', '0', '0', '0', 'robot/odom', 'robot/base_footprint'],
-            output='screen'
-        ),
         
         # Arena calibration service
         Node(
@@ -51,7 +42,7 @@ def generate_launch_description():
             ]
         ),
         
-        # Robot detection node
+        # April detection node, swap with premade ros one for efficiency
         Node(
             package='arena_perception',
             executable='april_detection_node',
