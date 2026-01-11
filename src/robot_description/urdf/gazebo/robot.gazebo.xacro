@@ -152,7 +152,7 @@
         <plugin filename="gz-sim-odometry-publisher-system"
          name="gz::sim::systems::OdometryPublisher">
             <odom_frame>map</odom_frame>
-            <robot_base_frame>robot/odom</robot_base_frame>
+            <robot_base_frame>robot/base_footprint_sim</robot_base_frame>
             <odom_publish_frequency>50</odom_publish_frequency>
             <odom_topic>robot/odometry_ground_truth</odom_topic>
             <odom_covariance_topic>robot/odometry_ground_truth_with_covariance</odom_covariance_topic>

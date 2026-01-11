@@ -129,10 +129,10 @@ class OdometryCorrectionNode(Node):
                 rclpy.time.Time()
             )
             
-            # 2. world -> arena_perception/robot_base_footprint (ground truth)
+            # 2. world -> arena_perception/robot/base_footprint (ground truth)
             world_to_arena_base = self.tf_buffer.lookup_transform(
                 'world',
-                'arena_perception/robot_base_footprint',
+                'arena_perception/robot/base_footprint',
                 rclpy.time.Time()
             )
             

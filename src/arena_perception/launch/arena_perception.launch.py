@@ -31,6 +31,15 @@ def generate_launch_description():
             namespace='arena_camera',
             name='camera_rectification'
         ),
+
+        # Static transform for robot/odom to /robot_footprint until we use odom 
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='static_map_tf_publisher',
+            arguments=['0', '0', '0', '0', '0', '0', 'robot/odom', 'robot/base_footprint'],
+            output='screen'
+        ),
         
         # Arena calibration service
         Node(
@@ -45,8 +54,8 @@ def generate_launch_description():
         # Robot detection node
         Node(
             package='arena_perception',
-            executable='robot_detection_node',
-            name='robot_detection_node',
+            executable='april_detection_node',
+            name='april_detection_node',
             parameters=[
                 {'config_file': robot_config_file}
             ]
@@ -77,11 +86,39 @@ def generate_launch_description():
         ),
 
         # Filter transform node for BOTTOM tag
+        # Works but causes lags
         Node(
             package='arena_perception',
-            executable='static_tag_position_publisher',
-            name='static_tag_position_publisher',
+            executable='robot_detection_node1',
+            name='robot_detection_node1',
             parameters=[
             ]
         ),
+
+        # # Filter transform node for BOTTOM tag
+        # # Not working but at least doesnt crash
+        # Node(
+        #     package='arena_perception',
+        #     executable='robot_detection_node2',
+        #     name='robot_detection_node2',
+        #     parameters=[
+        #     ]
+        # ),
+
+        Node(
+            package='arena_perception',
+            executable='odom_drift_correction_node1',
+            name='odom_drift_correction_node1',
+            parameters=[
+            ]
+        ),
+
+        # Filter transform node for BOTTOM tag
+        # Node(
+        #     package='arena_perception',
+        #     executable='static_tag_position_publisher',
+        #     name='static_tag_position_publisher',
+        #     parameters=[
+        #     ]
+        # ),
     ])

@@ -6,7 +6,7 @@
   direction: GZ_TO_ROS
 
   # ros topic subscribed by DiffDrive plugin
-- ros_topic_name: "robot/cmd_vel"
+- ros_topic_name: "cmd_vel"
   gz_topic_name: "robot/cmd_vel"
   ros_type_name: "geometry_msgs/msg/Twist"
   gz_type_name: "gz.msgs.Twist"

@@ -32,7 +32,7 @@ class SimpleOdometryCorrection(Node):
             
             # Get world -> arena_base (ground truth)
             world_to_arena_base = self.tf_buffer.lookup_transform(
-                'world', 'arena_perception/robot_base_footprint', now
+                'world', 'arena_perception/robot/base_footprint', now
             )
             
             # Get odom -> base_footprint (robot odometry)
