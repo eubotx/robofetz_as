@@ -42,24 +42,20 @@ class FindCameraInWorldService(Node):
         # Service for manual calibration
         self.srv = self.create_service(Trigger, 'find_camera_in_world', self.calibrate_callback)
         
-        # STATIC TF broadcaster for marker (never changes)
-        self.static_tf_broadcaster = StaticTransformBroadcaster(self)
+        # TF broadcasters
+        self.static_tf_broadcaster = StaticTransformBroadcaster(self)  # For marker (static)
+        self.dynamic_tf_broadcaster = TransformBroadcaster(self)        # For camera (dynamic)
         
-        # DYNAMIC TF broadcaster for camera (updates continuously for usecase of recalibration)
-        self.dynamic_tf_broadcaster = TransformBroadcaster(self)
-        
-        # TF Buffer and Listener for getting transforms
+        # TF Buffer and Listener
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         
-        # Store the marker transform (never changes)
-        self.marker_transform = None
+        # Transform storage
+        self.world_to_marker_transform = None      # world -> marker_calibrated (static, from config)
+        self.world_to_camera_transform = None      # world -> camera (dynamic, computed)
+        self.previous_world_to_camera_transform = None  # For movement tracking
         
-        # Store current camera transform (updated when calibrated)
-        self.current_camera_transform = None
-        self.previous_camera_transform = None
-        
-        # State
+        # Calibration state
         self.calibration_successful = False
         self.attempt_count = 0
         
@@ -123,43 +119,43 @@ class FindCameraInWorldService(Node):
         self.get_logger().info(f"Calibration marker frame (calibrated): {self.calibration_marker_calibrated_frame}")
         self.get_logger().info(f"Camera frame: {self.camera_frame}")
         
-    def create_marker_transform(self):
-        """Create the marker transform (world -> marker_calibrated)"""
-        transform_stamped = TransformStamped()
-        transform_stamped.header.stamp = self.get_clock().now().to_msg()
-        transform_stamped.header.frame_id = self.world_frame
-        transform_stamped.child_frame_id = self.calibration_marker_calibrated_frame
+    def create_world_to_marker_transform(self):
+        """Create the transform from world to marker_calibrated"""
+        world_to_marker_transform = TransformStamped()
+        world_to_marker_transform.header.stamp = self.get_clock().now().to_msg()
+        world_to_marker_transform.header.frame_id = self.world_frame
+        world_to_marker_transform.child_frame_id = self.calibration_marker_calibrated_frame
         
         # Set translation based on configuration
-        transform_stamped.transform.translation.x = float(self.marker_position_in_world[0])
-        transform_stamped.transform.translation.y = float(self.marker_position_in_world[1])
-        transform_stamped.transform.translation.z = float(self.marker_position_in_world[2])
+        world_to_marker_transform.transform.translation.x = float(self.marker_position_in_world[0])
+        world_to_marker_transform.transform.translation.y = float(self.marker_position_in_world[1])
+        world_to_marker_transform.transform.translation.z = float(self.marker_position_in_world[2])
         
         # Convert Euler angles from configuration to quaternion
         rotation = Rotation.from_euler('xyz', self.marker_orientation_in_world)
         quat = rotation.as_quat()
-        transform_stamped.transform.rotation.x = float(quat[0])
-        transform_stamped.transform.rotation.y = float(quat[1])
-        transform_stamped.transform.rotation.z = float(quat[2])
-        transform_stamped.transform.rotation.w = float(quat[3])
+        world_to_marker_transform.transform.rotation.x = float(quat[0])
+        world_to_marker_transform.transform.rotation.y = float(quat[1])
+        world_to_marker_transform.transform.rotation.z = float(quat[2])
+        world_to_marker_transform.transform.rotation.w = float(quat[3])
         
-        return transform_stamped
+        return world_to_marker_transform
         
     def publish_static_marker_transform(self):
         """Publish STATIC transform from world to marker_calibrated based on configuration"""
-        self.marker_transform = self.create_marker_transform()
+        self.world_to_marker_transform = self.create_world_to_marker_transform()
         
         # Publish just the marker transform as static
-        self.static_tf_broadcaster.sendTransform([self.marker_transform])
+        self.static_tf_broadcaster.sendTransform([self.world_to_marker_transform])
         
         self.get_logger().info(f"Published STATIC transform: {self.world_frame} -> {self.calibration_marker_calibrated_frame}")
         
     def publish_camera_dynamic(self):
-        """Publish camera transform dynamically"""
-        if self.current_camera_transform is not None:
+        """Publish camera transform dynamically (for RViz updates)"""
+        if self.world_to_camera_transform is not None:
             # Update timestamp for dynamic publishing
-            self.current_camera_transform.header.stamp = self.get_clock().now().to_msg()
-            self.dynamic_tf_broadcaster.sendTransform(self.current_camera_transform)
+            self.world_to_camera_transform.header.stamp = self.get_clock().now().to_msg()
+            self.dynamic_tf_broadcaster.sendTransform(self.world_to_camera_transform)
             
     def attempt_calibration(self):
         """Attempt calibration - runs continuously until successful"""
@@ -169,37 +165,44 @@ class FindCameraInWorldService(Node):
         if self.calibration_successful:
             return
             
-        success = self.perform_calibration(source=f"initial (attempt {self.attempt_count})")
+        calibration_source = f"initial (attempt {self.attempt_count})"
+        success = self.perform_calibration(calibration_source)
         
         if not success and self.attempt_count % 10 == 0:
             self.get_logger().debug(f"Still waiting for calibration after {self.attempt_count} attempts")
             
-    def perform_calibration(self, source="manual"):
+    def perform_calibration(self, calibration_source="manual"):
         """Shared calibration logic - used by both timer and service"""
         try:
-            # Look for transform from marker frame to camera frame
-            transform = self.tf_buffer.lookup_transform(
+            # Get current marker-to-camera transform from TF
+            marker_to_camera_transform = self.tf_buffer.lookup_transform(
                 self.calibration_marker_frame,  # Source frame (detected marker)
                 self.camera_frame,              # Target frame (camera)
                 rclpy.time.Time()
             )
             
-            # Compute camera position in world
-            camera_in_world_transform = self.compute_camera_in_world(transform)
+            # Compute world-to-camera transform
+            world_to_camera_transform = self.compute_world_to_camera_transform(marker_to_camera_transform)
             
-            # Store for dynamic publishing
-            self.current_camera_transform = camera_in_world_transform
+            # Update stored transform for dynamic publishing
+            self.world_to_camera_transform = world_to_camera_transform
             
-            # Mark as successful
+            # Update calibration state
             self.calibration_successful = True
             
-            # Store for next comparison
-            self.previous_camera_transform = camera_in_world_transform
+            # Log calibration details with movement info
+            self.log_calibration_details(
+                marker_to_camera_transform=marker_to_camera_transform,
+                world_to_camera_transform=world_to_camera_transform,
+                calibration_source=calibration_source,
+                previous_world_to_camera_transform=self.previous_world_to_camera_transform
+            )
             
-            # Log success
-            self.log_transform_details(transform, camera_in_world_transform, source)
+            # Store for movement comparison in next calibration
+            self.previous_world_to_camera_transform = world_to_camera_transform
             
-            if "initial" in source:
+            # Log success message
+            if "initial" in calibration_source:
                 self.get_logger().info(f"✓ Calibration successful after {self.attempt_count} attempts!")
             else:
                 self.get_logger().info("✓ Manual re-calibration successful!")
@@ -209,26 +212,21 @@ class FindCameraInWorldService(Node):
             return True
             
         except (LookupException, ConnectivityException, ExtrapolationException) as e:
-            if "initial" in source:
-                # Only log debug messages occasionally to avoid spam
-                if self.attempt_count % 10 == 0:
-                    self.get_logger().debug(f"Calibration failed: {str(e)}")
-            else:
-                self.get_logger().error(f"Calibration failed: {str(e)}")
+            self.handle_calibration_error(e, calibration_source)
             return False
         except Exception as e:
             self.get_logger().error(f"Unexpected error in calibration: {e}")
             return False
     
-    def compute_camera_in_world(self, marker_to_camera_transform):
-        """Compute camera position in world frame given marker-to-camera transform"""
+    def compute_world_to_camera_transform(self, marker_to_camera_transform):
+        """Compute world-to-camera transform given marker-to-camera transform"""
         # Create transform from world frame to camera frame
-        transform_stamped = TransformStamped()
-        transform_stamped.header.stamp = self.get_clock().now().to_msg()
-        transform_stamped.header.frame_id = self.world_frame
-        transform_stamped.child_frame_id = self.camera_frame
+        world_to_camera_transform = TransformStamped()
+        world_to_camera_transform.header.stamp = self.get_clock().now().to_msg()
+        world_to_camera_transform.header.frame_id = self.world_frame
+        world_to_camera_transform.child_frame_id = self.camera_frame
         
-        # Get components of T_marker_camera (from the transform)
+        # Get translation and rotation from marker-to-camera transform
         marker_to_camera_translation = marker_to_camera_transform.transform.translation
         marker_to_camera_rotation = marker_to_camera_transform.transform.rotation
         
@@ -246,11 +244,11 @@ class FindCameraInWorldService(Node):
             marker_to_camera_translation.z
         ])
         
-        # Get components of T_world_marker_calibrated (from config)
+        # Get components of world-to-marker transform (from config)
         world_to_marker_rotation_matrix = Rotation.from_euler('xyz', self.marker_orientation_in_world).as_matrix()
         world_to_marker_translation_vector = self.marker_position_in_world
         
-        # Compute chained transform: T_world_camera = T_world_marker * T_marker_camera
+        # Compute chained transform: world_to_camera = world_to_marker * marker_to_camera
         world_to_camera_rotation_matrix = world_to_marker_rotation_matrix @ marker_to_camera_rotation_matrix
         world_to_camera_translation_vector = world_to_marker_rotation_matrix @ marker_to_camera_translation_vector + world_to_marker_translation_vector
         
@@ -259,47 +257,64 @@ class FindCameraInWorldService(Node):
         world_to_camera_quaternion = world_to_camera_rotation.as_quat()
         
         # Set the computed transform
-        transform_stamped.transform.translation.x = float(world_to_camera_translation_vector[0])
-        transform_stamped.transform.translation.y = float(world_to_camera_translation_vector[1])
-        transform_stamped.transform.translation.z = float(world_to_camera_translation_vector[2])
+        world_to_camera_transform.transform.translation.x = float(world_to_camera_translation_vector[0])
+        world_to_camera_transform.transform.translation.y = float(world_to_camera_translation_vector[1])
+        world_to_camera_transform.transform.translation.z = float(world_to_camera_translation_vector[2])
         
-        transform_stamped.transform.rotation.x = float(world_to_camera_quaternion[0])
-        transform_stamped.transform.rotation.y = float(world_to_camera_quaternion[1])
-        transform_stamped.transform.rotation.z = float(world_to_camera_quaternion[2])
-        transform_stamped.transform.rotation.w = float(world_to_camera_quaternion[3])
+        world_to_camera_transform.transform.rotation.x = float(world_to_camera_quaternion[0])
+        world_to_camera_transform.transform.rotation.y = float(world_to_camera_quaternion[1])
+        world_to_camera_transform.transform.rotation.z = float(world_to_camera_quaternion[2])
+        world_to_camera_transform.transform.rotation.w = float(world_to_camera_quaternion[3])
         
-        return transform_stamped
+        return world_to_camera_transform
     
-    def log_transform_details(self, marker_to_camera_transform, world_to_camera_transform, source):
+    def log_calibration_details(self, marker_to_camera_transform, world_to_camera_transform, 
+                               calibration_source, previous_world_to_camera_transform):
         """Log detailed information about the calibration"""
-        # Log marker-to-camera details
-        marker_trans = marker_to_camera_transform.transform.translation
-        marker_distance = np.sqrt(marker_trans.x**2 + marker_trans.y**2 + marker_trans.z**2)
+        # Extract translation components
+        marker_to_camera_translation = marker_to_camera_transform.transform.translation
+        world_to_camera_translation = world_to_camera_transform.transform.translation
         
-        # Log world-to-camera details
-        world_trans = world_to_camera_transform.transform.translation
+        # Calculate distances
+        marker_distance = np.sqrt(
+            marker_to_camera_translation.x**2 + 
+            marker_to_camera_translation.y**2 + 
+            marker_to_camera_translation.z**2
+        )
         
         self.get_logger().info("=" * 50)
-        self.get_logger().info(f"CALIBRATION SUCCESSFUL! ({source})")
+        self.get_logger().info(f"CALIBRATION SUCCESSFUL! ({calibration_source})")
+        self.get_logger().info("=" * 50)
         self.get_logger().info(f"Marker to camera distance: {marker_distance:.3f} m")
-        self.get_logger().info(f"Camera position in world: [{world_trans.x:.3f}, {world_trans.y:.3f}, {world_trans.z:.3f}] m")
+        self.get_logger().info(f"Camera position in world: [{world_to_camera_translation.x:.3f}, "
+                              f"{world_to_camera_translation.y:.3f}, {world_to_camera_translation.z:.3f}] m")
         self.get_logger().info(f"Published transform: {self.world_frame} -> {self.camera_frame}")
-        # Log movement if we have previous transform
-        if self.previous_camera_transform is not None:
-            old_t = self.previous_camera_transform.transform.translation
-            new_t = world_to_camera_transform.transform.translation
-            dx = new_t.x - old_t.x
-            dy = new_t.y - old_t.y
-            dz = new_t.z - old_t.z
-            distance = np.sqrt(dx**2 + dy**2 + dz**2)
-            self.get_logger().info(f"Camera moved by: [{dx:.3f}, {dy:.3f}, {dz:.3f}] m, distance: {distance:.3f} m")
+        
+        # Log movement if we have a previous transform
+        if previous_world_to_camera_transform is not None:
+            previous_translation = previous_world_to_camera_transform.transform.translation
+            dx = world_to_camera_translation.x - previous_translation.x
+            dy = world_to_camera_translation.y - previous_translation.y
+            dz = world_to_camera_translation.z - previous_translation.z
+            movement_distance = np.sqrt(dx**2 + dy**2 + dz**2)
+            self.get_logger().info(f"Camera moved by: [{dx:.3f}, {dy:.3f}, {dz:.3f}] m, "
+                                  f"distance: {movement_distance:.3f} m")
         self.get_logger().info("=" * 50)
+        
+    def handle_calibration_error(self, error, calibration_source):
+        """Handle calibration errors with appropriate logging level"""
+        if "initial" in calibration_source:
+            # Only log debug messages occasionally to avoid spam
+            if self.attempt_count % 10 == 0:
+                self.get_logger().debug(f"Calibration failed: {str(error)}")
+        else:
+            self.get_logger().error(f"Calibration failed: {str(error)}")
         
     async def calibrate_callback(self, request, response):
         """External service callback for manual camera re-calibration"""
         self.get_logger().info("Manual re-calibration request received")
         
-        success = self.perform_calibration(source="manual")
+        success = self.perform_calibration(calibration_source="manual")
         
         if success:
             response.success = True
