@@ -57,6 +57,7 @@ class FindCameraInWorldService(Node):
         
         # Store current camera transform (updated when calibrated)
         self.current_camera_transform = None
+        self.previous_camera_transform = None
         
         # State
         self.calibration_successful = False
@@ -168,6 +169,13 @@ class FindCameraInWorldService(Node):
         if self.calibration_successful:
             return
             
+        success = self.perform_calibration(source=f"initial (attempt {self.attempt_count})")
+        
+        if not success and self.attempt_count % 10 == 0:
+            self.get_logger().debug(f"Still waiting for calibration after {self.attempt_count} attempts")
+            
+    def perform_calibration(self, source="manual"):
+        """Shared calibration logic - used by both timer and service"""
         try:
             # Look for transform from marker frame to camera frame
             transform = self.tf_buffer.lookup_transform(
@@ -185,20 +193,32 @@ class FindCameraInWorldService(Node):
             # Mark as successful
             self.calibration_successful = True
             
-            # Log success
-            self.log_transform_details(transform, camera_in_world_transform, f"initial (attempt {self.attempt_count})")
+            # Store for next comparison
+            self.previous_camera_transform = camera_in_world_transform
             
-            self.get_logger().info(f"✓ Calibration successful after {self.attempt_count} attempts!")
+            # Log success
+            self.log_transform_details(transform, camera_in_world_transform, source)
+            
+            if "initial" in source:
+                self.get_logger().info(f"✓ Calibration successful after {self.attempt_count} attempts!")
+            else:
+                self.get_logger().info("✓ Manual re-calibration successful!")
+                
             self.get_logger().info("Camera position is now published in TF tree as dynamic transform")
-            self.get_logger().info("Use the service to re-calibrate if needed")
+            
+            return True
             
         except (LookupException, ConnectivityException, ExtrapolationException) as e:
-            # Only log debug messages occasionally to avoid spam
-            if self.attempt_count % 10 == 0:  # Log every 10th attempt
-                self.get_logger().debug(f"Calibration attempt {self.attempt_count}: {str(e)}")
-                self.get_logger().debug(f"Waiting for transform: {self.calibration_marker_frame} -> {self.camera_frame}")
+            if "initial" in source:
+                # Only log debug messages occasionally to avoid spam
+                if self.attempt_count % 10 == 0:
+                    self.get_logger().debug(f"Calibration failed: {str(e)}")
+            else:
+                self.get_logger().error(f"Calibration failed: {str(e)}")
+            return False
         except Exception as e:
-            self.get_logger().error(f"Unexpected error in calibration attempt {self.attempt_count}: {e}")
+            self.get_logger().error(f"Unexpected error in calibration: {e}")
+            return False
     
     def compute_camera_in_world(self, marker_to_camera_transform):
         """Compute camera position in world frame given marker-to-camera transform"""
@@ -261,63 +281,32 @@ class FindCameraInWorldService(Node):
         
         self.get_logger().info("=" * 50)
         self.get_logger().info(f"CALIBRATION SUCCESSFUL! ({source})")
-        self.get_logger().info("=" * 50)
         self.get_logger().info(f"Marker to camera distance: {marker_distance:.3f} m")
         self.get_logger().info(f"Camera position in world: [{world_trans.x:.3f}, {world_trans.y:.3f}, {world_trans.z:.3f}] m")
         self.get_logger().info(f"Published transform: {self.world_frame} -> {self.camera_frame}")
+        # Log movement if we have previous transform
+        if self.previous_camera_transform is not None:
+            old_t = self.previous_camera_transform.transform.translation
+            new_t = world_to_camera_transform.transform.translation
+            dx = new_t.x - old_t.x
+            dy = new_t.y - old_t.y
+            dz = new_t.z - old_t.z
+            distance = np.sqrt(dx**2 + dy**2 + dz**2)
+            self.get_logger().info(f"Camera moved by: [{dx:.3f}, {dy:.3f}, {dz:.3f}] m, distance: {distance:.3f} m")
         self.get_logger().info("=" * 50)
         
     async def calibrate_callback(self, request, response):
         """External service callback for manual camera re-calibration"""
         self.get_logger().info("Manual re-calibration request received")
         
-        # Perform immediate calibration attempt
-        success = False
-        try:
-            # Look for transform from marker frame to camera frame
-            transform = self.tf_buffer.lookup_transform(
-                self.calibration_marker_frame,  # Source frame (detected marker)
-                self.camera_frame,              # Target frame (camera)
-                rclpy.time.Time()
-            )
-            
-            # Compute camera position in world
-            camera_in_world_transform = self.compute_camera_in_world(transform)
-            
-            # Store for dynamic publishing
-            self.current_camera_transform = camera_in_world_transform
-            
-            # Mark as successful (in case it wasn't already)
-            self.calibration_successful = True
-            
-            # Log success with movement info
-            self.log_transform_details(transform, camera_in_world_transform, "MANUAL RE-CALIBRATION")
-            
-            # If we have a previous transform, log the movement
-            if hasattr(self, 'previous_camera_transform'):
-                old_t = self.previous_camera_transform.transform.translation
-                new_t = camera_in_world_transform.transform.translation
-                dx = new_t.x - old_t.x
-                dy = new_t.y - old_t.y
-                dz = new_t.z - old_t.z
-                distance = np.sqrt(dx**2 + dy**2 + dz**2)
-                self.get_logger().info(f"Camera moved by: [{dx:.3f}, {dy:.3f}, {dz:.3f}] m, distance: {distance:.3f} m")
-            
-            # Store for next comparison
-            self.previous_camera_transform = camera_in_world_transform
-            
-            success = True
+        success = self.perform_calibration(source="manual")
+        
+        if success:
             response.success = True
             response.message = "Re-calibration successful - camera position updated"
-            
-        except (LookupException, ConnectivityException, ExtrapolationException) as e:
-            self.get_logger().error(f"Manual re-calibration failed: {str(e)}")
+        else:
             response.success = False
-            response.message = f"Re-calibration failed: {str(e)}"
-        except Exception as e:
-            self.get_logger().error(f"Unexpected error in manual re-calibration: {e}")
-            response.success = False
-            response.message = f"Unexpected error: {e}"
+            response.message = "Re-calibration failed - could not detect marker"
             
         return response
 
