@@ -121,7 +121,7 @@ class ApriltagDetectionNode(Node):
             }
         
         # Tag family (default to standard)
-        self.tag_family = tag_config.get('family', 'tagStandard36h11')
+        self.tag_family = tag_config.get('family', 'tag36h11')
         
         # Log configuration
         self.get_logger().info(f"Topics: camera_info={self.camera_info_topic}, image={self.image_topic}")
@@ -264,7 +264,7 @@ class ApriltagDetectionNode(Node):
         cv2.polylines(frame, [corners], isClosed=True, color=(0, 0, 255), thickness=2)
 
         # Calculate center point (average of all corners)
-        center = np.mean(corners, axis=0).astype(int)
+        center = np.center.astype(int)
 
         # Draw red dot in the center
         cv2.circle(frame, tuple(center), radius=4, color=(0, 0, 255), thickness=-1)  # -1 for filled circle

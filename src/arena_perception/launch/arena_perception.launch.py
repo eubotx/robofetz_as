@@ -9,8 +9,8 @@ def generate_launch_description():
     pkg_dir = get_package_share_directory('arena_perception')
     
     # Path to your config files
-    arena_config_file = os.path.join(pkg_dir, 'config', 'arena_detection_config.yaml')
     apriltag_config_file = os.path.join(pkg_dir, 'config', 'apriltag_detection_config.yaml')
+    arena_config_file = os.path.join(pkg_dir, 'config', 'arena_detection_config.yaml')
     filter_config_file = os.path.join(pkg_dir, 'config', 'robot_detection_filter_config.yaml')
     
     # Verify the files exist (helpful for debugging)
@@ -31,6 +31,16 @@ def generate_launch_description():
             namespace='arena_camera',
             name='camera_rectification'
         ),
+
+        # Apriltag detection node, swap with premade ros one for efficiency
+        Node(
+            package='arena_perception',
+            executable='apriltag_detection_node',
+            name='apriltag_detection_node',
+            parameters=[
+                {'config_file': apriltag_config_file}
+            ]
+        ),
         
         # Arena calibration service
         Node(
@@ -39,16 +49,6 @@ def generate_launch_description():
             name='arena_calibration_service',
             parameters=[
                 {'config_file': arena_config_file},
-            ]
-        ),
-        
-        # Apriltag detection node, swap with premade ros one for efficiency
-        Node(
-            package='arena_perception',
-            executable='apriltag_detection_node',
-            name='apriltag_detection_node',
-            parameters=[
-                {'config_file': apriltag_config_file}
             ]
         ),
         
