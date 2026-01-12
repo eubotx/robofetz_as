@@ -126,8 +126,7 @@ def save_ros_map(map_array, map_dir, resolution=0.005859):
     img.save(png_path)
 
     # 2. Save YAML
-    yaml_filename = "map.yaml"
-    yaml_path = os.path.join(map_dir, yaml_filename)
+
     
     # Calculate origin (bottom-left)
     # Assuming the robot starts at center (0,0) of the 1.5x1.5m arena
@@ -135,22 +134,9 @@ def save_ros_map(map_array, map_dir, resolution=0.005859):
     map_size_meters = 1.5
     origin_x = -map_size_meters / 2.0
     origin_y = -map_size_meters / 2.0
-    
-    yaml_content = f"""image: {pgm_filename}
-                    mode: trinary
-                    resolution: {resolution}
-                    origin: [{origin_x}, {origin_y}, 0.0]
-                    negate: 0
-                    occupied_thresh: 0.65
-                    free_thresh: 0.196
-                    """
-    
-    with open(yaml_path, 'w') as f:
-        f.write(yaml_content)
-        
+
     print(f"Saved ROS map files to {map_dir}")
     print(f"  - {pgm_filename}")
-    print(f"  - {yaml_filename}")
     print(f"  - map_view.png")
 
 def get_map_dir():
