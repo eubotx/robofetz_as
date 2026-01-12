@@ -73,7 +73,7 @@ class FindCameraInWorldService(Node):
         self.tf_lookup_timer = self.create_timer(1.0 / tf_lookup_rate, self.lookup_transform)
         
         # Publish static transforms IMMEDIATELY on startup
-        self.publish_static_marker_transform()  # world -> marker (where marker IS in world)
+        self.publish_static_marker_transform()  # world -> marker_calibrated (where marker IS in world)
         
     def load_config(self, config_path):
         """Load YAML configuration file"""
@@ -94,6 +94,9 @@ class FindCameraInWorldService(Node):
         self.calibration_marker_frame = self.config.get('calibration_marker_frame', 'arena_marker')
         self.camera_frame = self.config.get('camera_frame', 'arena_camera_optical')
         
+        # Add "_calibrated" suffix to marker frame for the static transform
+        self.calibration_marker_calibrated_frame = f"{self.calibration_marker_frame}_calibrated"
+        
         # Marker position in world coordinate system
         pos_config = self.config.get('position_marker_in_world', {})
         self.marker_position_in_world = np.array([
@@ -112,21 +115,23 @@ class FindCameraInWorldService(Node):
         
         # Log configuration
         self.get_logger().info(f"World frame: {self.world_frame}")
-        self.get_logger().info(f"Calibration marker frame: {self.calibration_marker_frame}")
+        self.get_logger().info(f"Calibration marker frame (detected): {self.calibration_marker_frame}")
+        self.get_logger().info(f"Calibration marker frame (calibrated): {self.calibration_marker_calibrated_frame}")
         self.get_logger().info(f"Camera frame: {self.camera_frame}")
         self.get_logger().info(f"Marker position in world: {self.marker_position_in_world}")
         self.get_logger().info(f"Marker orientation in world (RPY): {self.marker_orientation_in_world}")
         
     def publish_static_marker_transform(self):
-        """Publish STATIC transform from world to marker based on configuration
+        """Publish STATIC transform from world to marker_calibrated based on configuration
         
         This defines where the calibration marker is physically located in the world.
         The marker serves as a known reference point for camera localization.
+        The "_calibrated" suffix indicates this is the calibrated/known position.
         """
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = self.world_frame
-        t.child_frame_id = self.calibration_marker_frame
+        t.child_frame_id = self.calibration_marker_calibrated_frame
         
         # Set translation based on configuration
         t.transform.translation.x = float(self.marker_position_in_world[0])
@@ -134,7 +139,6 @@ class FindCameraInWorldService(Node):
         t.transform.translation.z = float(self.marker_position_in_world[2])
         
         # Convert Euler angles from configuration to quaternion
-        # Note: The orientation accounts for differences between AprilTag and ROS coordinate conventions
         rotation = Rotation.from_euler('xyz', self.marker_orientation_in_world)
         quat = rotation.as_quat()
         t.transform.rotation.x = float(quat[0])
@@ -143,23 +147,22 @@ class FindCameraInWorldService(Node):
         t.transform.rotation.w = float(quat[3])
         
         self.static_tf_broadcaster.sendTransform(t)
-        self.get_logger().info(f"Published STATIC transform: {self.world_frame} -> {self.calibration_marker_frame}")
-        self.get_logger().info(f"Marker position in world: [{t.transform.translation.x:.3f}, "
+        self.get_logger().info(f"Published STATIC transform: {self.world_frame} -> {self.calibration_marker_calibrated_frame}")
+        self.get_logger().info(f"Calibrated marker position in world: [{t.transform.translation.x:.3f}, "
                             f"{t.transform.translation.y:.3f}, {t.transform.translation.z:.3f}] m")
         
     def lookup_transform(self):
-        """Look up transform from camera frame to marker frame via TF
+        """Look up transform from marker frame to camera frame via TF
         
-        This method continuously tries to find the transform between the camera and
-        the calibration marker. Once found, it enables continuous publishing of
-        the camera's position in the world frame.
+        This method continuously tries to find the transform between the
+        detected calibration marker and the camera. Once found, it enables 
+        continuous publishing of the camera's position in the calibrated marker frame.
         """
         try:
-            # Look for transform from camera frame to marker frame
-            # We want the marker's pose in camera coordinates
+            # Look for transform from marker frame to camera frame
             transform = self.tf_buffer.lookup_transform(
-                self.camera_frame,          # Source frame (camera)
-                self.calibration_marker_frame,  # Target frame (marker)
+                self.calibration_marker_frame,  # Source frame (detected marker)
+                self.camera_frame,              # Target frame (camera)
                 rclpy.time.Time()
             )
             
@@ -170,21 +173,21 @@ class FindCameraInWorldService(Node):
                 self.initial_calibration_complete = True
                 self.start_tf_publishing()
                 self.get_logger().info(f"Initial TF lookup successful - starting TF publishing at {self.tf_publish_rate} Hz")
-                self.get_logger().info(f"Transform found: {self.camera_frame} -> {self.calibration_marker_frame}")
+                self.get_logger().info(f"Transform found: {self.calibration_marker_frame} -> {self.camera_frame}")
                 self.log_transform_details(transform)
                 
             return True
             
         except (LookupException, ConnectivityException, ExtrapolationException) as e:
             if not self.initial_calibration_complete:
-                self.get_logger().debug(f"Waiting for TF transform from {self.camera_frame} to {self.calibration_marker_frame}: {str(e)}")
+                self.get_logger().debug(f"Waiting for TF transform from {self.calibration_marker_frame} to {self.camera_frame}: {str(e)}")
             return False
     
     def log_transform_details(self, transform):
         """Log detailed information about the camera-to-marker transform"""
         trans = transform.transform.translation
         rot = transform.transform.rotation
-        self.get_logger().info(f"Marker position in camera frame: [{trans.x:.3f}, {trans.y:.3f}, {trans.z:.3f}] m")
+        self.get_logger().info(f"Detected marker position in camera frame: [{trans.x:.3f}, {trans.y:.3f}, {trans.z:.3f}] m")
         distance = np.sqrt(trans.x**2 + trans.y**2 + trans.z**2)
         self.get_logger().info(f"Distance from camera to marker: {distance:.3f} m")
     
@@ -192,7 +195,7 @@ class FindCameraInWorldService(Node):
         """Start the TF publishing timer for continuous updates"""
         if self.tf_publish_timer is None:
             tf_publish_period = 1.0 / self.tf_publish_rate
-            self.tf_publish_timer = self.create_timer(tf_publish_period, self.publish_camera_in_world)
+            self.tf_publish_timer = self.create_timer(tf_publish_period, self.publish_camera_in_calibrated_marker)
             self.tf_publish_active = True
             self.get_logger().info(f"Started continuous TF publishing at {self.tf_publish_rate} Hz")
         
@@ -213,55 +216,55 @@ class FindCameraInWorldService(Node):
             if not self.tf_publish_active:
                 self.start_tf_publishing()
             response.success = True
-            response.message = "Camera localization complete - camera position published in world frame"
+            response.message = "Camera localization complete - camera position published in calibrated marker frame"
         else:
             response.success = False
             response.message = f"Failed to locate camera - transform from {self.camera_frame} to {self.calibration_marker_frame} not available"
             
         return response
     
-    def publish_camera_in_world(self):
-        """Continuously publish camera position in world frame
+def publish_camera_in_calibrated_marker(self):
+    """Continuously publish camera position relative to calibrated marker frame
+    
+    This method publishes the transform from the calibrated marker frame
+    to the camera frame. The calibrated marker frame represents the known
+    physical location of the marker in the world.
+    
+    This allows other nodes to easily find the camera's position in world
+    coordinates by following the TF chain:
+    world -> marker_calibrated -> camera
+    
+    Now we directly use the transform we looked up, since:
+    - We get: marker -> camera (camera in marker coordinates)
+    - We need: marker_calibrated -> camera (camera in calibrated marker coordinates)
+    We assume the detected marker frame and calibrated marker frame represent
+    the same physical location, just with different names.
+    """
+    if not self.initial_calibration_complete or self.latest_transform is None:
+        return
         
-        This method computes and publishes the transform from world frame
-        to camera frame, effectively positioning the camera in the world
-        coordinate system.
-        
-        The computation chain is:
-        1. We know: world -> marker (static, from config)
-        2. We have: marker -> camera (from TF lookup)
-        3. Therefore: world -> camera = (world -> marker) * (marker -> camera)
-        """
-        if not self.initial_calibration_complete or self.latest_transform is None:
-            return
-            
-        # Create transform from world to camera
-        t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = self.world_frame
-        t.child_frame_id = self.camera_frame
-        
-        # Note: The actual transform computation would require chaining transforms
-        # For now, we'll publish the direct transform we looked up (marker in camera frame)
-        # In a full implementation, we would compute:
-        # T_world_camera = T_world_marker * T_marker_camera
-        
-        # For this simplified version, we'll publish the marker-to-camera transform
-        # assuming the marker frame is aligned with world frame (which it is via static transform)
-        
-        # Use the transform we looked up (marker in camera coordinates)
-        # This gives us camera's position relative to marker
-        t.transform.translation.x = self.latest_transform.transform.translation.x
-        t.transform.translation.y = self.latest_transform.transform.translation.y
-        t.transform.translation.z = self.latest_transform.transform.translation.z
-        
-        t.transform.rotation.x = self.latest_transform.transform.rotation.x
-        t.transform.rotation.y = self.latest_transform.transform.rotation.y
-        t.transform.rotation.z = self.latest_transform.transform.rotation.z
-        t.transform.rotation.w = self.latest_transform.transform.rotation.w
-        
-        self.tf_broadcaster.sendTransform(t)
-
+    # Create transform from calibrated marker frame to camera frame
+    t = TransformStamped()
+    t.header.stamp = self.get_clock().now().to_msg()
+    t.header.frame_id = self.calibration_marker_calibrated_frame
+    t.child_frame_id = self.camera_frame
+    
+    # We have transform: marker -> camera (camera position in marker frame)
+    # We need transform: marker_calibrated -> camera
+    # Since marker_calibrated and marker represent the same physical location,
+    # we can use the transform directly (just change the frame_id)
+    
+    # Directly use the transform we looked up
+    t.transform.translation.x = self.latest_transform.transform.translation.x
+    t.transform.translation.y = self.latest_transform.transform.translation.y
+    t.transform.translation.z = self.latest_transform.transform.translation.z
+    
+    t.transform.rotation.x = self.latest_transform.transform.rotation.x
+    t.transform.rotation.y = self.latest_transform.transform.rotation.y
+    t.transform.rotation.z = self.latest_transform.transform.rotation.z
+    t.transform.rotation.w = self.latest_transform.transform.rotation.w
+    
+    self.tf_broadcaster.sendTransform(t)
 
 def main(args=None):
     rclpy.init(args=args)
