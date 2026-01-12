@@ -10,12 +10,12 @@ def generate_launch_description():
     
     # Path to your config files
     apriltag_config_file = os.path.join(pkg_dir, 'config', 'apriltag_detection_config.yaml')
-    arena_config_file = os.path.join(pkg_dir, 'config', 'arena_detection_config.yaml')
+    camera_finder_config_file = os.path.join(pkg_dir, 'config', 'arena_detection_config.yaml')
     filter_config_file = os.path.join(pkg_dir, 'config', 'robot_detection_filter_config.yaml')
     
     # Verify the files exist (helpful for debugging)
-    if not os.path.exists(arena_config_file):
-        raise FileNotFoundError(f"Arena config file not found: {arena_config_file}")
+    if not os.path.exists(camera_finder_config_file):
+        raise FileNotFoundError(f"Arena config file not found: {camera_finder_config_file}")
     
     if not os.path.exists(apriltag_config_file):
         raise FileNotFoundError(f"Apriltag config file not found: {apriltag_config_file}")
@@ -45,10 +45,10 @@ def generate_launch_description():
         # Arena calibration service
         Node(
             package='arena_perception',
-            executable='arena_calibration_service',
-            name='arena_calibration_service',
+            executable='find_camera_in_world_service',
+            name='find_camera_in_world_service',
             parameters=[
-                {'config_file': arena_config_file},
+                {'config_file': camera_finder_config_file},
             ]
         ),
         

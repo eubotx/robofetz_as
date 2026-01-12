@@ -264,7 +264,7 @@ class ApriltagDetectionNode(Node):
         cv2.polylines(frame, [corners], isClosed=True, color=(0, 0, 255), thickness=2)
 
         # Calculate center point (average of all corners)
-        center = np.center.astype(int)
+        center = detection.center.astype(int)
 
         # Draw red dot in the center
         cv2.circle(frame, tuple(center), radius=4, color=(0, 0, 255), thickness=-1)  # -1 for filled circle

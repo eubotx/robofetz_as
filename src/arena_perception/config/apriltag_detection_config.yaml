@@ -6,9 +6,9 @@ camera_frame: "arena_camera_optical"
 
 tag:
   family: "tagStandard41h12"
-  ids:    [12, 31]         # tag IDs for which to publish transform
-  frames: ["arena_perception/robot_top_tag", "arena_perception/robot_bottom_tag"]   # frame names
-  sizes:  [0.0778, 0.0778]     # tag-specific edge size, overrides the default 'size'
+  ids:    [12, 31, 2]         # tag IDs for which to publish transform
+  frames: ["arena_perception/robot_top_tag", "arena_perception/robot_bottom_tag", "arena_tag"]   # frame names
+  sizes:  [0.0778, 0.0778, 0.0833]     # tag-specific edge size, overrides the default 'size'
 
 debug_image: true
 debug_image_topic: "arena_perception/apriltag_detection/debug"
