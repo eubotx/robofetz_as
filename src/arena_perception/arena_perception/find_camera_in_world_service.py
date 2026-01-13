@@ -38,10 +38,7 @@ class FindCameraInWorldService(Node):
             self.get_logger().error("No configuration file specified. Use '--ros-args -p config_file:=/path/to/config.yaml'")
             raise ValueError("Configuration file path is required")
         
-        self.config = self.load_config(config_file)
-
-        # Initialize from configuration
-        self.initialize_from_config()
+        self.load_config(config_file)
               
         # Service for manual calibration
         self.srv = self.create_service(Trigger, 'find_camera_in_world', self.calibrate_callback)
@@ -73,28 +70,8 @@ class FindCameraInWorldService(Node):
         # Get calibration file path - FIRST check parameter, THEN config, THEN default
         calibration_file = self.get_parameter('calibration_file').value
             
-        # If still not specified, use default
-        if not calibration_file:
-            # Default to calibration.yaml in the same directory as config file
-            config_dir = os.path.dirname(config_file)
-            calibration_file = os.path.join(config_dir, 'world_to_camera_calibration.temp.yaml')
-            self.get_logger().info(f"No calibration file specified, using default: {calibration_file}")
-        else:
-            self.get_logger().info(f"Using calibration file from config/parameter: {calibration_file}")
-        
-        # Check if calibration file exists and load it
-        if self.load_calibration_from_file(calibration_file):
-            self.log_calibration_details(
-                marker_to_camera_transform=None,
-                world_to_camera_transform=self.world_to_camera_transform,
-                calibration_source="Calibration file",
-                previous_world_to_camera_transform=self.previous_world_to_camera_transform
-            )
-
-            # Store for movement comparison in next calibration
-            self.previous_world_to_camera_transform = self.world_to_camera_transform
-        else:
-            # Start continuous calibration attempts
+        if not self.load_calibration(calibration_file):
+            # Start continuous calibration attempts since no calibration via file was provided
             self.calibration_timer = self.create_timer(1.0 / self.calibration_rate, self.attempt_calibration)
             self.get_logger().info("Started continuous calibration attempts...")
         
@@ -102,7 +79,7 @@ class FindCameraInWorldService(Node):
         self.dynamic_publish_timer = self.create_timer(1.0 / self.dynamic_rate, self.publish_camera_dynamic)
            
     def load_config(self, config_path):
-        """Load YAML configuration file"""
+        """Load YAML configuration file of node"""
         if not os.path.exists(config_path):
             self.get_logger().error(f"Configuration file not found: {config_path}")
             raise FileNotFoundError(f"Config file not found: {config_path}")
@@ -111,20 +88,18 @@ class FindCameraInWorldService(Node):
             config = yaml.safe_load(f)
         
         self.get_logger().info(f"Loaded configuration from {config_path}")
-        return config
     
-    def initialize_from_config(self):
         """Initialize parameters from configuration"""
         # Frame names from configuration
-        self.world_frame = self.config.get('world_frame', 'world')
-        self.calibration_marker_frame = self.config.get('calibration_marker_frame', 'arena_marker')
-        self.camera_frame = self.config.get('camera_frame', 'arena_camera_optical')
+        self.world_frame = config.get('world_frame', 'world')
+        self.calibration_marker_frame = config.get('calibration_marker_frame', 'arena_marker')
+        self.camera_frame = config.get('camera_frame', 'arena_camera_optical')
         
         # Add "_calibrated" suffix to marker frame for the static transform
         self.calibration_marker_calibrated_frame = f"{self.calibration_marker_frame}_calibrated"
         
         # Marker position in world coordinate system
-        pos_config = self.config.get('position_marker_in_world', {})
+        pos_config = config.get('position_marker_in_world', {})
         self.marker_position_in_world = np.array([
             pos_config.get('x', 0.0),
             pos_config.get('y', 0.0),
@@ -132,7 +107,7 @@ class FindCameraInWorldService(Node):
         ])
         
         # Marker orientation in world coordinate system
-        orient_config = self.config.get('orientation_in_world', {})
+        orient_config = config.get('orientation_in_world', {})
         self.marker_orientation_in_world = np.array([
             orient_config.get('roll', 0.0),
             orient_config.get('pitch', 0.0),
@@ -144,16 +119,18 @@ class FindCameraInWorldService(Node):
         self.get_logger().info(f"Calibration marker frame (detected): {self.calibration_marker_frame}")
         self.get_logger().info(f"Calibration marker frame (calibrated): {self.calibration_marker_calibrated_frame}")
         self.get_logger().info(f"Camera frame: {self.camera_frame}")
-        
-    def load_calibration_from_file(self, calibration_file):
-        """Load camera calibration from file if it exists"""
+
+        return config
+      
+    def load_calibration(self, calibration_file):
+        """Try to load existing camera calibration of world -> camera tf from file"""
 
         if not os.path.exists(calibration_file):
             self.get_logger().info(f"No calibration file found at {calibration_file}")
             return False
         
         try:
-
+            self.get_logger().info(f"Using calibration file from config/parameter: {calibration_file}")
             with open(calibration_file, 'r') as f:
                 calibration_data = yaml.safe_load(f)
             
@@ -175,64 +152,39 @@ class FindCameraInWorldService(Node):
             world_to_camera_transform.transform.translation.y = float(camera_data['position']['y'])
             world_to_camera_transform.transform.translation.z = float(camera_data['position']['z'])
             
-            # Set rotation
-            world_to_camera_transform.transform.rotation.x = float(camera_data['orientation']['x'])
-            world_to_camera_transform.transform.rotation.y = float(camera_data['orientation']['y'])
-            world_to_camera_transform.transform.rotation.z = float(camera_data['orientation']['z'])
-            world_to_camera_transform.transform.rotation.w = float(camera_data['orientation']['w'])
+            # Load from Euler angles (radians)
+            euler_data = camera_data['orientation']
+            roll = float(euler_data.get('roll', 0.0))
+            pitch = float(euler_data.get('pitch', 0.0))
+            yaw = float(euler_data.get('yaw', 0.0))
+            
+            # Convert Euler to quaternion
+            rotation = Rotation.from_euler('xyz', [roll, pitch, yaw])
+            quat = rotation.as_quat()
+            
+            world_to_camera_transform.transform.rotation.x = float(quat[0])
+            world_to_camera_transform.transform.rotation.y = float(quat[1])
+            world_to_camera_transform.transform.rotation.z = float(quat[2])
+            world_to_camera_transform.transform.rotation.w = float(quat[3])
             
             # Update stored transform
             self.world_to_camera_transform = world_to_camera_transform
             self.calibration_successful = True
+
+            self.log_calibration_details(
+                marker_to_camera_transform=None,
+                world_to_camera_transform=self.world_to_camera_transform,
+                calibration_source="Calibration file",
+                previous_world_to_camera_transform=self.previous_world_to_camera_transform
+            )
+
+            # Store for movement comparison in next calibration
+            self.previous_world_to_camera_transform = self.world_to_camera_transform
             
             return True
             
         except Exception as e:
             self.get_logger().error(f"Error loading calibration file: {e}")
-            return False
-    
-    def save_calibration_to_file(self, world_to_camera_transform):
-        """Save camera calibration to file"""
-        try:
-            # Create calibration data structure
-            calibration_data = {
-                'camera_in_world': {
-                    'position': {
-                        'x': float(world_to_camera_transform.transform.translation.x),
-                        'y': float(world_to_camera_transform.transform.translation.y),
-                        'z': float(world_to_camera_transform.transform.translation.z)
-                    },
-                    'orientation': {
-                        'x': float(world_to_camera_transform.transform.rotation.x),
-                        'y': float(world_to_camera_transform.transform.rotation.y),
-                        'z': float(world_to_camera_transform.transform.rotation.z),
-                        'w': float(world_to_camera_transform.transform.rotation.w)
-                    },
-                    'timestamp': self.get_clock().now().to_msg().sec,
-                    'frame_id': world_to_camera_transform.header.frame_id,
-                    'child_frame_id': world_to_camera_transform.child_frame_id
-                },
-                'metadata': {
-                    'description': 'Camera calibration relative to world frame',
-                    'saved_by': 'find_camera_in_world_service',
-                    'config_file': self.get_parameter('config_file').value,
-                    'calibration_file': self.calibration_file
-                }
-            }
-            
-            # Ensure directory exists
-            calibration_dir = os.path.dirname(os.path.abspath(self.calibration_file))
-            os.makedirs(calibration_dir, exist_ok=True)
-            
-            # Save to file
-            with open(self.calibration_file, 'w') as f:
-                yaml.dump(calibration_data, f, default_flow_style=False)
-            
-            self.get_logger().info(f"✓ Saved calibration to {self.calibration_file}")
-            return True
-            
-        except Exception as e:
-            self.get_logger().error(f"Error saving calibration file: {e}")
             return False
         
     def create_world_to_marker_transform(self):
@@ -305,9 +257,6 @@ class FindCameraInWorldService(Node):
             
             # Update calibration state
             self.calibration_successful = True
-            
-            # Save calibration to file
-            self.save_calibration_to_file(world_to_camera_transform)
             
             # Log calibration details with movement info
             self.log_calibration_details(
@@ -390,10 +339,21 @@ class FindCameraInWorldService(Node):
 
         # Extract translation components
         world_to_camera_translation = world_to_camera_transform.transform.translation
+        world_to_camera_rotation = world_to_camera_transform.transform.rotation
+        
+        # Convert to Euler angles (degrees)
+        rotation = Rotation.from_quat([
+            world_to_camera_rotation.x,
+            world_to_camera_rotation.y,
+            world_to_camera_rotation.z,
+            world_to_camera_rotation.w
+        ])
+        euler_angles = rotation.as_euler('xyz')
         
         self.get_logger().info("=" * 50)
         self.get_logger().info(f"CALIBRATION SUCCESSFUL! ({calibration_source})")
         self.get_logger().info("=" * 50)
+        
         if marker_to_camera_transform is not None:
             marker_to_camera_translation = marker_to_camera_transform.transform.translation
             # Calculate distances
@@ -404,19 +364,53 @@ class FindCameraInWorldService(Node):
             )
             self.get_logger().info(f"Marker to camera distance: {marker_distance:.3f} m")
 
-        self.get_logger().info(f"Camera position in world: [{world_to_camera_translation.x:.3f}, "
-                              f"{world_to_camera_translation.y:.3f}, {world_to_camera_translation.z:.3f}] m")
+        self.get_logger().info(f"Camera position in world: [{world_to_camera_translation.x:.5f}, "
+                              f"{world_to_camera_translation.y:.5f}, {world_to_camera_translation.z:.5f}] m")
+        
+        # Single line for rotation in Euler angles
+        self.get_logger().info(f"Camera rotation (roll,pitch,yaw) [rad]: [{euler_angles[0]:.4f}, "
+                              f"{euler_angles[1]:.4f}, {euler_angles[2]:.4f}]")
+        
         self.get_logger().info(f"Published transform: {self.world_frame} -> {self.camera_frame}")
         
         # Log movement if we have a previous transform
         if previous_world_to_camera_transform is not None:
             previous_translation = previous_world_to_camera_transform.transform.translation
+            previous_rotation = previous_world_to_camera_transform.transform.rotation
+            
+            # Position difference
             dx = world_to_camera_translation.x - previous_translation.x
             dy = world_to_camera_translation.y - previous_translation.y
             dz = world_to_camera_translation.z - previous_translation.z
             movement_distance = np.sqrt(dx**2 + dy**2 + dz**2)
+            
+            # Rotation difference (Euler angles)
+            previous_rotation_obj = Rotation.from_quat([
+                previous_rotation.x,
+                previous_rotation.y,
+                previous_rotation.z,
+                previous_rotation.w
+            ])
+            previous_euler = previous_rotation_obj.as_euler('xyz')
+            
+            droll = euler_angles[0] - previous_euler[0]
+            dpitch = euler_angles[1] - previous_euler[1]
+            dyaw = euler_angles[2] - previous_euler[2]
+            
+            # Normalize angles to [-π, π] for radians
+            droll = (droll + np.pi) % (2 * np.pi) - np.pi
+            dpitch = (dpitch + np.pi) % (2 * np.pi) - np.pi
+            dyaw = (dyaw + np.pi) % (2 * np.pi) - np.pi
+
+            # Convert to degrees for logging
+            droll_deg = np.degrees(droll)
+            dpitch_deg = np.degrees(dpitch)
+            dyaw_deg = np.degrees(dyaw)
+            
             self.get_logger().info(f"Camera moved by: [{dx:.3f}, {dy:.3f}, {dz:.3f}] m, "
                                   f"distance: {movement_distance:.3f} m")
+            self.get_logger().info(f"Camera rotated by [rad]: [{droll:.2f}, {dpitch:.2f}, {dyaw:.2f}]")
+            self.get_logger().info(f"Camera rotated by [deg]: [{droll_deg:.2f}°, {dpitch_deg:.2f}°, {dyaw_deg:.2f}°]")
             
         self.get_logger().info(f"Camera transform will be published dynamically at {self.dynamic_rate} Hz")
         
