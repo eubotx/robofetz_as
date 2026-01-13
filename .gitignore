@@ -116,3 +116,5 @@ Thumbs.db
 
 # Test data files
 *.mp4
+
+*temp.yaml

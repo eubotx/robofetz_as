@@ -12,6 +12,7 @@ def generate_launch_description():
     apriltag_config_file = os.path.join(pkg_dir, 'config', 'apriltag_detection_config.yaml')
     camera_finder_config_file = os.path.join(pkg_dir, 'config', 'arena_detection_config.yaml')
     filter_config_file = os.path.join(pkg_dir, 'config', 'robot_detection_filter_config.yaml')
+    calibration_file = os.path.join(pkg_dir, 'config', 'world_to_camera_calibration.temp.yaml')
     
     # Verify the files exist (helpful for debugging)
     if not os.path.exists(camera_finder_config_file):
@@ -42,13 +43,16 @@ def generate_launch_description():
             ]
         ),
         
-        # Arena calibration service
+        # Arena calibration service - FIXED: Added calibration_file parameter
         Node(
             package='arena_perception',
             executable='find_camera_in_world_service',
             name='find_camera_in_world_service',
             parameters=[
                 {'config_file': camera_finder_config_file},
+                {'calibration_file': calibration_file},  # ADD THIS LINE
+                {'calibration_attempt_rate': 1.0},       # Optional: default is 1.0
+                {'dynamic_publish_rate': 30.0},          # Optional: default is 30.0
             ]
         ),
         

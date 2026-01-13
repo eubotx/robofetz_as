@@ -19,6 +19,10 @@ class FindCameraInWorldService(Node):
                               ParameterDescriptor(
                                   description='Path to YAML configuration file',
                                   type=ParameterType.PARAMETER_STRING))
+        self.declare_parameter('calibration_file', '', 
+                              ParameterDescriptor(
+                                  description='Path to YAML file for storing calibration results (supports package:// URLs)',
+                                  type=ParameterType.PARAMETER_STRING))
         self.declare_parameter('calibration_attempt_rate', 1.0,
                               ParameterDescriptor(
                                   description='Rate (Hz) for attempting calibration',
@@ -35,10 +39,10 @@ class FindCameraInWorldService(Node):
             raise ValueError("Configuration file path is required")
         
         self.config = self.load_config(config_file)
-        
+
         # Initialize from configuration
         self.initialize_from_config()
-        
+              
         # Service for manual calibration
         self.srv = self.create_service(Trigger, 'find_camera_in_world', self.calibrate_callback)
         
@@ -60,21 +64,43 @@ class FindCameraInWorldService(Node):
         self.attempt_count = 0
         
         # Get rates from parameters
-        calibration_rate = self.get_parameter('calibration_attempt_rate').value
-        dynamic_rate = self.get_parameter('dynamic_publish_rate').value
+        self.calibration_rate = self.get_parameter('calibration_attempt_rate').value
+        self.dynamic_rate = self.get_parameter('dynamic_publish_rate').value
         
         # Publish static marker transform IMMEDIATELY
         self.publish_static_marker_transform()
+
+        # Get calibration file path - FIRST check parameter, THEN config, THEN default
+        calibration_file = self.get_parameter('calibration_file').value
+            
+        # If still not specified, use default
+        if not calibration_file:
+            # Default to calibration.yaml in the same directory as config file
+            config_dir = os.path.dirname(config_file)
+            calibration_file = os.path.join(config_dir, 'world_to_camera_calibration.temp.yaml')
+            self.get_logger().info(f"No calibration file specified, using default: {calibration_file}")
+        else:
+            self.get_logger().info(f"Using calibration file from config/parameter: {calibration_file}")
         
-        # Start continuous calibration attempts
-        self.calibration_timer = self.create_timer(1.0 / calibration_rate, self.attempt_calibration)
+        # Check if calibration file exists and load it
+        if self.load_calibration_from_file(calibration_file):
+            self.log_calibration_details(
+                marker_to_camera_transform=None,
+                world_to_camera_transform=self.world_to_camera_transform,
+                calibration_source="Calibration file",
+                previous_world_to_camera_transform=self.previous_world_to_camera_transform
+            )
+
+            # Store for movement comparison in next calibration
+            self.previous_world_to_camera_transform = self.world_to_camera_transform
+        else:
+            # Start continuous calibration attempts
+            self.calibration_timer = self.create_timer(1.0 / self.calibration_rate, self.attempt_calibration)
+            self.get_logger().info("Started continuous calibration attempts...")
         
         # Start continuous dynamic publishing of camera transform
-        self.dynamic_publish_timer = self.create_timer(1.0 / dynamic_rate, self.publish_camera_dynamic)
-        
-        self.get_logger().info("Started continuous calibration attempts...")
-        self.get_logger().info(f"Camera transform will be published dynamically at {dynamic_rate} Hz")
-        
+        self.dynamic_publish_timer = self.create_timer(1.0 / self.dynamic_rate, self.publish_camera_dynamic)
+           
     def load_config(self, config_path):
         """Load YAML configuration file"""
         if not os.path.exists(config_path):
@@ -119,6 +145,96 @@ class FindCameraInWorldService(Node):
         self.get_logger().info(f"Calibration marker frame (calibrated): {self.calibration_marker_calibrated_frame}")
         self.get_logger().info(f"Camera frame: {self.camera_frame}")
         
+    def load_calibration_from_file(self, calibration_file):
+        """Load camera calibration from file if it exists"""
+
+        if not os.path.exists(calibration_file):
+            self.get_logger().info(f"No calibration file found at {calibration_file}")
+            return False
+        
+        try:
+
+            with open(calibration_file, 'r') as f:
+                calibration_data = yaml.safe_load(f)
+            
+            # Check if calibration data is valid
+            if 'camera_in_world' not in calibration_data:
+                self.get_logger().warning(f"Invalid calibration file format: {calibration_file}")
+                return False
+            
+            camera_data = calibration_data['camera_in_world']
+            
+            # Create transform from loaded data
+            world_to_camera_transform = TransformStamped()
+            world_to_camera_transform.header.stamp = self.get_clock().now().to_msg()
+            world_to_camera_transform.header.frame_id = self.world_frame
+            world_to_camera_transform.child_frame_id = self.camera_frame
+            
+            # Set translation
+            world_to_camera_transform.transform.translation.x = float(camera_data['position']['x'])
+            world_to_camera_transform.transform.translation.y = float(camera_data['position']['y'])
+            world_to_camera_transform.transform.translation.z = float(camera_data['position']['z'])
+            
+            # Set rotation
+            world_to_camera_transform.transform.rotation.x = float(camera_data['orientation']['x'])
+            world_to_camera_transform.transform.rotation.y = float(camera_data['orientation']['y'])
+            world_to_camera_transform.transform.rotation.z = float(camera_data['orientation']['z'])
+            world_to_camera_transform.transform.rotation.w = float(camera_data['orientation']['w'])
+            
+            # Update stored transform
+            self.world_to_camera_transform = world_to_camera_transform
+            self.calibration_successful = True
+            
+            return True
+            
+        except Exception as e:
+            self.get_logger().error(f"Error loading calibration file: {e}")
+            return False
+    
+    def save_calibration_to_file(self, world_to_camera_transform):
+        """Save camera calibration to file"""
+        try:
+            # Create calibration data structure
+            calibration_data = {
+                'camera_in_world': {
+                    'position': {
+                        'x': float(world_to_camera_transform.transform.translation.x),
+                        'y': float(world_to_camera_transform.transform.translation.y),
+                        'z': float(world_to_camera_transform.transform.translation.z)
+                    },
+                    'orientation': {
+                        'x': float(world_to_camera_transform.transform.rotation.x),
+                        'y': float(world_to_camera_transform.transform.rotation.y),
+                        'z': float(world_to_camera_transform.transform.rotation.z),
+                        'w': float(world_to_camera_transform.transform.rotation.w)
+                    },
+                    'timestamp': self.get_clock().now().to_msg().sec,
+                    'frame_id': world_to_camera_transform.header.frame_id,
+                    'child_frame_id': world_to_camera_transform.child_frame_id
+                },
+                'metadata': {
+                    'description': 'Camera calibration relative to world frame',
+                    'saved_by': 'find_camera_in_world_service',
+                    'config_file': self.get_parameter('config_file').value,
+                    'calibration_file': self.calibration_file
+                }
+            }
+            
+            # Ensure directory exists
+            calibration_dir = os.path.dirname(os.path.abspath(self.calibration_file))
+            os.makedirs(calibration_dir, exist_ok=True)
+            
+            # Save to file
+            with open(self.calibration_file, 'w') as f:
+                yaml.dump(calibration_data, f, default_flow_style=False)
+            
+            self.get_logger().info(f"✓ Saved calibration to {self.calibration_file}")
+            return True
+            
+        except Exception as e:
+            self.get_logger().error(f"Error saving calibration file: {e}")
+            return False
+        
     def create_world_to_marker_transform(self):
         """Create the transform from world to marker_calibrated"""
         world_to_marker_transform = TransformStamped()
@@ -151,7 +267,7 @@ class FindCameraInWorldService(Node):
         self.get_logger().info(f"Published STATIC transform: {self.world_frame} -> {self.calibration_marker_calibrated_frame}")
         
     def publish_camera_dynamic(self):
-        """Publish camera transform dynamically (for RViz updates)"""
+        """Publish camera transform dynamically"""
         if self.world_to_camera_transform is not None:
             # Update timestamp for dynamic publishing
             self.world_to_camera_transform.header.stamp = self.get_clock().now().to_msg()
@@ -190,6 +306,9 @@ class FindCameraInWorldService(Node):
             # Update calibration state
             self.calibration_successful = True
             
+            # Save calibration to file
+            self.save_calibration_to_file(world_to_camera_transform)
+            
             # Log calibration details with movement info
             self.log_calibration_details(
                 marker_to_camera_transform=marker_to_camera_transform,
@@ -201,13 +320,10 @@ class FindCameraInWorldService(Node):
             # Store for movement comparison in next calibration
             self.previous_world_to_camera_transform = world_to_camera_transform
             
-            # Log success message
-            if "initial" in calibration_source:
-                self.get_logger().info(f"✓ Calibration successful after {self.attempt_count} attempts!")
-            else:
-                self.get_logger().info("✓ Manual re-calibration successful!")
-                
-            self.get_logger().info("Camera position is now published in TF tree as dynamic transform")
+            # If this was an initial calibration, stop the timer
+            if "initial" in calibration_source and hasattr(self, 'calibration_timer'):
+                self.calibration_timer.cancel()
+                self.get_logger().info("Stopped continuous calibration attempts (calibration successful)")
             
             return True
             
@@ -271,21 +387,23 @@ class FindCameraInWorldService(Node):
     def log_calibration_details(self, marker_to_camera_transform, world_to_camera_transform, 
                                calibration_source, previous_world_to_camera_transform):
         """Log detailed information about the calibration"""
+
         # Extract translation components
-        marker_to_camera_translation = marker_to_camera_transform.transform.translation
         world_to_camera_translation = world_to_camera_transform.transform.translation
-        
-        # Calculate distances
-        marker_distance = np.sqrt(
-            marker_to_camera_translation.x**2 + 
-            marker_to_camera_translation.y**2 + 
-            marker_to_camera_translation.z**2
-        )
         
         self.get_logger().info("=" * 50)
         self.get_logger().info(f"CALIBRATION SUCCESSFUL! ({calibration_source})")
         self.get_logger().info("=" * 50)
-        self.get_logger().info(f"Marker to camera distance: {marker_distance:.3f} m")
+        if marker_to_camera_transform is not None:
+            marker_to_camera_translation = marker_to_camera_transform.transform.translation
+            # Calculate distances
+            marker_distance = np.sqrt(
+                marker_to_camera_translation.x**2 + 
+                marker_to_camera_translation.y**2 + 
+                marker_to_camera_translation.z**2
+            )
+            self.get_logger().info(f"Marker to camera distance: {marker_distance:.3f} m")
+
         self.get_logger().info(f"Camera position in world: [{world_to_camera_translation.x:.3f}, "
                               f"{world_to_camera_translation.y:.3f}, {world_to_camera_translation.z:.3f}] m")
         self.get_logger().info(f"Published transform: {self.world_frame} -> {self.camera_frame}")
@@ -299,6 +417,9 @@ class FindCameraInWorldService(Node):
             movement_distance = np.sqrt(dx**2 + dy**2 + dz**2)
             self.get_logger().info(f"Camera moved by: [{dx:.3f}, {dy:.3f}, {dz:.3f}] m, "
                                   f"distance: {movement_distance:.3f} m")
+            
+        self.get_logger().info(f"Camera transform will be published dynamically at {self.dynamic_rate} Hz")
+        
         self.get_logger().info("=" * 50)
         
     def handle_calibration_error(self, error, calibration_source):
@@ -318,7 +439,7 @@ class FindCameraInWorldService(Node):
         
         if success:
             response.success = True
-            response.message = "Re-calibration successful - camera position updated"
+            response.message = "Re-calibration successful - camera position updated and saved to file"
         else:
             response.success = False
             response.message = "Re-calibration failed - could not detect marker"

@@ -49,7 +49,6 @@ setup(
             'odom_drift_correction_node2 = arena_perception.odom_drift_correction_node2:main',
             'robot_detection_node1 = arena_perception.robot_detection_node1:main',
             'robot_detection_node2 = arena_perception.robot_detection_node2:main',
-
         ],
     },
 )
