@@ -40,10 +40,13 @@ setup(
     entry_points={
         'console_scripts': [
             'camera_rectification_node = arena_perception.camera_rectification_node:main',
-            'arena_calibration_service = arena_perception.arena_calibration_service:main',
-            'robot_detection_node = arena_perception.robot_detection:main',
+            'find_camera_in_world_service = arena_perception.find_camera_in_world_service:main',
+            'apriltag_detection_node = arena_perception.apriltag_detection_node:main',
+            'robot_detection_node = arena_perception.robot_detection_node:main',
             'opponent_detection_node = arena_perception.opponent_detection:main',
             'filter_transform_node = arena_perception.filter_transform_node:main',
+            'odom_drift_correction_node1 = arena_perception.odom_drift_correction_node1:main',
+            'odom_drift_correction_node2 = arena_perception.odom_drift_correction_node2:main',
         ],
     },
 )

@@ -1,0 +1,165 @@
+<?xml version="1.0"?>
+
+<!-- Gazebio additional description of differential drive robot-->
+
+<robot>
+    <!-- more explaination: https://classic.gazebosim.org/tutorials/?tut=ros_urdf&cat=connect_ros -->
+    <!-- mu1 and mu2 are friction coefficients -->
+    <!-- match reference names with link names in robot.xacro ! -->
+    <!-- wheel torques and speeds need now to be adjusted in robot.xacro with limit_effort and velocity under each joint-->
+    <gazebo reference="$(arg prefix)body_link">
+        <mu1>0.2</mu1>
+        <mu2>0.2</mu2>
+        <material>Gazebo/Green</material>
+    </gazebo>
+
+    <gazebo reference="$(arg prefix)front_left_support_link">
+        <mu1>0.2</mu1>
+        <mu2>0.2</mu2>
+        <material>Gazebo/Green</material>
+    </gazebo>
+
+    <gazebo reference="$(arg prefix)front_right_support_link">
+        <mu1>0.2</mu1>
+        <mu2>0.2</mu2>
+        <material>Gazebo/Green</material>
+    </gazebo>
+
+    <gazebo reference="$(arg prefix)wheel1_link">
+        <mu1>0.8</mu1>
+        <mu2>0.8</mu2>
+        <material>Gazebo/Blue</material>
+    </gazebo>
+
+    <gazebo reference="$(arg prefix)wheel2_link">
+        <mu1>0.8</mu1>
+        <mu2>0.8</mu2>
+        <material>Gazebo/Blue</material>
+    </gazebo>
+
+    <gazebo reference="$(arg prefix)front_left_support_bottom_caster_link">
+        <mu1>0.01</mu1>
+        <mu2>0.01</mu2>
+        <material>Gazebo/Blue</material>
+    </gazebo>
+
+    <gazebo reference="$(arg prefix)front_left_support_top_caster_link">
+        <mu1>0.01</mu1>
+        <mu2>0.01</mu2>
+        <material>Gazebo/Blue</material>
+    </gazebo>
+
+     <gazebo reference="$(arg prefix)front_right_support_bottom_caster_link">
+        <mu1>0.01</mu1>
+        <mu2>0.01</mu2>
+        <material>Gazebo/Blue</material>
+    </gazebo>
+
+    <gazebo reference="$(arg prefix)front_right_support_top_caster_link">
+        <mu1>0.01</mu1>
+        <mu2>0.01</mu2>
+        <material>Gazebo/Blue</material>
+    </gazebo>
+
+    <!-- Gazebo PBR for top AprilTag -->
+    <gazebo reference="$(arg prefix)top_apriltag_link">
+        <kp>1000000.0</kp>
+        <kd>100.0</kd>
+        <mu1>0.5</mu1>
+        <mu2>0.5</mu2>
+        <material>Gazebo/White</material>
+        <visual name="$(arg prefix)top_apriltag_visual">
+            <geometry><box><size>${tag_size} ${tag_size} ${tag_thickness}</size></box></geometry>
+            <material>
+                <ambient>1 1 1 1</ambient>
+                <diffuse>1 1 1 1</diffuse>
+                <specular>0.5 0.5 0.5 1</specular>
+                <pbr>
+                    <metal>
+                        <albedo_map>file://$(find robot_description)/textures/top_apriltag.png</albedo_map>
+                        <roughness>0.5</roughness>
+                        <metalness>0.0</metalness>
+                    </metal>
+                </pbr>
+            </material>
+        </visual>
+    </gazebo>
+
+    <!-- Gazebo PBR for bottom AprilTag -->
+    <gazebo reference="$(arg prefix)bottom_apriltag_link">
+        <kp>1000000.0</kp>
+        <kd>100.0</kd>
+        <mu1>0.5</mu1>
+        <mu2>0.5</mu2>
+        <material>Gazebo/White</material>
+        <visual name="$(arg prefix)bottom_apriltag_visual">
+            <geometry><box><size>${tag_size} ${tag_size} ${tag_thickness}</size></box></geometry>
+            <material>
+                <ambient>1 1 1 1</ambient>
+                <diffuse>1 1 1 1</diffuse>
+                <specular>0.5 0.5 0.5 1</specular>
+                <pbr>
+                    <metal>
+                        <albedo_map>file://$(find robot_description)/textures/bottom_apriltag.png</albedo_map>
+                        <roughness>0.5</roughness>
+                        <metalness>0.0</metalness>
+                    </metal>
+                </pbr>
+            </material>
+        </visual>
+    </gazebo>
+
+    <!-- Gazebo controller for differential drive robot -->
+    <!-- controller plugin changed from gazebo classic to gazebo harmonic -->
+    <!-- https://gazebosim.org/docs/latest/migrating_gazebo_classic_ros2_packages/#libgazebo-ros-diff-drive-so -->
+
+    <gazebo>
+
+        <!-- Diff Drive plugin -->
+        <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+            <!-- wheels -->
+            <right_joint>$(arg prefix)wheel1_joint</right_joint>
+            <left_joint>$(arg prefix)wheel2_joint</left_joint>
+
+            <!-- kinematics -->
+            <wheel_separation>${2*s4}</wheel_separation>
+            <wheel_radius>${r}</wheel_radius>
+
+            <!-- topic, frames, odometry -->
+            <odom_publisher_frequency>30</odom_publisher_frequency>
+            <topic>robot/cmd_vel</topic>
+            <odom_topic>robot/wheel_odometry</odom_topic>
+            <tf_topic>robot/pose_with_slip</tf_topic>
+            <frame_id>robot/odom</frame_id>
+            <child_frame_id>robot/base_footprint</child_frame_id>
+
+            <!-- limits -->
+            <max_linear_acceleration>10</max_linear_acceleration>
+            <!-- more actuator behavior could also be set here  https://gazebosim.org/api/sim/8/classgz_1_1sim_1_1systems_1_1DiffDrive.html-->
+            
+        </plugin>
+
+        <!-- joint state publisher -->
+        <plugin filename="gz-sim-joint-state-publisher-system"
+          name="gz::sim::systems::JointStatePublisher">
+            <topic>joint_states</topic>
+            <joint_name>wheel1_joint</joint_name>   <!-- arg prefix makes no difference here also / does not work see joint state echo -->
+            <joint_name>$(arg prefix)wheel2_joint</joint_name>
+        </plugin>
+
+
+        <!-- Publishes ground truth just for debugging. This is now done by arena_peception. -->
+        <plugin filename="gz-sim-odometry-publisher-system"
+         name="gz::sim::systems::OdometryPublisher">
+            <odom_frame>map</odom_frame>
+            <robot_base_frame>robot/base_footprint_sim</robot_base_frame>
+            <odom_publish_frequency>50</odom_publish_frequency>
+            <odom_topic>robot/odometry_ground_truth</odom_topic>
+            <odom_covariance_topic>robot/odometry_ground_truth_with_covariance</odom_covariance_topic>
+            <tf_topic>robot/pose_ground_truth</tf_topic>
+            <dimensions>3</dimensions>
+        </plugin>
+
+
+    </gazebo>
+</robot>

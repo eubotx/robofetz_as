@@ -1,7 +1,7 @@
 image_width: 800
 image_height: 600
 
-camera_name: arena_camera
+camera_name: GlobalShutterCamera_GlobalS___SB__PCI0_XHC__RHUB_HS03_3_1_0_32e4_0144_800x600
 
 camera_matrix:
   rows: 3

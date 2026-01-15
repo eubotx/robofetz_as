@@ -19,7 +19,6 @@ setup(
         # install Gazebo world files
         (os.path.join('share', package_name, 'worlds'), glob('worlds/*.world')),
         # Install models robot descriptions
-        (os.path.join('share', package_name, 'models/simple_diff_drive_robot'), glob('models/simple_diff_drive_robot/*')),
         (os.path.join('share', package_name, 'models/simple_diff_drive_opponent'), glob('models/simple_diff_drive_opponent/*')),
         # Install world sdfs
         (os.path.join('share', package_name, 'models/simple_arena'), glob('models/simple_arena/*')),

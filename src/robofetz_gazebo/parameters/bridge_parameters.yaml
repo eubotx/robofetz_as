@@ -5,6 +5,31 @@
   gz_type_name: "gz.msgs.Clock"
   direction: GZ_TO_ROS
 
+  # ros topic subscribed by DiffDrive plugin
+- ros_topic_name: "cmd_vel"
+  gz_topic_name: "robot/cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+# gz topic published by DiffDrive plugin
+# better idea  to just compute this out of joint states in ros directly
+# is also more compliant with real robot to save bandwidth
+# - ros_topic_name: "robot/wheel_odometry/raw_sim"
+#   gz_topic_name: "robot/wheel_odometry"
+#   ros_type_name: "nav_msgs/msg/Odometry"
+#   gz_type_name: "gz.msgs.Odometry"
+#   direction: GZ_TO_ROS
+
+  # gz topic published by DiffDrive plugin
+  # Odom with slip: robot/odom -> robot/base_footprint
+  # can be used but its nicer to just run EKF on wheel odometry and imu and compute your own
+# - ros_topic_name: "tf"
+#   gz_topic_name: "robot/pose_with_slip"
+#   ros_type_name: "tf2_msgs/msg/TFMessage"
+#   gz_type_name: "gz.msgs.Pose_V"
+#   direction: GZ_TO_ROS
+
   # gz topic published by JointState plugin
 - ros_topic_name: "joint_states"
   gz_topic_name: "joint_states"
@@ -12,33 +37,31 @@
   gz_type_name: "gz.msgs.Model"
   direction: GZ_TO_ROS
 
-  # ros topic subscribed by DiffDrive plugin
-- ros_topic_name: "cmd_vel"
-  gz_topic_name: "cmd_vel"
-  ros_type_name: "geometry_msgs/msg/Twist"
-  gz_type_name: "gz.msgs.Twist"
-  direction: ROS_TO_GZ
-
-# gz topic published by DiffDrive plugin
-- ros_topic_name: "odom_with_slip"
-  gz_topic_name: "odometry_with_slip"
-  ros_type_name: "nav_msgs/msg/Odometry"
-  gz_type_name: "gz.msgs.Odometry"
-  direction: GZ_TO_ROS
-
-# gz topic published by Odom plugin
-- ros_topic_name: "pose_tf_slip"
-  gz_topic_name: "pose_with_slip"
+  # gz topic published by Odom plugin
+  # Ground truth: map -> robot/odom
+  # Should be just used for error checking of real localization stack
+  # Child tf needs to be changed to robot/base_foodprint_sim once arena perception works reliably
+- ros_topic_name: "tf"
+  gz_topic_name: "robot/pose_ground_truth"
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"
   direction: GZ_TO_ROS
 
   # gz topic published by Odom plugin
-- ros_topic_name: "tf"
-  gz_topic_name: "pose_ground_truth"
-  ros_type_name: "tf2_msgs/msg/TFMessage"
-  gz_type_name: "gz.msgs.Pose_V"
-  direction: GZ_TO_ROS
+  # odometry message type but is ground truth -> parent is map!
+# - ros_topic_name: "robot/odometry_ground_truth_sim"
+#   gz_topic_name: "robot/odometry_ground_truth"
+#   ros_type_name: "nav_msgs/msg/Odometry"
+#   gz_type_name: "gz.msgs.Odometry"
+#   direction: GZ_TO_ROS
+
+  # gz topic published by Odom plugin
+  # odometry message type but is ground truth -> parent is map!
+# - ros_topic_name: "robot/odometry_ground_truth_with_covariance_sim"
+#   gz_topic_name: "robot/odometry_ground_truth_with_covariance"
+#   ros_type_name: "nav_msgs/msg/Odometry"
+#   gz_type_name: "gz.msgs.OdometryWithCovariance"
+#   direction: GZ_TO_ROS
   
   # ros topic subscribed by DiffDrive plugin
 - ros_topic_name: "opponent/cmd_vel"
@@ -48,10 +71,19 @@
   direction: ROS_TO_GZ
 
 # gz topic published by Odom plugin
+# Should be just used for error checking of real opponent detection stack
 - ros_topic_name: "opponent/pose_tf_sim"
   gz_topic_name: "opponent/pose_ground_truth"
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"
+  direction: GZ_TO_ROS
+
+# gz topic published by Odom plugin
+# odometry message type but is ground truth -> parent is map!
+- ros_topic_name: "opponent/odometry_ground_truth_sim"
+  gz_topic_name: "opponent/odometry_ground_truth"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
   direction: GZ_TO_ROS
 
   # Camera image bridge

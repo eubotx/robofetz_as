@@ -1,0 +1,288 @@
+<?xml version="1.0"?>
+
+<robot name="my_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- ########################## -->
+    <!--   Geometry and constants   -->
+    <!-- ########################## -->
+    <xacro:arg name="prefix" default="" />
+
+    <!-- Pi -->
+    <xacro:property name="pi_const" value="3.14159265" />
+
+    <!-- Body Dimensions -->
+    <xacro:property name="a" value="0.140" />
+    <xacro:property name="b" value="0.054" />
+    <xacro:property name="c" value="0.14" />
+
+    <!-- Wheel and caster radius -->
+    <xacro:property name="r" value="0.034" />
+
+    <!-- Wheel width -->
+    <xacro:property name="d" value="0.026" />
+
+    <!-- Wheel Offset to chassis in Y axis -->
+    <xacro:property name="wheel_offset_y" value="0.007" />
+
+    <xacro:property name="s1" value="${r}" />
+    <xacro:property name="s2" value="${a/2.0-0.04075}" />
+    <xacro:property name="s3" value="${a+r}" />
+    <xacro:property name="s4" value="${c/2.0+d/2+wheel_offset_y}" />
+
+    <!-- Upright support box dimensions (replacing cylinder) -->
+    <xacro:property name="f" value="0.0049"/>
+    <xacro:property name="support_width" value="${2*f}" />
+    <xacro:property name="support_height" value="${2*r-2*f}" />
+
+    <!-- ########################## -->
+    <!--      Mass and inertia      -->
+    <!-- ########################## -->
+
+    <!-- Material Density -->
+    <xacro:property name="d1" value="1430.0" />
+    <xacro:property name="d2" value="1430.0" />
+    <xacro:property name="d3" value="1430.0" />
+
+    <!-- Mass -->
+    <xacro:property name="m1" value="${d1*a*b*c}" />
+    <xacro:property name="m2" value="${d2*pi_const*r*r*d}" />
+    <!-- Updated mass calculation for box support -->
+    <xacro:property name="m3" value="${d3*support_width*support_width*support_height}" />
+
+    <!-- Inertia -->
+    <xacro:property name="Ix_body" value="${(1.0/12.0)*m1*(b*b+c*c)}" />
+    <xacro:property name="Iy_body" value="${(1.0/12.0)*m1*(a*a+b*b)}" />
+    <xacro:property name="Iz_body" value="${(1.0/12.0)*m1*(a*a+c*c)}" />
+    <xacro:property name="Iz_wheel" value="${0.5*m2*r*r}" />
+    <xacro:property name="I_wheel" value="${(1.0/12.0)*m2*(3.0*r*r+d*d)}" />
+    <!-- Updated inertia for box support -->
+    <xacro:property name="I_support_x" value="${(1.0/12.0)*m3*(support_width*support_width + support_height*support_height)}" />
+    <xacro:property name="I_support_y" value="${(1.0/12.0)*m3*(support_width*support_width + support_height*support_height)}" />
+    <xacro:property name="I_support_z" value="${(1.0/12.0)*m3*(support_width*support_width + support_width*support_width)}" />
+
+    <!-- AprilTag properties -->
+    <xacro:property name="tag_size" value="0.14" />
+    <xacro:property name="tag_thickness" value="0.001" />
+    <xacro:property name="tag_mass" value="0.01" />
+
+    <!-- Complete inertia macros -->
+    <xacro:macro name="inertia_body">
+        <inertial>
+            <origin rpy="0 0 0" xyz="0 0 ${s1}"/>
+            <mass value="${m1}"/>
+            <inertia ixx="${Ix_body}" ixy="0.0" ixz="0.0" iyy="${Iy_body}" iyz="0.0" izz="${Iz_body}" />
+        </inertial>
+    </xacro:macro>
+
+    <xacro:macro name="inertia_wheel">
+        <inertial>
+            <origin rpy="${pi_const/2.0} 0 0" xyz="0 0 0"/>
+            <mass value="${m2}"/>
+            <inertia ixx="${I_wheel}" ixy="0.0" ixz="0.0" iyy="${I_wheel}" iyz="0.0" izz="${Iz_wheel}" />
+        </inertial>
+    </xacro:macro>
+
+    <xacro:macro name="inertia_support">
+        <inertial>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <mass value="${m3}"/>
+            <inertia ixx="${I_support_x}" ixy="0.0" ixz="0.0" iyy="${I_support_y}" iyz="0.0" izz="${I_support_z}" />
+        </inertial>
+    </xacro:macro>
+
+    <xacro:macro name="inertia_tag">
+        <inertial>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <mass value="${tag_mass}"/>
+            <inertia ixx="${(1.0/12.0)*tag_mass*(tag_size*tag_size + tag_thickness*tag_thickness)}" 
+                     ixy="0.0" ixz="0.0" 
+                     iyy="${(1.0/12.0)*tag_mass*(tag_size*tag_size + tag_thickness*tag_thickness)}" 
+                     iyz="0.0" 
+                     izz="${(1.0/12.0)*tag_mass*(tag_size*tag_size + tag_size*tag_size)}" />
+        </inertial>
+    </xacro:macro>
+
+    <!-- Include gazebo file -->
+    <xacro:include filename="$(find robot_description)/urdf/gazebo/robot.gazebo.xacro" />
+
+    <!-- Links and joints -->
+    <link name="$(arg prefix)base_footprint"> </link>
+    <joint name="$(arg prefix)body_link_joint" type="fixed">
+        <parent link="$(arg prefix)base_footprint"/>
+        <child link="$(arg prefix)body_link"/>
+    </joint>
+
+    <link name="$(arg prefix)body_link">
+        <visual>
+            <geometry><box size="${a} ${c} ${b}" /></geometry>
+            <origin rpy="0 0 0" xyz="0 0 ${s1}"/>
+            <material name="White"><color rgba="1 1 1 1"/></material>
+        </visual>
+        <collision>
+            <geometry><box size="${a} ${c} ${b}" /></geometry>
+            <origin rpy="0 0 0" xyz="0 0 ${s1}"/>
+        </collision>
+        <xacro:inertia_body/>
+    </link>
+
+    <!-- Top AprilTag -->
+    <joint name="$(arg prefix)top_tag_joint" type="fixed">
+        <parent link="$(arg prefix)body_link"/>
+        <child link="$(arg prefix)top_apriltag_link"/>
+        <origin xyz="0 0 ${s1 + b/2 + tag_thickness/2}" rpy="0 0 0"/>
+    </joint>
+    <link name="$(arg prefix)top_apriltag_link">
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry><box size="${tag_size} ${tag_size} ${tag_thickness}"/></geometry>
+            <material name="White"><color rgba="1 1 1 1"/></material>
+        </visual>
+        <collision>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry><box size="${tag_size} ${tag_size} ${tag_thickness}"/></geometry>
+        </collision>
+        <xacro:inertia_tag/>
+    </link>
+
+    <!-- Top AprilTag Optical Frame -->
+    <joint name="$(arg prefix)top_tag_optical_joint" type="fixed">
+        <parent link="$(arg prefix)top_apriltag_link"/>
+        <child link="$(arg prefix)top_apriltag_optical"/>
+        <origin xyz="0 0 0" rpy="0 ${pi_const} ${pi_const/2}"/>
+    </joint>
+    <link name="$(arg prefix)top_apriltag_optical"/>
+
+    <!-- Bottom AprilTag -->
+    <joint name="$(arg prefix)bottom_tag_joint" type="fixed">
+        <parent link="$(arg prefix)body_link"/>
+        <child link="$(arg prefix)bottom_apriltag_link"/>
+        <origin xyz="0 0 ${s1 - b/2 - tag_thickness/2}" rpy="${pi_const} 0 0"/>
+    </joint>
+    <link name="$(arg prefix)bottom_apriltag_link">
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry><box size="${tag_size} ${tag_size} ${tag_thickness}"/></geometry>
+            <material name="White"><color rgba="1 1 1 1"/></material>
+        </visual>
+        <collision>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry><box size="${tag_size} ${tag_size} ${tag_thickness}"/></geometry>
+        </collision>
+        <xacro:inertia_tag/>
+    </link>
+
+    <!-- Bottom AprilTag Optical Frame -->
+    <joint name="$(arg prefix)bottom_tag_optical_joint" type="fixed">
+        <parent link="$(arg prefix)bottom_apriltag_link"/>
+        <child link="$(arg prefix)bottom_apriltag_optical"/>
+                <origin xyz="0 0 0" rpy="0 0 ${pi_const/2}"/>
+    </joint>
+    <link name="$(arg prefix)bottom_apriltag_optical"/>
+
+    <!-- Wheels -->
+    <joint name="$(arg prefix)wheel1_joint" type="continuous">
+        <parent link="$(arg prefix)body_link"/>
+        <child link="$(arg prefix)wheel1_link"/>
+        <origin xyz="${-s2} ${-s4} ${r}" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/>
+        <limit effort="50000" velocity="10"/>
+        <dynamics damping="1.0" friction="1.0"/>
+    </joint>
+    <link name="$(arg prefix)wheel1_link">
+        <visual>
+            <origin rpy="${pi_const/2} 0 0" xyz="0 0 0"/>
+            <geometry><cylinder length="${d}" radius="${r}"/></geometry>
+            <material name="White"><color rgba="1 1 1 1"/></material>
+        </visual>
+        <collision>
+            <origin rpy="${pi_const/2} 0 0" xyz="0 0 0"/>
+            <geometry><cylinder length="${d}" radius="${r}"/></geometry>
+        </collision>
+        <xacro:inertia_wheel/>
+    </link>
+
+    <joint name="$(arg prefix)wheel2_joint" type="continuous">
+        <parent link="$(arg prefix)body_link"/>
+        <child link="$(arg prefix)wheel2_link"/>
+        <origin xyz="${-s2} ${s4} ${r}" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/>
+        <limit effort="50000" velocity="10"/>
+        <dynamics damping="1.0" friction="1.0"/>
+    </joint>
+    <link name="$(arg prefix)wheel2_link">
+        <visual>
+            <origin rpy="${pi_const/2} 0 0" xyz="0 0 0"/>
+            <geometry><cylinder length="${d}" radius="${r}"/></geometry>
+            <material name="White"><color rgba="1 1 1 1"/></material>
+        </visual>
+        <collision>
+            <origin rpy="${pi_const/2} 0 0" xyz="0 0 0"/>
+            <geometry><cylinder length="${d}" radius="${r}"/></geometry>
+        </collision>
+        <xacro:inertia_wheel/>
+    </link>
+
+    <!-- Two upright boxes with top/bottom casters -->
+    <xacro:macro name="upright_with_casters" params="name y_offset">
+        <!-- Upright box -->
+        <joint name="$(arg prefix)${name}_joint" type="fixed">
+            <parent link="$(arg prefix)body_link"/>
+            <child link="$(arg prefix)${name}_link"/>
+            <origin xyz="${a/2+f} ${y_offset} ${r}" rpy="0 0 0"/>
+        </joint>
+        <link name="$(arg prefix)${name}_link">
+            <visual>
+                <origin rpy="0 0 0"/>
+                <geometry><box size="${support_width} ${support_width} ${support_height}"/></geometry>
+                <material name="White"><color rgba="1 1 1 1"/></material>
+            </visual>
+            <collision>
+                <origin rpy="0 0 0"/>
+                <geometry><box size="${support_width} ${support_width} ${support_height}"/></geometry>
+            </collision>
+            <xacro:inertia_support/>
+        </link>
+
+        <!-- Top caster -->
+        <joint name="$(arg prefix)${name}_top_caster_joint" type="fixed">
+            <parent link="$(arg prefix)${name}_link"/>
+            <child link="$(arg prefix)${name}_top_caster_link"/>
+            <origin xyz="0 0 ${support_height/2}" rpy="0 0 0"/>
+        </joint>
+        <link name="$(arg prefix)${name}_top_caster_link">
+            <visual>
+                <origin rpy="0 0 0"/>
+                <geometry><sphere radius="${f}"/></geometry>
+                <material name="White"><color rgba="1 1 1 1"/></material>
+            </visual>
+            <collision>
+                <origin rpy="0 0 0"/>
+                <geometry><sphere radius="${f}"/></geometry>
+            </collision>
+            <xacro:inertia_support/>
+        </link>
+
+        <!-- Bottom caster -->
+        <joint name="$(arg prefix)${name}_bottom_caster_joint" type="fixed">
+            <parent link="$(arg prefix)${name}_link"/>
+            <child link="$(arg prefix)${name}_bottom_caster_link"/>
+            <origin xyz="0 0 ${-support_height/2}" rpy="0 0 0"/>
+        </joint>
+        <link name="$(arg prefix)${name}_bottom_caster_link">
+            <visual>
+                <origin rpy="0 0 0"/>
+                <geometry><sphere radius="${f}"/></geometry>
+                <material name="White"><color rgba="1 1 1 1"/></material>
+            </visual>
+            <collision>
+                <origin rpy="0 0 0"/>
+                <geometry><sphere radius="${f}"/></geometry>
+            </collision>
+            <xacro:inertia_support/>
+        </link>
+    </xacro:macro>
+
+    <xacro:upright_with_casters name="front_left_support" y_offset="${c/2 - f}"/>
+    <xacro:upright_with_casters name="front_right_support" y_offset="${-c/2 + f}"/>
+
+</robot>
