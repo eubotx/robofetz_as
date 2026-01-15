@@ -37,7 +37,7 @@ class SimpleOdometryCorrection(Node):
             
             # Get odom -> base_footprint (robot odometry)
             odom_to_base = self.tf_buffer.lookup_transform(
-                'robot/odom', 'robot/base_footprint', now
+                'odom', 'robot/base_footprint', now
             )
             
             # We need to compute: map -> odom
@@ -61,7 +61,7 @@ class SimpleOdometryCorrection(Node):
             map_to_odom_tf = TransformStamped()
             map_to_odom_tf.header.stamp = self.get_clock().now().to_msg()
             map_to_odom_tf.header.frame_id = 'map'
-            map_to_odom_tf.child_frame_id = 'robot/odom'
+            map_to_odom_tf.child_frame_id = 'odom'
             map_to_odom_tf.transform = self.matrix_to_transform(m_to_o)
             
             # Publish the correction

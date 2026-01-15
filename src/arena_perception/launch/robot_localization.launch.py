@@ -17,7 +17,7 @@ def generate_launch_description():
             output='screen'
         ),
 
-        # Publishes map -> robot/odom tf as amcl like drift correction based on arena perception
+        # Publishes map -> odom tf as amcl like drift correction based on arena perception
         Node(
             package='arena_perception',
             executable='odom_drift_correction_node1',
@@ -26,12 +26,12 @@ def generate_launch_description():
             ]
         ),
         
-        # Static transform robot/odom -> /robot_footprint until we use odom from EKF
+        # Static transform odom -> /robot_footprint until we use odom from EKF
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name='static_map_tf_publisher',
-            arguments=['0', '0', '0', '0', '0', '0', 'robot/odom', 'robot/base_footprint'],
+            arguments=['0', '0', '0', '0', '0', '0', 'odom', 'robot/base_footprint'],
             output='screen'
         ),
 

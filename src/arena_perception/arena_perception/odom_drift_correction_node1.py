@@ -136,9 +136,9 @@ class OdometryCorrectionNode(Node):
                 rclpy.time.Time()
             )
             
-            # 3. robot/odom -> robot/base_footprint (odometry)
+            # 3. odom -> robot/base_footprint (odometry)
             odom_to_base = self.tf_buffer.lookup_transform(
-                'robot/odom',
+                'odom',
                 'robot/base_footprint',
                 rclpy.time.Time()
             )
@@ -161,7 +161,7 @@ class OdometryCorrectionNode(Node):
             
             # Convert back to TransformStamped and publish
             map_to_odom_tf = self.matrix_to_transform(
-                T_map_odom, 'map', 'robot/odom'
+                T_map_odom, 'map', 'odom'
             )
             
             self.tf_broadcaster.sendTransform(map_to_odom_tf)

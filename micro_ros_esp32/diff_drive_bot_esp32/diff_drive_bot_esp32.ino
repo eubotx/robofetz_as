@@ -24,7 +24,8 @@ constexpr double MAX_MOTOR_SPEED = 180.0;  // Max speed in RPS
 constexpr int MAX_MOTOR_DRIVER_DUTYCYCLE = 190; //255*(3/4) because we are running 4S Lipo
 constexpr int ENCODER_TICKS_PER_REVOLUTION = 14 * 2;
 constexpr double ENCODER_PT1_TIMECONSTANT_S = 0.1;  //TODO
-constexpr double GEARBOX_RATIO = 1.0/200.0;
+//constexpr double GEARBOX_RATIO = 1.0/200.0;
+constexpr double GEARBOX_RATIO = 1.0/9.6;
 constexpr int MAX_WEAPON_MOTOR_DRIVER_DUTYCYCLE = 50;
 
 constexpr unsigned long UPDATE_INTERVAL_ENCODER = 1;  // In ms

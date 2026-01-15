@@ -130,7 +130,7 @@
             <topic>robot/cmd_vel</topic>
             <odom_topic>robot/wheel_odometry</odom_topic>
             <tf_topic>robot/pose_with_slip</tf_topic>
-            <frame_id>robot/odom</frame_id>
+            <frame_id>odom</frame_id>
             <child_frame_id>robot/base_footprint</child_frame_id>
 
             <!-- limits -->
@@ -154,7 +154,7 @@
             <odom_frame>map</odom_frame>
             <robot_base_frame>robot/base_footprint_sim</robot_base_frame>
             <odom_publish_frequency>50</odom_publish_frequency>
-            <odom_topic>robot/odometry_ground_truth</odom_topic>
+            <odom_topic>odometry_ground_truth</odom_topic>
             <odom_covariance_topic>robot/odometry_ground_truth_with_covariance</odom_covariance_topic>
             <tf_topic>robot/pose_ground_truth</tf_topic>
             <dimensions>3</dimensions>

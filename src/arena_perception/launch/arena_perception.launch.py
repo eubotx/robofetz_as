@@ -113,7 +113,7 @@ def generate_launch_description():
         name='find_camera_in_world_service',
         parameters=[
             {'config_file': camera_finder_config_file},
-            {'calibration_file': calibration_file},  # Optional, if not given it attempts initial calibration
+            #{'calibration_file': calibration_file},  # Optional, if not given it attempts initial calibration
             {'calibration_attempt_rate': 1.0},       # Optional: default is 1.0
             {'dynamic_publish_rate': 60.0},          # Optional: default is 30.0
         ],
@@ -153,6 +153,16 @@ def generate_launch_description():
         output='screen'
     )
 
+    robot_tf_to_pose = Node(
+        package='robofetz_gazebo',
+        executable='tf_to_pose',
+        name='tf_to_pose_robot',
+        parameters=[{
+            'tf_topic': '/robot/base_footprint',
+            'pose_topic': '/robot/pose'
+        }]
+    )
+
     ld.add_action(TimerAction(
         period=3.0,
         actions=[find_camera_service]
@@ -173,4 +183,9 @@ def generate_launch_description():
         actions=[robot_detection_1]
     ))
     
+    ld.add_action(TimerAction(
+        period=7.0,
+        actions=[robot_tf_to_pose]
+    ))
+
     return ld

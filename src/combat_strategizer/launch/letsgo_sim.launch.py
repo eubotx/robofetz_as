@@ -10,35 +10,6 @@ def generate_launch_description():
     # Get package share directories
     robofetz_gazebo_dir = get_package_share_directory('robofetz_gazebo')
     robot_navigation_dir = get_package_share_directory('robot_navigation')
-    
-    # Static transform for map to odom (Main Robot)
-    static_map_tf = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='static_map_tf_publisher',
-        arguments=['0', '0', '0', '0', '0', '0', 'map', 'odom'],
-        output='screen'
-    )
-
-    # Static transform for map to opponent/odom (Opponent Robot)
-    static_opponent_tf = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='static_opponent_tf_publisher',
-        arguments=['0', '0', '0', '0', '0', '0', 'map', 'opponent/odom'],
-        output='screen'
-    )
-
-    # Gazebo simulation
-    gazebo_sim = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                robofetz_gazebo_dir,
-                'launch',
-                'gazebo_bot_with_opponent.launch.py'
-            )
-        )
-    )
 
     # Navigation node - Nav2 Stack
     nav2_launch = TimerAction(
@@ -73,8 +44,6 @@ def generate_launch_description():
         output='screen'
     )
 
-
-
     # RViz2 node
     rviz2 = Node(
         package='rviz2',
@@ -103,8 +72,6 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        static_map_tf,
-        gazebo_sim,
         combat_strategizer,
         weapon_control,
         rviz2,

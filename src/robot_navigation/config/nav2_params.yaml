@@ -7,7 +7,7 @@ bt_navigator:
     bt_loop_duration: 10
     default_server_timeout: 20
 
-    default_nav_to_pose_bt_xml: "/home/dario/Dokumente/projects/robofetz/robofetz_as/src/robot_navigation/config/bt_navigator.xml"
+    default_nav_to_pose_bt_xml: "/home/florian/fetz_as/src/robot_navigation/config/bt_navigator.xml"
     default_nav_through_poses_bt_xml: "/opt/ros/jazzy/share/nav2_bt_navigator/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"
 
 
@@ -49,7 +49,7 @@ controller_server:
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.5
-      movement_time_allowance: 2.0
+      movement_time_allowance: 10.0
     
     # Goal checker parameters
     general_goal_checker:
