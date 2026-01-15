@@ -142,8 +142,8 @@
         <!-- joint state publisher -->
         <plugin filename="gz-sim-joint-state-publisher-system"
           name="gz::sim::systems::JointStatePublisher">
-            <topic>$robot/joint_states</topic>
-            <joint_name>$(arg prefix)wheel1_joint</joint_name>
+            <topic>joint_states</topic>
+            <joint_name>wheel1_joint</joint_name>   <!-- arg prefix makes no difference here also / does not work see joint state echo -->
             <joint_name>$(arg prefix)wheel2_joint</joint_name>
         </plugin>
 

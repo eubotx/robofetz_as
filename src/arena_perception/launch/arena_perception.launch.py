@@ -83,7 +83,7 @@ def generate_launch_description():
     ld.add_action(filter_config_arg)
     ld.add_action(calibration_arg)
     
-    # 1. Camera rectification node - start immediately
+    # Camera rectification node
     camera_rectification = Node(
         package='arena_perception',
         executable='camera_rectification_node',
@@ -94,8 +94,8 @@ def generate_launch_description():
     
     ld.add_action(camera_rectification)
     
-    # 2. Apriltag detection node - start after 1 second
-    # swap with premade ros one for efficiency (as per comment)
+    # Apriltag detection node 
+    # swap with premade ros one for efficiency
     apriltag_detection = Node(
         package='arena_perception',
         executable='apriltag_detection_node',
@@ -106,13 +106,7 @@ def generate_launch_description():
         output='screen'
     )
     
-    ld.add_action(TimerAction(
-        period=1.0,
-        actions=[apriltag_detection]
-    ))
-    
-    # 3. Arena calibration service - FIXED: Added calibration_file parameter
-    # Start after 2 seconds to ensure camera is running
+    # Arena calibration service
     find_camera_service = Node(
         package='arena_perception',
         executable='find_camera_in_world_service',
@@ -120,18 +114,13 @@ def generate_launch_description():
         parameters=[
             {'config_file': camera_finder_config_file},
             {'calibration_file': calibration_file},  # Optional, if not given it attempts initial calibration
-            #{'calibration_attempt_rate': 1.0},       # Optional: default is 1.0
+            {'calibration_attempt_rate': 1.0},       # Optional: default is 1.0
             {'dynamic_publish_rate': 30.0},          # Optional: default is 30.0
         ],
         output='screen'
     )
     
-    ld.add_action(TimerAction(
-        period=3.0,
-        actions=[find_camera_service]
-    ))
-    
-    # 4. Filter transform nodes - start after 3 seconds when tags are being detected
+    # Filter transform nodes
     top_tag_filter = Node(
         package='arena_perception',
         executable='filter_transform_node',
@@ -156,14 +145,7 @@ def generate_launch_description():
         output='screen'
     )
     
-    ld.add_action(TimerAction(
-        period=4.0,
-        actions=[top_tag_filter, bottom_tag_filter]
-    ))
-    
-    # 5. Robot detection nodes - start after 4 seconds when filtered transforms are available
-    
-    # Robot detection node 1 - Works but causes lags (as per comment)
+    # Robot detection node 1
     robot_detection_1 = Node(
         package='arena_perception',
         executable='robot_detection_node1',
@@ -171,43 +153,45 @@ def generate_launch_description():
         output='screen'
     )
     
-    # Robot detection node 2 - Not working but at least doesnt crash (commented out per original)
-    # robot_detection_2 = Node(
-    #     package='arena_perception',
-    #     executable='robot_detection_node2',
-    #     name='robot_detection_node2',
-    #     output='screen'
-    # )
-    
-    ld.add_action(TimerAction(
-        period=5.0,
-        actions=[robot_detection_1]
-    ))
-    
-    # 6. Odometry drift correction node - start after 5 seconds when robot detection is running
-    odom_drift_correction = Node(
+    # Odometry drift correction node 
+    odom_drift_correction_1 = Node(
         package='arena_perception',
         executable='odom_drift_correction_node1',
         name='odom_drift_correction_node1',
         output='screen'
     )
-    
+
+    # Odometry drift correction node 
+    odom_drift_correction_2 = Node(
+        package='arena_perception',
+        executable='odom_drift_correction_node1',
+        name='odom_drift_correction_node1',
+        output='screen'
+    )
+
+    ld.add_action(TimerAction(
+        period=3.0,
+        actions=[find_camera_service]
+    ))
+
+    ld.add_action(TimerAction(
+        period=1.0,
+        actions=[apriltag_detection]
+    ))
+
+    # ld.add_action(TimerAction(
+    #     period=4.0,
+    #     actions=[top_tag_filter, bottom_tag_filter]
+    # ))
+
+    ld.add_action(TimerAction(
+        period=5.0,
+        actions=[robot_detection_1]
+    ))
+
     ld.add_action(TimerAction(
         period=6.0,
-        actions=[odom_drift_correction]
+        actions=[odom_drift_correction_1]
     ))
-    
-    # 7. Static tag position publisher - commented out per original
-    # static_tag_publisher = Node(
-    #     package='arena_perception',
-    #     executable='static_tag_position_publisher',
-    #     name='static_tag_position_publisher',
-    #     output='screen'
-    # )
-    
-    # ld.add_action(TimerAction(
-    #     period=6.0,
-    #     actions=[static_tag_publisher]
-    # ))
     
     return ld

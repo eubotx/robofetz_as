@@ -3,196 +3,175 @@ import rclpy
 from rclpy.node import Node
 from tf2_ros import Buffer, TransformListener, TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
-from tf2_geometry_msgs import do_transform_pose
 import tf2_ros
 import tf_transformations
+import numpy as np
 
-class CameraToBaseTransform(Node):
+class RobotDetectionNode(Node):
     def __init__(self):
-        super().__init__('camera_to_base_transform')
+        super().__init__('robot_detection_node')
         
         # TF buffer and listener
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         
-        # TF broadcaster for the computed transform
+        # TF broadcaster
         self.tf_broadcaster = TransformBroadcaster(self)
         
         # Store static transforms
-        self.static_transforms = {}
+        self.tag_to_base_transforms = {}
         
-        # Timer to continuously compute and publish the transform
-        self.timer = self.create_timer(0.1, self.update_transform)  # 10 Hz
+        # Load static transforms once
+        self.load_static_tag_to_base_transforms()
         
-        self.get_logger().info("Camera to Base Transform Node started")
+        # Timer
+        self.timer = self.create_timer(0.01, self.update_transform)
         
-    def update_transform(self):
-        try:
-            # Try to get camera to tag transforms (one will be available)
-            camera_to_top_tag = None
-            camera_to_bottom_tag = None
-            
-            try:
-                camera_to_top_tag = self.tf_buffer.lookup_transform(
-                    'arena_camera_optical',
-                    'arena_perception/robot_top_tag',
-                    rclpy.time.Time()
-                )
-            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, 
-                    tf2_ros.ExtrapolationException):
-                pass
-                
-            try:
-                camera_to_bottom_tag = self.tf_buffer.lookup_transform(
-                    'arena_camera_optical',
-                    'arena_perception/robot_bottom_tag',
-                    rclpy.time.Time()
-                )
-            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, 
-                    tf2_ros.ExtrapolationException):
-                pass
-            
-            # Determine which tag is visible
-            if camera_to_top_tag is not None:
-                self.compute_and_publish_base_footprint(camera_to_top_tag, 'top')
-            elif camera_to_bottom_tag is not None:
-                self.compute_and_publish_base_footprint(camera_to_bottom_tag, 'bottom')
-            else:
-                self.get_logger().debug("No tag transforms available")
-                
-        except Exception as e:
-            self.get_logger().debug(f"Error in update_transform: {e}")
+        self.get_logger().info("Robot Detection Node started")
     
-    def compute_and_publish_base_footprint(self, camera_to_tag_transform, tag_type):
-        try:
-            # Get the corresponding static transform from robot state publisher
-            if tag_type == 'top':
-                base_to_tag_link = 'robot/top_apriltag_optical'
-                tag_name = 'arena_perception/robot_top_tag'
-            else:  # bottom
-                base_to_tag_link = 'robot/bottom_apriltag_optical'
-                tag_name = 'arena_perception/robot_bottom_tag'
-            
-            # Get the static transform (base_footprint -> apriltag_link)
-            base_to_apriltag = self.tf_buffer.lookup_transform(
-                'robot/base_footprint',
-                base_to_tag_link,
-                rclpy.time.Time()
-            )
-            
-            # Transform chain: camera_optical -> tag -> base_footprint
-            # We need to invert base_to_apriltag to get apriltag_link -> base_footprint
-            
-            # Method 1: Using tf2 transformations
-            # Get the transform from apriltag_link to base_footprint (inverse of base_to_apriltag)
-            apriltag_to_base = self.invert_transform(base_to_apriltag)
-            
-            # Now compose: camera_optical -> tag -> base_footprint
-            # Since tag and apriltag_link are the same physical tag in different frames,
-            # we assume identity transform between them
-            
-            # Compose the transforms: camera_to_tag * tag_to_base
-            # Here we use the fact that tag (perception frame) corresponds to apriltag_link (robot frame)
-            camera_to_base = self.compose_transforms(
-                camera_to_tag_transform,
-                apriltag_to_base
-            )
-            
-            # Publish the computed transform
-            camera_to_base.header.stamp = self.get_clock().now().to_msg()
-            camera_to_base.header.frame_id = 'arena_camera_optical'
-            camera_to_base.child_frame_id = 'arena_perception/robot/base_footprint'
-            
-            self.tf_broadcaster.sendTransform(camera_to_base)
-            
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, 
-                tf2_ros.ExtrapolationException) as e:
-            self.get_logger().debug(f"Could not get transform for {tag_type}: {e}")
-        except Exception as e:
-            self.get_logger().error(f"Error computing transform: {e}")
-    
-    def invert_transform(self, transform):
-        """Invert a transform (returns B->A given A->B)"""
-        inverse = TransformStamped()
-        inverse.header.stamp = transform.header.stamp
-        inverse.header.frame_id = transform.child_frame_id
-        inverse.child_frame_id = transform.header.frame_id
+    def load_static_tag_to_base_transforms(self):
+        """Load static transforms from URDF once"""
+        self.get_logger().info("Waiting for static robot description transforms...")
         
-        # Extract transform components
-        t = transform.transform.translation
-        q = transform.transform.rotation
-        
-        # Convert to transformation matrix
-        mat = tf_transformations.quaternion_matrix([q.x, q.y, q.z, q.w])
-        mat[0, 3] = t.x
-        mat[1, 3] = t.y
-        mat[2, 3] = t.z
-        
-        # Invert the matrix
-        mat_inv = tf_transformations.inverse_matrix(mat)
-        
-        # Extract translation and rotation from inverted matrix
-        inverse.transform.translation.x = mat_inv[0, 3]
-        inverse.transform.translation.y = mat_inv[1, 3]
-        inverse.transform.translation.z = mat_inv[2, 3]
-        
-        quat = tf_transformations.quaternion_from_matrix(mat_inv)
-        inverse.transform.rotation.x = quat[0]
-        inverse.transform.rotation.y = quat[1]
-        inverse.transform.rotation.z = quat[2]
-        inverse.transform.rotation.w = quat[3]
-        
-        return inverse
+        # Load both tag-to-base transforms
+        for tag_type, tag_frame in [('top', 'robot/top_apriltag_optical'),
+                                     ('bottom', 'robot/bottom_apriltag_optical')]:
+            for _ in range(10):  # Try for 1 second
+                try:
+                    transform = self.tf_buffer.lookup_transform(
+                        tag_frame,
+                        'robot/base_footprint',
+                        rclpy.time.Time()
+                    )
+                    self.tag_to_base_transforms[tag_type] = transform
+                    self.get_logger().info(f"Loaded static transform: {tag_frame} -> base_footprint")
+                    break
+                except tf2_ros.TransformException:
+                    rclpy.spin_once(self, timeout_sec=0.1)
     
     def compose_transforms(self, transform_a, transform_b):
-        """Compose two transforms: C = A * B (apply B then A)"""
+        """Compose two transforms: result = A * B (apply B then A)"""
+        # Convert to numpy
+        t1 = np.array([transform_a.transform.translation.x,
+                       transform_a.transform.translation.y,
+                       transform_a.transform.translation.z])
+        q1 = np.array([transform_a.transform.rotation.x,
+                       transform_a.transform.rotation.y,
+                       transform_a.transform.rotation.z,
+                       transform_a.transform.rotation.w])
+        
+        t2 = np.array([transform_b.transform.translation.x,
+                       transform_b.transform.translation.y,
+                       transform_b.transform.translation.z])
+        q2 = np.array([transform_b.transform.rotation.x,
+                       transform_b.transform.rotation.y,
+                       transform_b.transform.rotation.z,
+                       transform_b.transform.rotation.w])
+        
+        # Compose rotations
+        q_result = tf_transformations.quaternion_multiply(q1, q2)
+        
+        # Rotate t2 by q1 and add to t1
+        rot_matrix = tf_transformations.quaternion_matrix(q1)[:3, :3]
+        t_rotated = rot_matrix @ t2
+        t_result = t1 + t_rotated
+        
+        # Create result
         result = TransformStamped()
-        result.header.stamp = transform_a.header.stamp
-        result.header.frame_id = transform_a.header.frame_id
-        result.child_frame_id = transform_b.child_frame_id
-        
-        # Convert both transforms to matrices
-        t1 = transform_a.transform.translation
-        q1 = transform_a.transform.rotation
-        mat1 = tf_transformations.quaternion_matrix([q1.x, q1.y, q1.z, q1.w])
-        mat1[0, 3] = t1.x
-        mat1[1, 3] = t1.y
-        mat1[2, 3] = t1.z
-        
-        t2 = transform_b.transform.translation
-        q2 = transform_b.transform.rotation
-        mat2 = tf_transformations.quaternion_matrix([q2.x, q2.y, q2.z, q2.w])
-        mat2[0, 3] = t2.x
-        mat2[1, 3] = t2.y
-        mat2[2, 3] = t2.z
-        
-        # Compose matrices: result = mat1 * mat2
-        mat_result = tf_transformations.concatenate_matrices(mat1, mat2)
-        
-        # Extract translation and rotation
-        result.transform.translation.x = mat_result[0, 3]
-        result.transform.translation.y = mat_result[1, 3]
-        result.transform.translation.z = mat_result[2, 3]
-        
-        quat_result = tf_transformations.quaternion_from_matrix(mat_result)
-        result.transform.rotation.x = quat_result[0]
-        result.transform.rotation.y = quat_result[1]
-        result.transform.rotation.z = quat_result[2]
-        result.transform.rotation.w = quat_result[3]
+        result.transform.translation.x = t_result[0]
+        result.transform.translation.y = t_result[1]
+        result.transform.translation.z = t_result[2]
+        result.transform.rotation.x = q_result[0]
+        result.transform.rotation.y = q_result[1]
+        result.transform.rotation.z = q_result[2]
+        result.transform.rotation.w = q_result[3]
         
         return result
+    
+    def update_transform(self):
+        # Try to get both transforms and use the most recent one
+        camera_to_top = None
+        camera_to_bottom = None
+        
+        # Get timestamp for comparison
+        current_time = self.get_clock().now()
+        
+        # Try to get top tag transform
+        try:
+            camera_to_top = self.tf_buffer.lookup_transform(
+                'arena_camera_optical',
+                'arena_perception/robot_top_tag',
+                rclpy.time.Time()
+            )
+            # Check if transform is recent (within 0.2 seconds)
+            transform_time = rclpy.time.Time.from_msg(camera_to_top.header.stamp)
+            if (current_time - transform_time).nanoseconds > 200_000_000:  # 0.2 seconds
+                camera_to_top = None  # Too old
+        except tf2_ros.TransformException:
+            pass
+        
+        # Try to get bottom tag transform
+        try:
+            camera_to_bottom = self.tf_buffer.lookup_transform(
+                'arena_camera_optical',
+                'arena_perception/robot_bottom_tag',
+                rclpy.time.Time()
+            )
+            # Check if transform is recent
+            transform_time = rclpy.time.Time.from_msg(camera_to_bottom.header.stamp)
+            if (current_time - transform_time).nanoseconds > 200_000_000:  # 0.2 seconds
+                camera_to_bottom = None  # Too old
+        except tf2_ros.TransformException:
+            pass
+        
+        # Determine which transform to use (prefer more recent)
+        chosen_transform = None
+        chosen_tag_type = None
+        
+        if camera_to_top and camera_to_bottom:
+            # Both available, use the more recent one
+            top_time = rclpy.time.Time.from_msg(camera_to_top.header.stamp)
+            bottom_time = rclpy.time.Time.from_msg(camera_to_bottom.header.stamp)
+            
+            if top_time > bottom_time:
+                chosen_transform = camera_to_top
+                chosen_tag_type = 'top'
+            else:
+                chosen_transform = camera_to_bottom
+                chosen_tag_type = 'bottom'
+        elif camera_to_top:
+            chosen_transform = camera_to_top
+            chosen_tag_type = 'top'
+        elif camera_to_bottom:
+            chosen_transform = camera_to_bottom
+            chosen_tag_type = 'bottom'
+        else:
+            # No valid transforms available
+            return
+        
+        # Check if we have the corresponding static transform
+        if chosen_tag_type not in self.tag_to_base_transforms:
+            return
+        
+        # Get the pre-loaded static transform
+        tag_to_base = self.tag_to_base_transforms[chosen_tag_type]
+        
+        # Compose transforms: camera -> tag -> base
+        camera_to_base = self.compose_transforms(chosen_transform, tag_to_base)
+        
+        # Set header and publish
+        camera_to_base.header.stamp = self.get_clock().now().to_msg()
+        camera_to_base.header.frame_id = 'arena_camera_optical'
+        camera_to_base.child_frame_id = 'robot/base_footprint'
+        
+        self.tf_broadcaster.sendTransform(camera_to_base)
 
 def main(args=None):
     rclpy.init(args=args)
-    node = CameraToBaseTransform()
-    
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
+    node = RobotDetectionNode()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

@@ -433,7 +433,7 @@ class FindCameraInWorldService(Node):
         
         if success:
             response.success = True
-            response.message = "Re-calibration successful - camera position updated and saved to file"
+            response.message = "Re-calibration successful - publishing new tf"
         else:
             response.success = False
             response.message = "Re-calibration failed - could not detect marker"
