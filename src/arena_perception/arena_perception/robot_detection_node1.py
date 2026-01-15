@@ -3,6 +3,7 @@ import rclpy
 from rclpy.node import Node
 from tf2_ros import Buffer, TransformListener, TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
+from std_msgs.msg import String
 import tf2_ros
 import tf_transformations
 import numpy as np
@@ -25,9 +26,13 @@ class RobotDetectionNode(Node):
         self.CAMERA_FRAME = 'arena_camera_optical'
         self.ROBOT_BASE_FRAME = 'robot/base_footprint'
         
+        # Topic definitions
+        self.VISIBLE_TAG_TOPIC = 'arena_perception/robot/visible_tag'
+        
         # Timing parameters
         self.UPDATE_RATE = 0.01  # 100 Hz
         self.TRANSFORM_TIMEOUT = 0.2  # seconds (max age of transform)
+        self.TAG_PUBLISH_RATE = 10  # Hz - rate to publish tag visibility
         
         # ========== INITIALIZATION ==========
         # TF buffer and listener
@@ -37,18 +42,31 @@ class RobotDetectionNode(Node):
         # TF broadcaster
         self.tf_broadcaster = TransformBroadcaster(self)
         
+        # Tag visibility publisher
+        self.tag_publisher = self.create_publisher(
+            String, 
+            self.VISIBLE_TAG_TOPIC, 
+            10
+        )
+        
         # Store static transforms
         self.tag_to_base_transforms = {}
+        
+        # Track current visible tag
+        self.current_visible_tag = "none"
+        self.last_published_tag = ""
+        self.tag_publish_counter = 0
         
         # Load static transforms once
         self.load_static_transforms()
         
-        # Timer
+        # Timer for transform updates
         self.timer = self.create_timer(self.UPDATE_RATE, self.update_transform)
         
         self.get_logger().info("Robot Detection Node started")
         self.get_logger().info(f"Camera frame: {self.CAMERA_FRAME}")
         self.get_logger().info(f"Robot Base frame: {self.ROBOT_BASE_FRAME}")
+        self.get_logger().info(f"Tag visibility topic: {self.VISIBLE_TAG_TOPIC}")
         self.get_logger().info(f"Configured {len(self.TAG_PAIRS)} tag pair(s)")
     
     def load_static_transforms(self):
@@ -146,6 +164,7 @@ class RobotDetectionNode(Node):
         
         best_transform = None
         best_tag_info = None
+        best_tag_name = "none"
         best_age_ns = float('inf')
         
         # Check all configured tag pairs
@@ -159,25 +178,52 @@ class RobotDetectionNode(Node):
                 if age_ns < best_age_ns:
                     best_transform = transform
                     best_tag_info = tag_info
+                    best_tag_name = tag_name
                     best_age_ns = age_ns
         
-        return best_transform, best_tag_info, best_age_ns
+        return best_transform, best_tag_info, best_tag_name, best_age_ns
+    
+    def publish_visible_tag(self, tag_name):
+        """Publish the currently visible tag name to the topic"""
+        # Only publish if tag has changed or periodically
+        self.tag_publish_counter += 1
+        publish_now = False
+        
+        if tag_name != self.last_published_tag:
+            publish_now = True
+            self.last_published_tag = tag_name
+        elif self.tag_publish_counter >= (100 / self.TAG_PUBLISH_RATE):  # Convert Hz to update count
+            publish_now = True
+            self.tag_publish_counter = 0
+        
+        if publish_now:
+            msg = String()
+            msg.data = tag_name
+            self.tag_publisher.publish(msg)
+            self.get_logger().debug(f"Published visible tag: {tag_name}")
     
     def update_transform(self):
         """Main update loop to compute and publish camera->base transform"""
         
         # Find the best available transform
-        detected_transform, tag_info, age_ns = self.find_best_transform()
+        detected_transform, tag_info, tag_name, age_ns = self.find_best_transform()
+        
+        # Update current visible tag
+        self.current_visible_tag = tag_name
+        
+        # Publish visible tag information
+        self.publish_visible_tag(tag_name)
         
         if detected_transform is None or tag_info is None:
             # No valid transforms available
-            self.get_logger().debug("No valid tag transforms available")
+            if tag_name == "none":
+                self.get_logger().debug("No valid tag transforms available")
             return
         
         # Get the static transform for this tag
         static_transform = tag_info['transform']
-        tag_name = next(name for name, info in self.tag_to_base_transforms.items() 
-                       if info == tag_info)
+        
+        self.get_logger().debug(f"Using '{tag_name}' tag (age: {age_ns/1e9:.3f}s)")
         
         # Compose transforms: camera -> tag -> base
         camera_to_base = self.compose_transforms(detected_transform, static_transform)
