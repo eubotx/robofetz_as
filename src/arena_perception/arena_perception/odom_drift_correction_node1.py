@@ -21,7 +21,7 @@ class OdometryCorrectionNode(Node):
         self.prev_odom_to_base = None
         
         # Timer for continuous correction
-        self.timer = self.create_timer(0.1, self.publish_correction)  # 10 Hz
+        self.timer = self.create_timer(1/60, self.publish_correction)  # 60 Hz
         
         self.get_logger().info("Odometry Correction Node started")
         

@@ -2,8 +2,8 @@
 import rclpy
 from rclpy.node import Node
 from tf2_ros import Buffer, TransformListener, TransformBroadcaster
-from geometry_msgs.msg import TransformStamped
-from std_msgs.msg import String
+from geometry_msgs.msg import TransformStamped, PoseStamped, Pose, Point, Quaternion
+from std_msgs.msg import String, Header
 import tf2_ros
 import tf_transformations
 import numpy as np
@@ -25,14 +25,17 @@ class RobotDetectionNode(Node):
         # Frame definitions
         self.CAMERA_FRAME = 'arena_camera_optical'
         self.ROBOT_BASE_FRAME = 'robot/base_footprint'
+        self.DETECTION_ROBOT_BASE_FRAME = 'arena_perception/robot/base_footprint'
         
         # Topic definitions
         self.VISIBLE_TAG_TOPIC = 'arena_perception/robot/visible_tag'
+        self.ROBOT_POSE_TOPIC = 'arena_perception/robot/pose'
         
         # Timing parameters
-        self.UPDATE_RATE = 0.01  # 100 Hz
+        self.UPDATE_RATE = 1/60  # 60 Hz
         self.TRANSFORM_TIMEOUT = 0.2  # seconds (max age of transform)
         self.TAG_PUBLISH_RATE = 10  # Hz - rate to publish tag visibility
+        self.POSE_PUBLISH_RATE = 50  # Hz - rate to publish robot pose
         
         # ========== INITIALIZATION ==========
         # TF buffer and listener
@@ -49,6 +52,13 @@ class RobotDetectionNode(Node):
             10
         )
         
+        # Robot pose publisher
+        self.pose_publisher = self.create_publisher(
+            PoseStamped,
+            self.ROBOT_POSE_TOPIC,
+            10
+        )
+        
         # Store static transforms
         self.tag_to_base_transforms = {}
         
@@ -56,6 +66,10 @@ class RobotDetectionNode(Node):
         self.current_visible_tag = "none"
         self.last_published_tag = ""
         self.tag_publish_counter = 0
+        
+        # Track pose publishing
+        self.pose_publish_counter = 0
+        self.last_pose = None
         
         # Load static transforms once
         self.load_static_transforms()
@@ -67,6 +81,7 @@ class RobotDetectionNode(Node):
         self.get_logger().info(f"Camera frame: {self.CAMERA_FRAME}")
         self.get_logger().info(f"Robot Base frame: {self.ROBOT_BASE_FRAME}")
         self.get_logger().info(f"Tag visibility topic: {self.VISIBLE_TAG_TOPIC}")
+        self.get_logger().info(f"Robot pose topic: {self.ROBOT_POSE_TOPIC}")
         self.get_logger().info(f"Configured {len(self.TAG_PAIRS)} tag pair(s)")
     
     def load_static_transforms(self):
@@ -202,6 +217,47 @@ class RobotDetectionNode(Node):
             self.tag_publisher.publish(msg)
             self.get_logger().debug(f"Published visible tag: {tag_name}")
     
+    def publish_robot_pose(self, transform):
+        """Publish the robot pose as a PoseStamped message"""
+        # Update pose counter
+        self.pose_publish_counter += 1
+        
+        # Check if we should publish based on rate
+        should_publish = self.pose_publish_counter >= (100 / self.POSE_PUBLISH_RATE)
+        
+        if should_publish:
+            # Create PoseStamped message
+            pose_msg = PoseStamped()
+            
+            # Set header
+            pose_msg.header = Header()
+            pose_msg.header.stamp = self.get_clock().now().to_msg()
+            pose_msg.header.frame_id = self.CAMERA_FRAME
+            
+            # Set position
+            pose_msg.pose.position = Point(
+                x=transform.transform.translation.x,
+                y=transform.transform.translation.y,
+                z=transform.transform.translation.z
+            )
+            
+            # Set orientation (same as transform)
+            pose_msg.pose.orientation = transform.transform.rotation
+            
+            # Publish
+            self.pose_publisher.publish(pose_msg)
+            
+            # Reset counter
+            self.pose_publish_counter = 0
+            
+            # Store last pose for reference
+            self.last_pose = pose_msg
+            
+            self.get_logger().debug(f"Published robot pose: "
+                                  f"x={pose_msg.pose.position.x:.3f}, "
+                                  f"y={pose_msg.pose.position.y:.3f}, "
+                                  f"z={pose_msg.pose.position.z:.3f}")
+    
     def update_transform(self):
         """Main update loop to compute and publish camera->base transform"""
         
@@ -228,12 +284,15 @@ class RobotDetectionNode(Node):
         # Compose transforms: camera -> tag -> base
         camera_to_base = self.compose_transforms(detected_transform, static_transform)
         
-        # Set header and publish
+        # Set header and publish TF
         camera_to_base.header.stamp = self.get_clock().now().to_msg()
         camera_to_base.header.frame_id = self.CAMERA_FRAME
-        camera_to_base.child_frame_id = self.ROBOT_BASE_FRAME
+        camera_to_base.child_frame_id = self.DETECTION_ROBOT_BASE_FRAME
         
         self.tf_broadcaster.sendTransform(camera_to_base)
+        
+        # Publish robot pose
+        self.publish_robot_pose(camera_to_base)
 
 def main(args=None):
     rclpy.init(args=args)

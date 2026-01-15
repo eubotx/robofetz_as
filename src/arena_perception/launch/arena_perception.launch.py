@@ -115,7 +115,7 @@ def generate_launch_description():
             {'config_file': camera_finder_config_file},
             {'calibration_file': calibration_file},  # Optional, if not given it attempts initial calibration
             {'calibration_attempt_rate': 1.0},       # Optional: default is 1.0
-            {'dynamic_publish_rate': 30.0},          # Optional: default is 30.0
+            {'dynamic_publish_rate': 60.0},          # Optional: default is 30.0
         ],
         output='screen'
     )
@@ -145,27 +145,11 @@ def generate_launch_description():
         output='screen'
     )
     
-    # Robot detection node 1
+    # Robot detection node, publishes base_footprint, visible tag and robot pose
     robot_detection_1 = Node(
         package='arena_perception',
-        executable='robot_detection_node1',
-        name='robot_detection_node1',
-        output='screen'
-    )
-    
-    # Odometry drift correction node 
-    odom_drift_correction_1 = Node(
-        package='arena_perception',
-        executable='odom_drift_correction_node1',
-        name='odom_drift_correction_node1',
-        output='screen'
-    )
-
-    # Odometry drift correction node 
-    odom_drift_correction_2 = Node(
-        package='arena_perception',
-        executable='odom_drift_correction_node1',
-        name='odom_drift_correction_node1',
+        executable='robot_detection_node',
+        name='robot_detection_node',
         output='screen'
     )
 
@@ -187,11 +171,6 @@ def generate_launch_description():
     ld.add_action(TimerAction(
         period=5.0,
         actions=[robot_detection_1]
-    ))
-
-    ld.add_action(TimerAction(
-        period=6.0,
-        actions=[odom_drift_correction_1]
     ))
     
     return ld
