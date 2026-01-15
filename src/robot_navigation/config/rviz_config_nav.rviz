@@ -10,6 +10,7 @@ Panels:
         - /Map1
         - /Map1/Topic1
         - /Path1
+        - /Map2
       Splitter Ratio: 0.5
     Tree Height: 542
   - Class: rviz_common/Selection
@@ -72,7 +73,11 @@ Visualization Manager:
           Value: true
         robot/body_link:
           Value: true
+        robot/bottom_apriltag_link:
+          Value: true
         robot/caster_link:
+          Value: true
+        robot/top_apriltag_link:
           Value: true
         robot/wheel1_link:
           Value: true
@@ -89,7 +94,11 @@ Visualization Manager:
             {}
           robot/base_footprint:
             robot/body_link:
+              robot/bottom_apriltag_link:
+                {}
               robot/caster_link:
+                {}
+              robot/top_apriltag_link:
                 {}
               robot/wheel1_link:
                 {}
@@ -124,7 +133,17 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
+        robot/bottom_apriltag_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         robot/caster_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot/top_apriltag_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -198,6 +217,29 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /plan
       Value: true
+    - Alpha: 0.699999988079071
+      Binary representation: false
+      Binary threshold: 100
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /global_costmap/static_layer
+      Update Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /global_costmap/static_layer_updates
+      Use Timestamp: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -244,25 +286,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 2.159651517868042
+      Distance: 4.548849105834961
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.5381698608398438
-        Y: 0.7601556777954102
-        Z: 0.369536429643631
+        X: 0.39469030499458313
+        Y: -0.15650098025798798
+        Z: 0.2716682553291321
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.0003975629806519
+      Pitch: 0.8503979444503784
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.1403980255126953
+      Yaw: 3.1053972244262695
     Saved: ~
 Window Geometry:
   Displays:
@@ -281,4 +323,4 @@ Window Geometry:
     collapsed: false
   Width: 1200
   X: 720
-  Y: 197
+  Y: 198

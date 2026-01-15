@@ -42,7 +42,7 @@ def generate_launch_description():
 
     # Navigation node - Nav2 Stack
     nav2_launch = TimerAction(
-        period=10.0,
+        period=15.0,
         actions=[
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(

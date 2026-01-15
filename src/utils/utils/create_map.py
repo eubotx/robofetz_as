@@ -7,6 +7,45 @@ import sys
 from scipy.ndimage import gaussian_filter
 from PIL import Image
 
+def draw_arena_square(map_size, square_length_pixels, border_thickness=1):
+    """
+    Creates a map with a centered square arena.
+    Outside: Gray (128)
+    Border: Black (0)
+    Inside: White (255)
+    """
+    # Initialize map with 128 (Gray)
+    map_array = np.full((map_size, map_size), 128, dtype=np.uint8)
+    
+    center = map_size // 2
+    half_length = square_length_pixels // 2
+    
+    start = int(center - half_length)
+    end = int(center + half_length)
+    
+    # Ensure bounds
+    start = max(0, start)
+    end = min(map_size, end)
+    
+    if start >= end:
+        return map_array
+        
+    # Fill Inside with White
+    map_array[start:end, start:end] = 255
+    
+    # Draw Borders (Black)
+    if border_thickness > 0:
+        # Top
+        map_array[start:min(start+border_thickness, end), start:end] = 0
+        # Bottom
+        map_array[max(start, end-border_thickness):end, start:end] = 0
+        # Left
+        map_array[start:end, start:min(start+border_thickness, end)] = 0
+        # Right
+        map_array[start:end, max(start, end-border_thickness):end] = 0
+    
+    return map_array
+
 def create_base_map(map_size=256):
     """
     Create a white map (free space).
@@ -77,7 +116,9 @@ def save_ros_map(map_array, map_dir, resolution=0.005859):
     # ROS map_server expects: 0 (black) = occupied, 255 (white) = free, 205 = unknown
     # Our array is already in this format.
     img = Image.fromarray(map_array)
-    img.save(pgm_path)
+    # Rotate 90 degrees to fix orientation
+    img_pgm = img.rotate(-90, expand=True)
+    img_pgm.save(pgm_path)
     
     # 1.1 Save PNG for visualization
     png_filename = "map_view.png"
@@ -85,8 +126,7 @@ def save_ros_map(map_array, map_dir, resolution=0.005859):
     img.save(png_path)
 
     # 2. Save YAML
-    yaml_filename = "map.yaml"
-    yaml_path = os.path.join(map_dir, yaml_filename)
+
     
     # Calculate origin (bottom-left)
     # Assuming the robot starts at center (0,0) of the 1.5x1.5m arena
@@ -94,22 +134,9 @@ def save_ros_map(map_array, map_dir, resolution=0.005859):
     map_size_meters = 1.5
     origin_x = -map_size_meters / 2.0
     origin_y = -map_size_meters / 2.0
-    
-    yaml_content = f"""image: {pgm_filename}
-                    mode: trinary
-                    resolution: {resolution}
-                    origin: [{origin_x}, {origin_y}, 0.0]
-                    negate: 0
-                    occupied_thresh: 0.65
-                    free_thresh: 0.196
-                    """
-    
-    with open(yaml_path, 'w') as f:
-        f.write(yaml_content)
-        
+
     print(f"Saved ROS map files to {map_dir}")
     print(f"  - {pgm_filename}")
-    print(f"  - {yaml_filename}")
     print(f"  - map_view.png")
 
 def get_map_dir():
@@ -158,29 +185,27 @@ def main():
     )
     parser.add_argument('corners', nargs='*', default=[],
                        help='Corner specifications in format CORNER:RADIUS (e.g., TL:0.5 BR:0.3)')
+    parser.add_argument('--square-length', type=int, default=54, 
+                       help='Length of the square arena in pixels')
     
     args = parser.parse_args()
     corner_data = parse_corners(args.corners)
     
     # Constants
-    MAP_SIZE = 256
-    REAL_SIZE = 1.5 # meters
+    MAP_SIZE = 128
+    REAL_SIZE =  2.56# meters
     PIXELS_PER_METER = MAP_SIZE / REAL_SIZE
     RESOLUTION = REAL_SIZE / MAP_SIZE
     
     print(f"Creating map with corners: {corner_data}")
     
-    # 1. Create Base Map
-    map_array = create_base_map(MAP_SIZE)
+    # 1. Create Base Map (Gray outside, White inside square, Black border)
+    map_array = draw_arena_square(MAP_SIZE, args.square_length , border_thickness=2)
     
     # 2. Add Corners
     map_array = add_corners(map_array, corner_data, PIXELS_PER_METER)
     
-    # 3. Add 5 black pixels border around the map
-    map_array[:5, :] = 0
-    map_array[-5:, :] = 0
-    map_array[:, :5] = 0
-    map_array[:, -5:] = 0
+    # 3. (Border step removed)
 
     # Save temporary file for GIMP
     map_dir = get_map_dir()
