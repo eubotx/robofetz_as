@@ -20,8 +20,8 @@ def generate_launch_description():
         # Publishes map -> odom tf as amcl like drift correction based on arena perception
         Node(
             package='arena_perception',
-            executable='odom_drift_correction_node1',
-            name='odom_drift_correction_node1',
+            executable='odom_drift_correction_node',
+            name='odom_drift_correction_node',
             parameters=[
             ]
         ),

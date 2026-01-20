@@ -24,7 +24,7 @@ def generate_launch_description():
     default_arena_config = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
         'config', 
-        'arena_detection_config.yaml'
+        'arena_detection_config_sim.yaml'
     ])
     
     default_filter_config = PathJoinSubstitution([
@@ -146,7 +146,7 @@ def generate_launch_description():
     )
     
     # Robot detection node, publishes base_footprint, visible tag and robot pose
-    robot_detection_1 = Node(
+    robot_detection = Node(
         package='arena_perception',
         executable='robot_detection_node',
         name='robot_detection_node',
@@ -180,12 +180,12 @@ def generate_launch_description():
 
     ld.add_action(TimerAction(
         period=5.0,
-        actions=[robot_detection_1]
+        actions=[robot_detection]
     ))
     
-    ld.add_action(TimerAction(
-        period=7.0,
-        actions=[robot_tf_to_pose]
-    ))
+    # ld.add_action(TimerAction(
+    #     period=7.0,
+    #     actions=[robot_tf_to_pose]
+    # ))
 
     return ld

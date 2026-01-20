@@ -45,7 +45,7 @@ def generate_launch_description():
     default_arena_config = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
         'config', 
-        'arena_detection_config.yaml'
+        'arena_detection_config_sim.yaml'
     ])
     
     default_filter_config = PathJoinSubstitution([

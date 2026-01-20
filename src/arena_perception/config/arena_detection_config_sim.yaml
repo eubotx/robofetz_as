@@ -13,14 +13,3 @@ orientation_in_world:
   roll: 0.0    # Rotation around X axis (radians)
   pitch: 3.14159   # Rotation around Y axis (radians)
   yaw: 1.5708     # Rotation around Z axis (radians)
-
-
-# position_marker_in_world:
-#   x: 0.0    # World origin x
-#   y: 0.0    # World origin y  
-#   z: 0.0    # World origin z (typically ground level)
-# orientation_in_world:
-#   # needed because april tag coordinate convention differs from ros coordinate convention
-#   roll: 0.0    # Rotation around X axis (radians)
-#   pitch: 3.14159   # Rotation around Y axis (radians)
-#   yaw: 1.5708     # Rotation around Z axis (radians)
