@@ -53,6 +53,12 @@ def generate_launch_description():
         'config',
         'robot_detection_filter_config.yaml'
     ])
+
+    default_odom_drift_correction_config = PathJoinSubstitution([
+        FindPackageShare(perception_pkg),
+        'config',
+        'odom_drift_correction_config.yaml'
+    ])
     
     default_calibration = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
@@ -73,6 +79,12 @@ def generate_launch_description():
         description='Path to arena detection config file'
     )
     
+    odom_drift_correction_config_arg = DeclareLaunchArgument(
+        'odom_drift_correction_config',
+        default_value=default_odom_drift_correction_config,
+        description='Path to odom drift correction config file'
+    )
+
     filter_config_arg = DeclareLaunchArgument(
         'filter_config',
         default_value=default_filter_config,
@@ -89,7 +101,10 @@ def generate_launch_description():
     apriltag_config_file = LaunchConfiguration('apriltag_config')
     camera_finder_config_file = LaunchConfiguration('arena_config')
     filter_config_file = LaunchConfiguration('filter_config')
+    odom_drift_correction_config_file = LaunchConfiguration('odom_drift_correction_config')
     calibration_file = LaunchConfiguration('calibration_file')
+    use_sim_time = LaunchConfiguration('use_sim_time')
+    prefix = LaunchConfiguration('prefix')
     
     # ============================================
     # BUILD LAUNCH DESCRIPTION
@@ -103,6 +118,7 @@ def generate_launch_description():
     ld.add_action(apriltag_config_arg)
     ld.add_action(arena_config_arg)
     ld.add_action(filter_config_arg)
+    ld.add_action(odom_drift_correction_config_arg)
     ld.add_action(calibration_arg)
     
     # ============================================
@@ -118,8 +134,8 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={
-            'use_sim_time': LaunchConfiguration('use_sim_time'),
-            'prefix': LaunchConfiguration('prefix')
+            'use_sim_time': use_sim_time,
+            'prefix': prefix
         }.items()
     )
     
@@ -144,7 +160,7 @@ def generate_launch_description():
             'arena_config': camera_finder_config_file,
             'filter_config': filter_config_file,
             'calibration_file': calibration_file,
-            'use_sim_time': LaunchConfiguration('use_sim_time')
+            'use_sim_time': use_sim_time
         }.items()
     )
     
@@ -158,7 +174,7 @@ def generate_launch_description():
     # 3. ROBOT LOCALIZATION
     # ============================================
     
-    # Include robot localization launch
+    # Include robot localization launch with the config file
     robot_localization_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
@@ -168,7 +184,9 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={
-            'use_sim_time': LaunchConfiguration('use_sim_time')  # Pass through
+            'odom_drift_correction_config': odom_drift_correction_config_file,
+            'use_sim_time': use_sim_time,
+            'prefix': prefix
         }.items()
     )
     

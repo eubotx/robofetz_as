@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from tf2_ros import TransformBroadcaster, Buffer, TransformListener
 from geometry_msgs.msg import TransformStamped
 import tf2_ros
@@ -10,11 +11,65 @@ import tf_transformations
 class OdometryCorrectionNode(Node):
     def __init__(self):
         super().__init__('odometry_correction_node')
+        
+        # Declare parameters with default values 
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('world_frame', 'world'),
+                ('map_frame', 'map'),
+                ('odom_frame', 'odom'),
+                ('base_frame', 'robot/base_footprint'),
+                ('detection_base_frame', 'arena_perception/robot/base_footprint'),
+                ('publish_rate', 60.0),
+                ('lookup_timeout', 0.1),
+                ('log_level', 'INFO')
+            ]
+        )
+        
+        # Get parameters
+        self.world_frame = self.get_parameter('world_frame').value
+        self.map_frame = self.get_parameter('map_frame').value
+        self.odom_frame = self.get_parameter('odom_frame').value
+        self.base_frame = self.get_parameter('base_frame').value
+        self.detection_base_frame = self.get_parameter('detection_base_frame').value
+        self.publish_rate = self.get_parameter('publish_rate').value
+        self.lookup_timeout = self.get_parameter('lookup_timeout').value
+        
+        # Set log level
+        log_level_param = self.get_parameter('log_level').value
+        log_level_map = {
+            'DEBUG': rclpy.logging.LoggingSeverity.DEBUG,
+            'INFO': rclpy.logging.LoggingSeverity.INFO,
+            'WARN': rclpy.logging.LoggingSeverity.WARN,
+            'ERROR': rclpy.logging.LoggingSeverity.ERROR,
+            'FATAL': rclpy.logging.LoggingSeverity.FATAL
+        }
+        if log_level_param in log_level_map:
+            self.get_logger().set_level(log_level_map[log_level_param])
+        else:
+            self.get_logger().warn(f"Invalid log level '{log_level_param}', using INFO instead")
+            self.get_logger().set_level(rclpy.logging.LoggingSeverity.INFO)
+        
+        # Initialize TF components
         self.tf_broadcaster = TransformBroadcaster(self)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
-        self.timer = self.create_timer(1/60, self.publish_correction)
-        self.get_logger().info("Odometry Correction Node started")
+        
+        # Create timer with parameterized rate
+        timer_period = 1.0 / self.publish_rate
+        self.timer = self.create_timer(timer_period, self.publish_correction)
+        
+        # Log parameter values
+        self.get_logger().info("Odometry Correction Node started with parameters:")
+        self.get_logger().info(f"  world_frame: {self.world_frame}")
+        self.get_logger().info(f"  map_frame: {self.map_frame}")
+        self.get_logger().info(f"  odom_frame: {self.odom_frame}")
+        self.get_logger().info(f"  base_frame: {self.base_frame}")
+        self.get_logger().info(f"  detection_base_frame: {self.detection_base_frame}")
+        self.get_logger().info(f"  publish_rate: {self.publish_rate} Hz")
+        self.get_logger().info(f"  lookup_timeout: {self.lookup_timeout} s")
+        self.get_logger().info(f"  log_level: {log_level_param}")
     
     def compose_transforms(self, transform_a, transform_b):
         """Compose two transforms: result = A * B (apply B then A)"""
@@ -46,6 +101,7 @@ class OdometryCorrectionNode(Node):
         result.header.stamp = self.get_clock().now().to_msg()
         result.header.frame_id = transform_a.header.frame_id
         result.child_frame_id = transform_b.child_frame_id
+        
         result.transform.translation.x = t_result[0]
         result.transform.translation.y = t_result[1]
         result.transform.translation.z = t_result[2]
@@ -77,6 +133,7 @@ class OdometryCorrectionNode(Node):
         inverted.header.stamp = transform.header.stamp
         inverted.header.frame_id = transform.child_frame_id
         inverted.child_frame_id = transform.header.frame_id
+        
         inverted.transform.translation.x = t_inv[0]
         inverted.transform.translation.y = t_inv[1]
         inverted.transform.translation.z = t_inv[2]
@@ -89,33 +146,45 @@ class OdometryCorrectionNode(Node):
     
     def publish_correction(self):
         try:
-            # Get transforms as they are PUBLISHED
-            world_to_map = self.tf_buffer.lookup_transform('world', 'map', rclpy.time.Time())
-            world_to_arena_base = self.tf_buffer.lookup_transform(
-                'world', 'arena_perception/robot/base_footprint', rclpy.time.Time())
+            # Get current time with timeout
+            lookup_time = self.get_clock().now() - rclpy.time.Duration(seconds=self.lookup_timeout)
+            
+            # Get transforms using parameterized frame names
+            world_to_map = self.tf_buffer.lookup_transform(
+                self.world_frame, self.map_frame, lookup_time)
+            world_to_detection_base = self.tf_buffer.lookup_transform(
+                self.world_frame, self.detection_base_frame, lookup_time)
             odom_to_base = self.tf_buffer.lookup_transform(
-                'odom', 'robot/base_footprint', rclpy.time.Time())
+                self.odom_frame, self.base_frame, lookup_time)
             
             # Invert to get directions we need for composition
             map_to_world = self.invert_transform(world_to_map)
             base_to_odom = self.invert_transform(odom_to_base)
             
-            # Compute: map->odom = map->world * world->arena_base * base->odom
-            map_to_arena_base = self.compose_transforms(map_to_world, world_to_arena_base)
-            map_to_odom = self.compose_transforms(map_to_arena_base, base_to_odom)
+            # Compute: map->odom = map->world * world->detection_base * base->odom
+            map_to_detection_base = self.compose_transforms(map_to_world, world_to_detection_base)
+            map_to_odom = self.compose_transforms(map_to_detection_base, base_to_odom)
             
-            # Set correct frames
+            # Set correct frames using parameters
             map_to_odom.header.stamp = self.get_clock().now().to_msg()
-            map_to_odom.header.frame_id = 'map'
-            map_to_odom.child_frame_id = 'odom'
+            map_to_odom.header.frame_id = self.map_frame
+            map_to_odom.child_frame_id = self.odom_frame
             
             self.tf_broadcaster.sendTransform(map_to_odom)
+            
+            # Log success at debug level
+            self.get_logger().debug(
+                f"Published transform from {self.map_frame} to {self.odom_frame}",
+                throttle_duration_sec=1.0
+            )
 
         except (tf2_ros.LookupException,
                 tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException) as e:
-            self.get_logger().debug(f"Waiting for transforms: {e}", 
-                                throttle_duration_sec=2.0)
+            self.get_logger().debug(
+                f"Waiting for transforms: {e}", 
+                throttle_duration_sec=2.0
+            )
         except Exception as e:
             self.get_logger().error(f"Error in correction: {e}")
 
