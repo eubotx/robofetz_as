@@ -1,14 +1,15 @@
-# Frame names
-frames:
-  robot_base: "robot_base"
-  odom: "odom"
-  camera_optical: "arena_camera_optical"
-  world: "world"
-  arena_tag: "arena_tag"
-  robot_top_tag: "arena_perception/robot_top_tag"
-  robot_bottom_tag: "arena_perception/robot_bottom_tag"
-  robot_base_arena_perception: 'arena_perception/robot/base_footprint'
-
-# Topics
-topics:
-  robot_pose: "arena_perception/robot/pose"
+robot_detection_node:
+  ros__parameters:
+    camera_frame: "arena_camera_optical"
+    base_frame: "robot/base_footprint"
+    detection_base_frame: "arena_perception/robot/base_footprint"
+    visible_marker_topic: "arena_perception/robot/visible_marker"
+    robot_pose_topic: "arena_perception/robot/pose"
+    update_rate: 60.0
+    transform_timeout: 0.2
+    log_level: "INFO"
+    
+    # Simple separate lists
+    detection_marker_frames: ["arena_perception/robot_top_tag", "arena_perception/robot_bottom_tag"]
+    robot_marker_frames: ["robot/top_apriltag_optical", "robot/bottom_apriltag_optical"]
+    marker_names: ["top", "bottom"]

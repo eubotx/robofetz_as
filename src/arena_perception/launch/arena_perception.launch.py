@@ -39,6 +39,12 @@ def generate_launch_description():
         'world_to_camera_calibration.temp.yaml'
     ])
     
+    default_robot_detection_config = PathJoinSubstitution([
+        FindPackageShare(perception_pkg),
+        'config',
+        'robot_detection_config.yaml'
+    ])
+    
     # Declare launch arguments for config files (optional, can use defaults)
     apriltag_config_arg = DeclareLaunchArgument(
         'apriltag_config',
@@ -64,15 +70,18 @@ def generate_launch_description():
         description='Path to world to camera calibration file'
     )
     
+    robot_detection_config_arg = DeclareLaunchArgument(
+        'robot_detection_config',
+        default_value=default_robot_detection_config,
+        description='Path to robot detection config file'
+    )
+    
     # Get config files from launch arguments
     apriltag_config_file = LaunchConfiguration('apriltag_config')
     camera_finder_config_file = LaunchConfiguration('arena_config')
     filter_config_file = LaunchConfiguration('filter_config')
     calibration_file = LaunchConfiguration('calibration_file')
-    
-    # Verify the files exist (helpful for debugging) - keep your original checks
-    # Note: These checks would need to be done differently with LaunchConfiguration
-    # We'll keep the structure but note they're not directly usable with LaunchConfiguration
+    robot_detection_config_file = LaunchConfiguration('robot_detection_config')
     
     # Build launch description
     ld = LaunchDescription()
@@ -82,6 +91,7 @@ def generate_launch_description():
     ld.add_action(arena_config_arg)
     ld.add_action(filter_config_arg)
     ld.add_action(calibration_arg)
+    ld.add_action(robot_detection_config_arg)
     
     # Camera rectification node
     camera_rectification = Node(
@@ -150,6 +160,9 @@ def generate_launch_description():
         package='arena_perception',
         executable='robot_detection_node',
         name='robot_detection_node',
+        parameters=[
+            robot_detection_config_file  # Load parameters from config file
+        ],
         output='screen'
     )
 

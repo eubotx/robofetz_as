@@ -48,7 +48,7 @@ def generate_launch_description():
         executable='odom_drift_correction_node',
         name='odom_drift_correction_node',
         parameters=[
-            {'config_file': odom_drift_correction_config_file}
+            odom_drift_correction_config_file  # Load parameters from config file
         ],
         output='screen'
     )

@@ -21,8 +21,8 @@ class OdometryCorrectionNode(Node):
                 ('odom_frame', 'odom'),
                 ('base_frame', 'robot/base_footprint'),
                 ('detection_base_frame', 'arena_perception/robot/base_footprint'),
-                ('publish_rate', 60.0),
-                ('lookup_timeout', 0.1),
+                ('update_rate', 60.0),
+                ('transform_timeout', 0.1),
                 ('log_level', 'INFO')
             ]
         )
@@ -33,8 +33,8 @@ class OdometryCorrectionNode(Node):
         self.odom_frame = self.get_parameter('odom_frame').value
         self.base_frame = self.get_parameter('base_frame').value
         self.detection_base_frame = self.get_parameter('detection_base_frame').value
-        self.publish_rate = self.get_parameter('publish_rate').value
-        self.lookup_timeout = self.get_parameter('lookup_timeout').value
+        self.update_rate = self.get_parameter('update_rate').value
+        self.transform_timeout = self.get_parameter('transform_timeout').value
         
         # Set log level
         log_level_param = self.get_parameter('log_level').value
@@ -57,7 +57,7 @@ class OdometryCorrectionNode(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
         
         # Create timer with parameterized rate
-        timer_period = 1.0 / self.publish_rate
+        timer_period = 1.0 / self.update_rate
         self.timer = self.create_timer(timer_period, self.publish_correction)
         
         # Log parameter values
@@ -67,8 +67,8 @@ class OdometryCorrectionNode(Node):
         self.get_logger().info(f"  odom_frame: {self.odom_frame}")
         self.get_logger().info(f"  base_frame: {self.base_frame}")
         self.get_logger().info(f"  detection_base_frame: {self.detection_base_frame}")
-        self.get_logger().info(f"  publish_rate: {self.publish_rate} Hz")
-        self.get_logger().info(f"  lookup_timeout: {self.lookup_timeout} s")
+        self.get_logger().info(f"  update_rate: {self.update_rate} Hz")
+        self.get_logger().info(f"  transform_timeout: {self.transform_timeout} s")
         self.get_logger().info(f"  log_level: {log_level_param}")
     
     def compose_transforms(self, transform_a, transform_b):
@@ -147,7 +147,7 @@ class OdometryCorrectionNode(Node):
     def publish_correction(self):
         try:
             # Get current time with timeout
-            lookup_time = self.get_clock().now() - rclpy.time.Duration(seconds=self.lookup_timeout)
+            lookup_time = self.get_clock().now() - rclpy.time.Duration(seconds=self.transform_timeout)
             
             # Get transforms using parameterized frame names
             world_to_map = self.tf_buffer.lookup_transform(
