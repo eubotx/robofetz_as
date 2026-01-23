@@ -2,8 +2,8 @@
 import rclpy
 from rclpy.node import Node
 from tf2_ros import Buffer, TransformListener, TransformBroadcaster
-from geometry_msgs.msg import TransformStamped, PoseStamped, Pose, Point, Quaternion
-from std_msgs.msg import String, Header
+from geometry_msgs.msg import TransformStamped
+from std_msgs.msg import String
 import tf2_ros
 import tf_transformations
 import numpy as np
@@ -23,16 +23,15 @@ class RobotDetectionNode(Node):
                 
                 # topic parameters
                 ('visible_marker_topic', 'arena_perception/robot/visible_marker'),
-                ('robot_pose_topic', 'arena_perception/robot/pose'),
                 
                 # timing parameters
                 ('update_rate', 60.0),  # hz (main update loop rate)
-                ('transform_timeout', 0.2),  # seconds
+                ('transform_timeout', 0.1),  # seconds
                 
-                # marker configuration parameters - CHANGED TYPE TO BYTE_ARRAY
-                ('detection_marker_frames', rclpy.Parameter.Type.STRING_ARRAY),  # Changed
-                ('robot_marker_frames', rclpy.Parameter.Type.STRING_ARRAY),       # Changed
-                ('marker_names', rclpy.Parameter.Type.STRING_ARRAY),              # Changed
+                # marker configuration parameters
+                ('detection_marker_frames', rclpy.Parameter.Type.STRING_ARRAY),
+                ('robot_marker_frames', rclpy.Parameter.Type.STRING_ARRAY),
+                ('marker_names', rclpy.Parameter.Type.STRING_ARRAY),
                 
                 # logging
                 ('log_level', 'INFO')
@@ -47,7 +46,6 @@ class RobotDetectionNode(Node):
         
         # topic parameters
         self.visible_marker_topic = self.get_parameter('visible_marker_topic').value
-        self.robot_pose_topic = self.get_parameter('robot_pose_topic').value
         
         # timing parameters
         update_rate = self.get_parameter('update_rate').value
@@ -95,7 +93,6 @@ class RobotDetectionNode(Node):
         self.get_logger().info(f"  base_frame: {self.base_frame}")
         self.get_logger().info(f"  detection_base_frame: {self.detection_base_frame}")
         self.get_logger().info(f"  visible_marker_topic: {self.visible_marker_topic}")
-        self.get_logger().info(f"  robot_pose_topic: {self.robot_pose_topic}")
         self.get_logger().info(f"  update_rate: {update_rate} hz")
         self.get_logger().info(f"  transform_timeout: {self.transform_timeout} s")
         self.get_logger().info(f"  configured_markers: {len(self.marker_names)}")
@@ -116,13 +113,6 @@ class RobotDetectionNode(Node):
         self.marker_publisher = self.create_publisher(
             String, 
             self.visible_marker_topic, 
-            10
-        )
-        
-        # robot pose publisher
-        self.pose_publisher = self.create_publisher(
-            PoseStamped,
-            self.robot_pose_topic,
             10
         )
         
@@ -266,41 +256,12 @@ class RobotDetectionNode(Node):
     
     def publish_visible_marker(self, marker_name):
         """publish the currently visible marker name to the topic"""
-        # only publish if marker has changed
-        if marker_name != self.last_published_marker:
-            msg = String()
-            msg.data = marker_name
-            self.marker_publisher.publish(msg)
-            self.last_published_marker = marker_name
-            self.get_logger().debug(f"published visible marker: {marker_name}")
-    
-    def publish_robot_pose(self, transform):
-        """publish the robot pose as a PoseStamped message"""
-        # create PoseStamped message
-        pose_msg = PoseStamped()
-        
-        # set header
-        pose_msg.header = Header()
-        pose_msg.header.stamp = self.get_clock().now().to_msg()
-        pose_msg.header.frame_id = self.camera_frame
-        
-        # set position
-        pose_msg.pose.position = Point(
-            x=transform.transform.translation.x,
-            y=transform.transform.translation.y,
-            z=transform.transform.translation.z
-        )
-        
-        # set orientation (same as transform)
-        pose_msg.pose.orientation = transform.transform.rotation
-        
-        # publish
-        self.pose_publisher.publish(pose_msg)
-        
-        self.get_logger().debug(f"published robot pose: "
-                              f"x={pose_msg.pose.position.x:.3f}, "
-                              f"y={pose_msg.pose.position.y:.3f}, "
-                              f"z={pose_msg.pose.position.z:.3f}")
+        #if marker_name != self.last_published_marker: #only publish if marker has changed
+        msg = String()
+        msg.data = marker_name
+        self.marker_publisher.publish(msg)
+        self.last_published_marker = marker_name
+        self.get_logger().debug(f"published visible marker: {marker_name}")
     
     def update_transform(self):
         """main update loop to compute and publish camera->base transform"""
@@ -334,9 +295,6 @@ class RobotDetectionNode(Node):
         camera_to_base.child_frame_id = self.detection_base_frame
         
         self.tf_broadcaster.sendTransform(camera_to_base)
-        
-        # publish robot pose
-        self.publish_robot_pose(camera_to_base)
 
 def main(args=None):
     rclpy.init(args=args)
