@@ -1,0 +1,27 @@
+find_camera_in_world_service:
+  ros__parameters:
+    
+    # Frame names
+    world_frame: "world"
+    calibration_marker_frame: "arena_tag"
+    camera_frame: "arena_camera_optical"
+    
+    # Marker position in world
+    marker_position:
+      x: 1.275
+      y: 0.375
+      z: 0.0
+    
+    # Marker orientation in world (radians)
+    marker_orientation:
+      roll: 0.0
+      pitch: 3.14159
+      yaw: 1.5708
+    
+    # Rates
+    calibration_attempt_rate: 2.0
+    publish_rate: 60.0
+    transform_timeout: 0.1
+    
+    # Logging
+    log_level: "INFO"
