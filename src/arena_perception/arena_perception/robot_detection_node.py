@@ -206,12 +206,12 @@ class RobotDetectionNode(Node):
         
         return result
     
-    def get_detected_transform(self, detection_marker_frame):
+    def get_detected_transform(self, parent_frame, child_frame):
         """try to get a transform for a detected marker, checking its age"""
         try:
             transform = self.tf_buffer.lookup_transform(
-                self.camera_frame,
-                detection_marker_frame,
+                parent_frame,
+                child_frame,
                 rclpy.time.Time()
             )
             
@@ -242,7 +242,7 @@ class RobotDetectionNode(Node):
             marker_info = self.marker_to_base_transforms[marker_name]
             detection_marker_frame = marker_info['detection_marker_frame']
             
-            transform, age_ns = self.get_detected_transform(detection_marker_frame)
+            transform, age_ns = self.get_detected_transform(self.camera_frame, detection_marker_frame)
             
             if transform is not None and age_ns <= max_age_ns:
                 # this transform is valid and recent enough

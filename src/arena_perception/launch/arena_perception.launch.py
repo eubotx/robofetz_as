@@ -21,22 +21,22 @@ def generate_launch_description():
         'apriltag_detection_config.yaml'
     ])
     
-    default_arena_config = PathJoinSubstitution([
+    default_camera_finder_config = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
         'config', 
-        'arena_detection_config_sim.yaml'
+        'find_camera_in_world_config_sim.yaml'
+    ])
+
+    default_calibration = PathJoinSubstitution([
+        FindPackageShare(perception_pkg),
+        'config',
+        'world_to_camera_calibration.temp.yaml'
     ])
     
     default_filter_config = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
         'config',
         'robot_detection_filter_config.yaml'
-    ])
-    
-    default_calibration = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
-        'config',
-        'world_to_camera_calibration.temp.yaml'
     ])
     
     default_robot_detection_config = PathJoinSubstitution([
@@ -52,22 +52,22 @@ def generate_launch_description():
         description='Path to apriltag detection config file'
     )
     
-    arena_config_arg = DeclareLaunchArgument(
-        'arena_config',
-        default_value=default_arena_config,
-        description='Path to arena detection config file'
-    )
-    
-    filter_config_arg = DeclareLaunchArgument(
-        'filter_config',
-        default_value=default_filter_config,
-        description='Path to robot detection filter config file'
+    camera_finder_config_arg = DeclareLaunchArgument(
+        'camera_finder_config',
+        default_value=default_camera_finder_config,
+        description='Path to camera finder config file'
     )
     
     calibration_arg = DeclareLaunchArgument(
         'calibration_file',
         default_value=default_calibration,
         description='Path to world to camera calibration file'
+    )
+
+    filter_config_arg = DeclareLaunchArgument(
+        'filter_config',
+        default_value=default_filter_config,
+        description='Path to robot detection filter config file'
     )
     
     robot_detection_config_arg = DeclareLaunchArgument(
@@ -78,9 +78,9 @@ def generate_launch_description():
     
     # Get config files from launch arguments
     apriltag_config_file = LaunchConfiguration('apriltag_config')
-    camera_finder_config_file = LaunchConfiguration('arena_config')
-    filter_config_file = LaunchConfiguration('filter_config')
+    camera_finder_config_file = LaunchConfiguration('camera_finder_config')
     calibration_file = LaunchConfiguration('calibration_file')
+    filter_config_file = LaunchConfiguration('filter_config')
     robot_detection_config_file = LaunchConfiguration('robot_detection_config')
     
     # Build launch description
@@ -88,9 +88,9 @@ def generate_launch_description():
     
     # Add launch arguments
     ld.add_action(apriltag_config_arg)
-    ld.add_action(arena_config_arg)
-    ld.add_action(filter_config_arg)
+    ld.add_action(camera_finder_config_arg)
     ld.add_action(calibration_arg)
+    ld.add_action(filter_config_arg)
     ld.add_action(robot_detection_config_arg)
     
     # Camera rectification node
@@ -122,10 +122,10 @@ def generate_launch_description():
         executable='find_camera_in_world_service',
         name='find_camera_in_world_service',
         parameters=[
-            {'config_file': camera_finder_config_file},
-            #{'calibration_file': calibration_file},  # Optional, if not given it attempts initial calibration
-            {'calibration_attempt_rate': 1.0},       # Optional: default is 1.0
-            {'dynamic_publish_rate': 60.0},          # Optional: default is 30.0
+            # Load all parameters from config file
+            camera_finder_config_file,  # This loads the YAML with all the parameters
+            # Then override/add specific parameters
+            #{'calibration_file': calibration_file},  # Optional: path to calibration results
         ],
         output='screen'
     )
