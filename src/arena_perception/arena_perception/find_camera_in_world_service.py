@@ -386,12 +386,12 @@ class FindCameraInWorldService(Node):
             max_age_ns = int(max_age_s * 10**9)
 
             if  age_ns > max_age_ns:
-                self.get_logger().info(f"Transform too old: {age_ns/1e9:.3f}s", throttle_duration_sec=5.0)
+                self.get_logger().info(f"Transform too old ({from_frame}->{to_frame}): {age_ns/1e9:.3f}s", throttle_duration_sec=5.0)
                 return None 
             return transform
         
         except (LookupException, ConnectivityException, ExtrapolationException, tf2_ros.TransformException) as e:
-            self.get_logger().error(f"Tf lookup failed: {str(e)}")
+            self.get_logger().error(f"TF lookup failed ({from_frame}->{to_frame}): {str(e)}")
             return None
     
     def log_calibration_details(self, marker_to_camera_transform, world_to_camera_transform, 

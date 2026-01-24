@@ -3,6 +3,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from tf2_ros import TransformBroadcaster, Buffer, TransformListener
+from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
 from geometry_msgs.msg import TransformStamped
 import tf2_ros
 import numpy as np
@@ -145,18 +146,26 @@ class OdometryCorrectionNode(Node):
         return inverted
     
     def publish_correction(self):
-        try:
-            # Get current time with timeout
-            lookup_time = self.get_clock().now() - rclpy.time.Duration(seconds=self.transform_timeout)
-            
+        try:            
             # Get transforms using parameterized frame names
+
             world_to_map = self.tf_buffer.lookup_transform(
-                self.world_frame, self.map_frame, lookup_time)
-            world_to_detection_base = self.tf_buffer.lookup_transform(
-                self.world_frame, self.detection_base_frame, lookup_time)
+                self.world_frame, self.map_frame, rclpy.time.Time())
             odom_to_base = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.base_frame, lookup_time)
+                self.odom_frame, self.base_frame, rclpy.time.Time())
+            # world_to_detection_base = self.tf_buffer.lookup_transform(
+            #     self.world_frame, self.detection_base_frame, rclpy.time.Time())
             
+            world_to_detection_base = self.get_newest_transform(
+                self.world_frame, self.detection_base_frame, self.transform_timeout)          
+  
+            if world_to_map is None or world_to_detection_base is None or odom_to_base is None:
+                self.get_logger().debug(
+                    f"Could not publish {self.map_frame} -> {self.odom_frame} correction.",
+                    throttle_duration_sec=2.0
+                )
+                return
+
             # Invert to get directions we need for composition
             map_to_world = self.invert_transform(world_to_map)
             base_to_odom = self.invert_transform(odom_to_base)
@@ -187,6 +196,29 @@ class OdometryCorrectionNode(Node):
             )
         except Exception as e:
             self.get_logger().error(f"Error in correction: {e}")
+
+    def get_newest_transform(self, from_frame, to_frame, max_age_s):
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                from_frame,
+                to_frame,
+                rclpy.time.Time(),
+            )
+            
+            # check if transform is recent
+            current_time = self.get_clock().now()
+            transform_time = rclpy.time.Time.from_msg(transform.header.stamp)
+            age_ns = (current_time - transform_time).nanoseconds
+            max_age_ns = int(max_age_s * 10**9)
+
+            if  age_ns > max_age_ns:
+                self.get_logger().info(f"Transform too old ({from_frame}->{to_frame}): {age_ns/1e9:.3f}s", throttle_duration_sec=5.0)
+                return None 
+            return transform
+        
+        except (LookupException, ConnectivityException, ExtrapolationException, tf2_ros.TransformException) as e:
+            self.get_logger().error(f"TF lookup failed ({from_frame}->{to_frame}): {str(e)}")
+            return None
 
 def main(args=None):
     rclpy.init(args=args)
