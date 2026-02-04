@@ -37,21 +37,6 @@ class OdometryCorrectionNode(Node):
         self.update_rate = self.get_parameter('update_rate').value
         self.transform_timeout = self.get_parameter('transform_timeout').value
         
-        # Set log level
-        log_level_param = self.get_parameter('log_level').value
-        log_level_map = {
-            'DEBUG': rclpy.logging.LoggingSeverity.DEBUG,
-            'INFO': rclpy.logging.LoggingSeverity.INFO,
-            'WARN': rclpy.logging.LoggingSeverity.WARN,
-            'ERROR': rclpy.logging.LoggingSeverity.ERROR,
-            'FATAL': rclpy.logging.LoggingSeverity.FATAL
-        }
-        if log_level_param in log_level_map:
-            self.get_logger().set_level(log_level_map[log_level_param])
-        else:
-            self.get_logger().warn(f"Invalid log level '{log_level_param}', using INFO instead")
-            self.get_logger().set_level(rclpy.logging.LoggingSeverity.INFO)
-        
         # Initialize TF components
         self.tf_broadcaster = TransformBroadcaster(self)
         self.tf_buffer = Buffer()
@@ -70,7 +55,6 @@ class OdometryCorrectionNode(Node):
         self.get_logger().info(f"  detection_base_frame: {self.detection_base_frame}")
         self.get_logger().info(f"  update_rate: {self.update_rate} Hz")
         self.get_logger().info(f"  transform_timeout: {self.transform_timeout} s")
-        self.get_logger().info(f"  log_level: {log_level_param}")
     
     def compose_transforms(self, transform_a, transform_b):
         """Compose two transforms: result = A * B (apply B then A)"""

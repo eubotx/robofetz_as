@@ -32,9 +32,6 @@ class RobotDetectionNode(Node):
                 ('detection_marker_frames', rclpy.Parameter.Type.STRING_ARRAY),
                 ('robot_marker_frames', rclpy.Parameter.Type.STRING_ARRAY),
                 ('marker_names', rclpy.Parameter.Type.STRING_ARRAY),
-                
-                # logging
-                ('log_level', 'INFO')
             ]
         )
         
@@ -72,20 +69,6 @@ class RobotDetectionNode(Node):
                                   f"robot_frames={len(self.robot_marker_frames)}, "
                                   f"marker_names={len(self.marker_names)}")
         
-        # set log level
-        log_level_param = self.get_parameter('log_level').value
-        log_level_map = {
-            'DEBUG': rclpy.logging.LoggingSeverity.DEBUG,
-            'INFO': rclpy.logging.LoggingSeverity.INFO,
-            'WARN': rclpy.logging.LoggingSeverity.WARN,
-            'ERROR': rclpy.logging.LoggingSeverity.ERROR,
-            'FATAL': rclpy.logging.LoggingSeverity.FATAL
-        }
-        if log_level_param in log_level_map:
-            self.get_logger().set_level(log_level_map[log_level_param])
-        else:
-            self.get_logger().warn(f"invalid log level '{log_level_param}', using INFO instead")
-            self.get_logger().set_level(rclpy.logging.LoggingSeverity.INFO)
         
         # ========== log parameters ==========
         self.get_logger().info("robot detection node started with parameters:")
@@ -99,7 +82,6 @@ class RobotDetectionNode(Node):
         for i in range(len(self.marker_names)):
             self.get_logger().info(f"    marker {i+1}: detection='{self.detection_marker_frames[i]}', "
                                  f"robot='{self.robot_marker_frames[i]}', name='{self.marker_names[i]}'")
-        self.get_logger().info(f"  log_level: {log_level_param}")
         
         # ========== initialization ==========
         # tf buffer and listener

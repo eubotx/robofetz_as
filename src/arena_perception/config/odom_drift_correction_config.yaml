@@ -7,4 +7,3 @@ odometry_correction_node:
     detection_base_frame: "arena_perception/robot/base_footprint"
     update_rate: 60.0
     transform_timeout: 0.1
-    log_level: "INFO"
