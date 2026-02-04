@@ -22,4 +22,4 @@ find_camera_in_world_service:
     calibration_attempt_rate: 2.0
     publish_rate: 60.0
     transform_timeout: 0.1
-    
+    median_filter_window: 10  #1 is diabled filtering

@@ -5,12 +5,12 @@ from geometry_msgs.msg import TransformStamped
 import numpy as np
 import tf2_ros
 from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster, Buffer, TransformListener
-from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
 import tf_transformations
 import yaml
 import os
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from scipy.spatial.transform import Rotation
+import statistics
 
 class FindCameraInWorldService(Node):
     def __init__(self):
@@ -55,7 +55,13 @@ class FindCameraInWorldService(Node):
                 ('transform_timeout', 0.1,
                  ParameterDescriptor(
                      description='Timeout (seconds) for transform lookups',
-                     type=ParameterType.PARAMETER_DOUBLE))
+                     type=ParameterType.PARAMETER_DOUBLE)),
+                
+                # NEW: Simple median filter configuration
+                ('median_filter_window', 1,
+                 ParameterDescriptor(
+                     description='Window size for median filtering (1 = no filtering)',
+                     type=ParameterType.PARAMETER_INTEGER))
             ]
         )
         
@@ -82,7 +88,11 @@ class FindCameraInWorldService(Node):
             self.get_parameter('marker_orientation.pitch').value,
             self.get_parameter('marker_orientation.yaw').value
         ])
-              
+        
+        # Initialize median filter
+        self.median_window = self.get_parameter('median_filter_window').value
+        self.calibration_buffer = []  # Simple list instead of deque
+        
         # Service for manual calibration
         self.srv = self.create_service(Trigger, 'find_camera_in_world', self.calibrate_callback)
         
@@ -114,6 +124,7 @@ class FindCameraInWorldService(Node):
         self.get_logger().info(f"  Calibration marker frame (detected): {self.calibration_marker_frame}")
         self.get_logger().info(f"  Calibration marker frame (calibrated): {self.calibration_marker_calibrated_frame}")
         self.get_logger().info(f"  Camera frame: {self.camera_frame}")
+        self.get_logger().info(f"  Median filter window: {self.median_window} ({'disabled' if self.median_window <= 1 else 'enabled'})")
         self.get_logger().info(f"  Marker position in world: [{self.marker_position_in_world[0]:.3f}, "
                               f"{self.marker_position_in_world[1]:.3f}, {self.marker_position_in_world[2]:.3f}] m")
         self.get_logger().info(f"  Marker orientation (roll,pitch,yaw): [{self.marker_orientation_in_world[0]:.3f}, "
@@ -133,6 +144,56 @@ class FindCameraInWorldService(Node):
         
         # Start continuous dynamic publishing of camera transform
         self.dynamic_publish_timer = self.create_timer(1.0 / self.publish_rate, self.publish_camera_dynamic)
+        
+    # Simple median filter
+    def _apply_median_filter(self):
+        """Apply median filter when buffer is full"""
+        if len(self.calibration_buffer) < self.median_window:
+            # Buffer not full yet, return latest
+            return self.calibration_buffer[-1] if self.calibration_buffer else None
+        
+        # Buffer is full, apply median filter
+        x_vals = [t.transform.translation.x for t in self.calibration_buffer]
+        y_vals = [t.transform.translation.y for t in self.calibration_buffer]
+        z_vals = [t.transform.translation.z for t in self.calibration_buffer]
+        
+        # Apply median to positions
+        median_x = statistics.median(x_vals)
+        median_y = statistics.median(y_vals)
+        median_z = statistics.median(z_vals)
+        
+        # For orientation, average the quaternions
+        quats = []
+        for t in self.calibration_buffer:
+            q = [
+                t.transform.rotation.x,
+                t.transform.rotation.y,
+                t.transform.rotation.z,
+                t.transform.rotation.w
+            ]
+            quats.append(q)
+        
+        # Average quaternions
+        quat_array = np.array(quats)
+        avg_quat = np.mean(quat_array, axis=0)
+        avg_quat = avg_quat / np.linalg.norm(avg_quat)
+        
+        # Create filtered transform
+        filtered = TransformStamped()
+        filtered.header.stamp = self.get_clock().now().to_msg()
+        filtered.header.frame_id = self.world_frame
+        filtered.child_frame_id = self.camera_frame
+        
+        filtered.transform.translation.x = float(median_x)
+        filtered.transform.translation.y = float(median_y)
+        filtered.transform.translation.z = float(median_z)
+        
+        filtered.transform.rotation.x = float(avg_quat[0])
+        filtered.transform.rotation.y = float(avg_quat[1])
+        filtered.transform.rotation.z = float(avg_quat[2])
+        filtered.transform.rotation.w = float(avg_quat[3])
+        
+        return filtered
         
     def load_calibration(self, calibration_file):
         """Try to load existing camera calibration of world -> camera tf from file"""
@@ -273,6 +334,21 @@ class FindCameraInWorldService(Node):
                 world_to_camera_transform.header.frame_id = self.world_frame
                 world_to_camera_transform.child_frame_id = self.camera_frame
                 
+                # Store in buffer
+                self.calibration_buffer.append(world_to_camera_transform)
+                
+                # Only calibrate when buffer is full
+                if len(self.calibration_buffer) < self.median_window:
+                    self.get_logger().debug(f"Collecting samples: {len(self.calibration_buffer)}/{self.median_window}")
+                    return False
+                
+                # Apply median filter
+                filtered_transform = self._apply_median_filter()
+                
+                if filtered_transform:
+                    world_to_camera_transform = filtered_transform
+                    self.get_logger().info(f"Applied median filter over {self.median_window} samples")
+                
                 # Update stored transform for dynamic publishing
                 self.world_to_camera_transform = world_to_camera_transform
                 
@@ -289,6 +365,9 @@ class FindCameraInWorldService(Node):
                 
                 # Store for movement comparison in next calibration
                 self.previous_world_to_camera_transform = world_to_camera_transform
+                
+                # Clear buffer after successful calibration for next service trigger
+                self.calibration_buffer.clear()
                 
                 # If this was an initial calibration, stop the timer
                 if "initial" in calibration_source and hasattr(self, 'calibration_timer'):
