@@ -23,5 +23,3 @@ find_camera_in_world_service:
     publish_rate: 60.0
     transform_timeout: 0.1
     
-    # Logging
-    log_level: "INFO"

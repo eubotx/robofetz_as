@@ -51,12 +51,6 @@ class FindCameraInWorldService(Node):
                      description='Rate (Hz) for publishing camera transform dynamically',
                      type=ParameterType.PARAMETER_DOUBLE)),
                 
-                # Logging
-                ('log_level', 'INFO',
-                 ParameterDescriptor(
-                     description='Logging level: DEBUG, INFO, WARN, ERROR, FATAL',
-                     type=ParameterType.PARAMETER_STRING)),
-                
                 # Transform timeout
                 ('transform_timeout', 0.1,
                  ParameterDescriptor(
@@ -88,21 +82,6 @@ class FindCameraInWorldService(Node):
             self.get_parameter('marker_orientation.pitch').value,
             self.get_parameter('marker_orientation.yaw').value
         ])
-        
-        # Set log level
-        log_level_param = self.get_parameter('log_level').value
-        log_level_map = {
-            'DEBUG': rclpy.logging.LoggingSeverity.DEBUG,
-            'INFO': rclpy.logging.LoggingSeverity.INFO,
-            'WARN': rclpy.logging.LoggingSeverity.WARN,
-            'ERROR': rclpy.logging.LoggingSeverity.ERROR,
-            'FATAL': rclpy.logging.LoggingSeverity.FATAL
-        }
-        if log_level_param in log_level_map:
-            self.get_logger().set_level(log_level_map[log_level_param])
-        else:
-            self.get_logger().warn(f"Invalid log level '{log_level_param}', using INFO instead")
-            self.get_logger().set_level(rclpy.logging.LoggingSeverity.INFO)
               
         # Service for manual calibration
         self.srv = self.create_service(Trigger, 'find_camera_in_world', self.calibrate_callback)
@@ -373,25 +352,22 @@ class FindCameraInWorldService(Node):
     
     def get_newest_transform(self, from_frame, to_frame, max_age_s):
         try:
+            # Try to get the transform with timeout
             transform = self.tf_buffer.lookup_transform(
                 from_frame,
                 to_frame,
                 rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=self.transform_timeout)
             )
-            
-            # check if transform is recent
-            current_time = self.get_clock().now()
-            transform_time = rclpy.time.Time.from_msg(transform.header.stamp)
-            age_ns = (current_time - transform_time).nanoseconds
-            max_age_ns = int(max_age_s * 10**9)
 
-            if  age_ns > max_age_ns:
-                self.get_logger().info(f"Transform too old ({from_frame}->{to_frame}): {age_ns/1e9:.3f}s", throttle_duration_sec=5.0)
-                return None 
             return transform
-        
-        except (LookupException, ConnectivityException, ExtrapolationException, tf2_ros.TransformException) as e:
-            self.get_logger().error(f"TF lookup failed ({from_frame}->{to_frame}): {str(e)}")
+            
+        except tf2_ros.TransformException as e:
+            # More specific exception handling if needed
+            if "timeout" in str(e).lower():
+                self.get_logger().warn(f"Transform timeout ({from_frame}->{to_frame}): No transform within timeout")
+            else:
+                self.get_logger().error(f"TF lookup failed ({from_frame}->{to_frame}): {str(e)}")
             return None
     
     def log_calibration_details(self, marker_to_camera_transform, world_to_camera_transform, 
