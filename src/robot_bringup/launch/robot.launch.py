@@ -12,6 +12,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     # Package names
     perception_pkg = 'arena_perception'
+    localization_pkg = 'arena_perception'
     robot_description_pkg = 'robot_description'
     
     # ============================================
@@ -34,62 +35,53 @@ def generate_launch_description():
     # ============================================
     # ARENA PERCEPTION CONFIGURATION
     # ============================================
-    
-    # Define config paths using PathJoinSubstitution
-    default_apriltag_config = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
-        'config',
-        'apriltag_detection_config.yaml'
-    ])
-    
-    default_arena_config = PathJoinSubstitution([
+        
+    default_arena_perception_config = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
         'config', 
-        'arena_detection_config.yaml'
+        'arena_perception_config.yaml'
     ])
-    
-    default_filter_config = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
-        'config',
-        'robot_detection_filter_config.yaml'
-    ])
-    
+
     default_calibration = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
         'config',
         'world_to_camera_calibration.temp.yaml'
     ])
-    
-    # Declare launch arguments for arena perception config files
-    apriltag_config_arg = DeclareLaunchArgument(
-        'apriltag_config',
-        default_value=default_apriltag_config,
-        description='Path to apriltag detection config file'
+        
+    arena_perception_config_arg = DeclareLaunchArgument(
+        'arena_perception_config',
+        default_value=default_arena_perception_config,
+        description='Path to arena_perception_config file'
     )
-    
-    arena_config_arg = DeclareLaunchArgument(
-        'arena_config',
-        default_value=default_arena_config,
-        description='Path to arena detection config file'
-    )
-    
-    filter_config_arg = DeclareLaunchArgument(
-        'filter_config',
-        default_value=default_filter_config,
-        description='Path to robot detection filter config file'
-    )
-    
+
     calibration_arg = DeclareLaunchArgument(
         'calibration_file',
         default_value=default_calibration,
         description='Path to world to camera calibration file'
     )
+
+    # ============================================
+    # ROBOT LOCALIZATION CONFIGURATION
+    # ============================================
+
+    default_robot_localization_config = PathJoinSubstitution([
+        FindPackageShare(localization_pkg),
+        'robot_localization_config',
+        'robot_localization_config.yaml'
+    ])
+    
+    robot_localization_config_arg = DeclareLaunchArgument(
+        'robot_localization_config',
+        default_value=default_robot_localization_config,
+        description='Path to robot localization config file'
+    )
     
     # Get config files from launch arguments
-    apriltag_config_file = LaunchConfiguration('apriltag_config')
-    camera_finder_config_file = LaunchConfiguration('arena_config')
-    filter_config_file = LaunchConfiguration('filter_config')
+    arena_perception_config_file = LaunchConfiguration('arena_perception_config')
     calibration_file = LaunchConfiguration('calibration_file')
+    robot_localization_config_file = LaunchConfiguration('robot_localization_config')
+    use_sim_time = LaunchConfiguration('use_sim_time')
+    prefix = LaunchConfiguration('prefix')
     
     # ============================================
     # BUILD LAUNCH DESCRIPTION
@@ -100,10 +92,9 @@ def generate_launch_description():
     # Add launch arguments
     ld.add_action(use_sim_time_arg)
     ld.add_action(prefix_arg)
-    ld.add_action(apriltag_config_arg)
-    ld.add_action(arena_config_arg)
-    ld.add_action(filter_config_arg)
+    ld.add_action(arena_perception_config_arg)
     ld.add_action(calibration_arg)
+    ld.add_action(robot_localization_config_arg)
     
     # ============================================
     # 1. ROBOT STATE PUBLISHER
@@ -118,8 +109,8 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={
-            'use_sim_time': LaunchConfiguration('use_sim_time'),
-            'prefix': LaunchConfiguration('prefix')
+            'use_sim_time': use_sim_time,
+            'prefix': prefix
         }.items()
     )
     
@@ -140,11 +131,9 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={
-            'apriltag_config': apriltag_config_file,
-            'arena_config': camera_finder_config_file,
-            'filter_config': filter_config_file,
+            'arena_perception_config': arena_perception_config_file,
             'calibration_file': calibration_file,
-            'use_sim_time': LaunchConfiguration('use_sim_time')
+            'use_sim_time': use_sim_time
         }.items()
     )
     
@@ -158,7 +147,7 @@ def generate_launch_description():
     # 3. ROBOT LOCALIZATION
     # ============================================
     
-    # Include robot localization launch
+    # Include robot localization launch with the config file
     robot_localization_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
@@ -168,7 +157,9 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={
-            'use_sim_time': LaunchConfiguration('use_sim_time')  # Pass through
+            'robot_localization_config': robot_localization_config_file,
+            'use_sim_time': use_sim_time,
+            'prefix': prefix
         }.items()
     )
     
