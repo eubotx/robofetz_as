@@ -10,28 +10,25 @@ def generate_launch_description():
     # Package name
     perception_pkg = 'arena_perception'
     
-    # Define config paths using PathJoinSubstitution (Jazzy best practice)
-    default_odom_drift_correction_config = PathJoinSubstitution([
+    default_robot_localization_config = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
-        'odom_drift_correction_config',
-        'odom_drift_correction_config.yaml'
+        'robot_localization_config',
+        'robot_localization_config.yaml'
     ])
     
-    # Declare launch arguments for config files (optional, can use defaults)
-    odom_drift_correction_config_arg = DeclareLaunchArgument(
-        'odom_drift_correction_config',
-        default_value=default_odom_drift_correction_config,
-        description='Path to odometry drift correction config file'
+    robot_localization_config_arg = DeclareLaunchArgument(
+        'robot_localization_config',
+        default_value=default_robot_localization_config,
+        description='Path to robot localization config file'
     )
     
-    # Get config files from launch arguments
-    odom_drift_correction_config_file = LaunchConfiguration('odom_drift_correction_config')
+    robot_localization_config_file = LaunchConfiguration('robot_localization_config')
     
     # Build launch description
     ld = LaunchDescription()
     
     # Add launch arguments
-    ld.add_action(odom_drift_correction_config_arg)
+    ld.add_action(robot_localization_config_arg)
     
     # Static transform world -> map (publishes world to map transform)
     static_map_tf = Node(
@@ -48,7 +45,7 @@ def generate_launch_description():
         executable='odom_drift_correction_node',
         name='odom_drift_correction_node',
         parameters=[
-            odom_drift_correction_config_file  # Load parameters from config file
+            robot_localization_config_file
         ],
         output='screen'
     )

@@ -32,7 +32,7 @@ constexpr unsigned long UPDATE_INTERVAL_ENCODER = 1;  // In ms
 constexpr unsigned long UPDATE_INTERVAL_PID_CONTROL = 1;  // In ms
 
 // PID controller parameters - adjust these during tuning
-double KP = 1.0;
+double KP = 5.0;
 double KI = 3.0;
 double KD = 0.0;
 double KI_MAX = 20.0;
@@ -51,13 +51,13 @@ constexpr int LEFT_ENCODER_C1_PIN = 19;
 constexpr int RIGHT_ENCODER_C1_PIN = 5;
 constexpr int RIGHT_ENCODER_C2_PIN = 4;
 
-constexpr int MOTORDRIVER_LEFT_CW_PIN = 32;
-constexpr int MOTORDRIVER_LEFT_CCW_PIN = 16;
-constexpr int MOTORDRIVER_LEFT_PWM_PIN = 17;
+constexpr int MOTORDRIVER_LEFT_CW_PIN = 25;
+constexpr int MOTORDRIVER_LEFT_CCW_PIN = 26;
+constexpr int MOTORDRIVER_LEFT_PWM_PIN = 27;
 
-constexpr int MOTORDRIVER_RIGHT_CW_PIN = 25;
-constexpr int MOTORDRIVER_RIGHT_CCW_PIN = 26;
-constexpr int MOTORDRIVER_RIGHT_PWM_PIN = 27;
+constexpr int MOTORDRIVER_RIGHT_CW_PIN = 32;
+constexpr int MOTORDRIVER_RIGHT_CCW_PIN = 16;
+constexpr int MOTORDRIVER_RIGHT_PWM_PIN = 17;
 
 constexpr int MOTORDRIVER_STBY_PIN = 33;
 
@@ -489,14 +489,14 @@ public:
         double linearWheelSpeed = linear;
         double angularWheelSpeed = angular * (wheelDistance / 2.0);
         
-        double leftWheelSpeed = linearWheelSpeed + angularWheelSpeed;
-        double rightWheelSpeed = linearWheelSpeed - angularWheelSpeed;
+        double leftWheelSpeed = linearWheelSpeed - angularWheelSpeed;
+        double rightWheelSpeed = linearWheelSpeed + angularWheelSpeed;
 
         // Convert the wheel speeds from m/s to rps
         double leftWheelRps = leftWheelSpeed / (M_PI * wheelDiameter);
         double rightWheelRps = rightWheelSpeed / (M_PI * wheelDiameter);
         
-        leftWheel.setDesiredWheelSpeed(leftWheelRps);
+        leftWheel.setDesiredWheelSpeed(-leftWheelRps);
         rightWheel.setDesiredWheelSpeed(rightWheelRps);
     }
 

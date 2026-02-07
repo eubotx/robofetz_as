@@ -12,6 +12,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     # Package names
     perception_pkg = 'arena_perception'
+    localization_pkg = 'arena_perception'
     robot_description_pkg = 'robot_description'
     
     # ============================================
@@ -34,18 +35,11 @@ def generate_launch_description():
     # ============================================
     # ARENA PERCEPTION CONFIGURATION
     # ============================================
-    
-    # Define config paths using PathJoinSubstitution
-    default_apriltag_config = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
-        'config',
-        'apriltag_detection_config.yaml'
-    ])
-    
-    default_camera_finder_config = PathJoinSubstitution([
+        
+    default_arena_perception_config = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
         'config', 
-        'find_camera_in_world_config_sim.yaml'
+        'arena_perception_config.yaml'
     ])
 
     default_calibration = PathJoinSubstitution([
@@ -53,30 +47,11 @@ def generate_launch_description():
         'config',
         'world_to_camera_calibration.temp.yaml'
     ])
-    
-    default_filter_config = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
-        'config',
-        'robot_detection_filter_config.yaml'
-    ])
-
-    default_odom_drift_correction_config = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
-        'config',
-        'odom_drift_correction_config.yaml'
-    ])
-    
-    # Declare launch arguments for arena perception config files
-    apriltag_config_arg = DeclareLaunchArgument(
-        'apriltag_config',
-        default_value=default_apriltag_config,
-        description='Path to apriltag detection config file'
-    )
-    
-    camera_finder_config_arg = DeclareLaunchArgument(
-        'camera_finder_config',
-        default_value=default_camera_finder_config,
-        description='Path to camera finder config file'
+        
+    arena_perception_config_arg = DeclareLaunchArgument(
+        'arena_perception_config',
+        default_value=default_arena_perception_config,
+        description='Path to arena_perception_config file'
     )
 
     calibration_arg = DeclareLaunchArgument(
@@ -84,25 +59,27 @@ def generate_launch_description():
         default_value=default_calibration,
         description='Path to world to camera calibration file'
     )
-    
-    odom_drift_correction_config_arg = DeclareLaunchArgument(
-        'odom_drift_correction_config',
-        default_value=default_odom_drift_correction_config,
-        description='Path to odom drift correction config file'
-    )
 
-    filter_config_arg = DeclareLaunchArgument(
-        'filter_config',
-        default_value=default_filter_config,
-        description='Path to robot detection filter config file'
+    # ============================================
+    # ROBOT LOCALIZATION CONFIGURATION
+    # ============================================
+
+    default_robot_localization_config = PathJoinSubstitution([
+        FindPackageShare(localization_pkg),
+        'robot_localization_config',
+        'robot_localization_config.yaml'
+    ])
+    
+    robot_localization_config_arg = DeclareLaunchArgument(
+        'robot_localization_config',
+        default_value=default_robot_localization_config,
+        description='Path to robot localization config file'
     )
     
     # Get config files from launch arguments
-    apriltag_config_file = LaunchConfiguration('apriltag_config')
-    camera_finder_config_file = LaunchConfiguration('camera_finder_config')
+    arena_perception_config_file = LaunchConfiguration('arena_perception_config')
     calibration_file = LaunchConfiguration('calibration_file')
-    filter_config_file = LaunchConfiguration('filter_config')
-    odom_drift_correction_config_file = LaunchConfiguration('odom_drift_correction_config')
+    robot_localization_config_file = LaunchConfiguration('robot_localization_config')
     use_sim_time = LaunchConfiguration('use_sim_time')
     prefix = LaunchConfiguration('prefix')
     
@@ -115,11 +92,9 @@ def generate_launch_description():
     # Add launch arguments
     ld.add_action(use_sim_time_arg)
     ld.add_action(prefix_arg)
-    ld.add_action(apriltag_config_arg)
-    ld.add_action(camera_finder_config_arg)
+    ld.add_action(arena_perception_config_arg)
     ld.add_action(calibration_arg)
-    ld.add_action(filter_config_arg)
-    ld.add_action(odom_drift_correction_config_arg)
+    ld.add_action(robot_localization_config_arg)
     
     # ============================================
     # 1. ROBOT STATE PUBLISHER
@@ -156,9 +131,7 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={
-            'apriltag_config': apriltag_config_file,
-            'arena_config': camera_finder_config_file,
-            'filter_config': filter_config_file,
+            'arena_perception_config': arena_perception_config_file,
             'calibration_file': calibration_file,
             'use_sim_time': use_sim_time
         }.items()
@@ -184,7 +157,7 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={
-            'odom_drift_correction_config': odom_drift_correction_config_file,
+            'robot_localization_config': robot_localization_config_file,
             'use_sim_time': use_sim_time,
             'prefix': prefix
         }.items()
