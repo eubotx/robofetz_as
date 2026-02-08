@@ -6,7 +6,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
     # Get the path to your config file directly
-    config_path = os.path.join(get_package_share_path('utils') ,'config' ,'joy_teleop' ,'rhinozeros_teleop.config.yaml' )
+    config_path = os.path.join(get_package_share_path('robot_bringup') ,'config' ,'xbox_teleop.config.yaml' )
 
     teleop = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(

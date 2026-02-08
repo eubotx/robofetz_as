@@ -34,6 +34,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'keyboard_node = utils.keyboard_node:main',
         ],
     },
 )

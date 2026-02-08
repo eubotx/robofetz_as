@@ -8,6 +8,7 @@ from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, Time
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.actions import Node
 from launch.conditions import IfCondition, UnlessCondition
 
 def generate_launch_description():
@@ -16,6 +17,7 @@ def generate_launch_description():
     localization_pkg = 'arena_perception'
     robot_description_pkg = 'robot_description'
     gazebo_pkg = 'robofetz_gazebo'
+    robot_bringup_pkg = 'robot_bringup'  # Assuming you have a robot_bringup package
     
     # ============================================
     # LAUNCH ARGUMENTS
@@ -50,6 +52,21 @@ def generate_launch_description():
         'prefix',
         default_value='robot/',  # Default to 'robot/' prefix
         description='Robot namespace prefix (e.g., "robot1/")'
+    )
+    
+    # RViz launch argument
+    launch_rviz_arg = DeclareLaunchArgument(
+        'launch_rviz',
+        default_value='true',
+        description='Launch RViz2 visualization',
+        choices=['true', 'false']
+    )
+    
+    # RViz config file argument
+    rviz_config_arg = DeclareLaunchArgument(
+        'rviz_config',
+        default_value='config.rviz',
+        description='Name of the RViz configuration file (located in robot_bringup/config/)'
     )
     
     # ============================================
@@ -91,6 +108,8 @@ def generate_launch_description():
     prefix = LaunchConfiguration('prefix')
     arena_perception_config_file = LaunchConfiguration('arena_perception_config')
     robot_localization_config_file = LaunchConfiguration('robot_localization_config')
+    launch_rviz = LaunchConfiguration('launch_rviz')
+    rviz_config = LaunchConfiguration('rviz_config')
     
     # ============================================
     # BUILD LAUNCH DESCRIPTION
@@ -103,6 +122,8 @@ def generate_launch_description():
     ld.add_action(use_fake_perception_arg)
     ld.add_action(world_arg)
     ld.add_action(prefix_arg)
+    ld.add_action(launch_rviz_arg)
+    ld.add_action(rviz_config_arg)
     ld.add_action(arena_perception_config_arg)
     ld.add_action(robot_localization_config_arg)
     
@@ -240,4 +261,36 @@ def generate_launch_description():
         actions=[robot_localization_launch]
     ))
     
+    # ============================================
+    # 4. RVIZ2 VISUALIZATION (CONDITIONAL)
+    # ============================================
+    
+    # RViz2 config file path - using the configurable file name
+    rviz_config_file = PathJoinSubstitution([
+        FindPackageShare(robot_bringup_pkg),
+        'config',
+        rviz_config  # Use the configurable RViz config file name
+    ])
+    
+    # RViz2 node
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        output='screen',
+        arguments=['-d', rviz_config_file],
+        parameters=[{'use_sim_time': use_sim}],
+        condition=IfCondition(launch_rviz)
+    )
+    
+    # Add RViz2 with a delay to ensure all other systems are up
+    rviz_delay = PythonExpression([
+        '25.0 if "', use_sim, '" == "true" else 20.0'
+    ])
+    
+    ld.add_action(TimerAction(
+        period=rviz_delay,
+        actions=[rviz_node]
+    ))
+
     return ld

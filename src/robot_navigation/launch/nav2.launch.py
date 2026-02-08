@@ -10,7 +10,6 @@ def generate_launch_description():
     # Get the launch directory
     nav2_bringup_dir = get_package_share_directory('nav2_bringup')
     robot_navigation_dir = get_package_share_directory('robot_navigation')
-    utils_dir = get_package_share_directory('utils')
     
     # Create the launch configuration variables
     use_sim_time = LaunchConfiguration('use_sim_time')
@@ -20,7 +19,7 @@ def generate_launch_description():
     
     # Define default path to your custom params file
     default_params_file = os.path.join(robot_navigation_dir, 'config', 'nav2_params.yaml')
-    default_map_file = os.path.join(utils_dir, 'map', 'my_map.yaml')
+    default_map_file = os.path.join(robot_navigation_dir, 'map', 'my_map.yaml')
     
     # Declare the launch arguments
     declare_use_sim_time_cmd = DeclareLaunchArgument(
@@ -79,7 +78,7 @@ def generate_launch_description():
     )
 
     vel_republisher_cmd = Node(
-        package='utils',
+        package='robot_navigation',
         executable='cmd_vel_relay',
         name='vel_republisher',
         output='screen'
