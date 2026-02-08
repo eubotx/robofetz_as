@@ -19,12 +19,6 @@ def generate_launch_description():
         'config', 
         'arena_perception_config.yaml'
     ])
-
-    default_calibration = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
-        'config',
-        'world_to_camera_calibration.temp.yaml'
-    ])
     
     arena_perception_config_arg = DeclareLaunchArgument(
         'arena_perception_config',
@@ -32,22 +26,14 @@ def generate_launch_description():
         description='Path to arena_perception_config file'
     )
     
-    calibration_arg = DeclareLaunchArgument(
-        'calibration_file',
-        default_value=default_calibration,
-        description='Path to world to camera calibration file'
-    )
-    
     # Get config files from launch arguments
     arena_perception_config_file = LaunchConfiguration('arena_perception_config')
-    calibration_file = LaunchConfiguration('calibration_file')
     
     # Build launch description
     ld = LaunchDescription()
     
     # Add launch arguments
     ld.add_action(arena_perception_config_arg)
-    ld.add_action(calibration_arg)
     
     # Camera rectification node
     camera_rectification = Node(
@@ -78,10 +64,7 @@ def generate_launch_description():
         executable='find_camera_in_world_service',
         name='find_camera_in_world_service',
         parameters=[
-            # Load all parameters from config file
-            arena_perception_config_file,  # This loads the YAML with all the parameters
-            # Then override/add specific parameters
-            #{'calibration_file': calibration_file},  # Optional: path to calibration results
+            arena_perception_config_file
         ],
         output='screen'
     )
@@ -92,7 +75,7 @@ def generate_launch_description():
         executable='robot_detection_node',
         name='robot_detection_node',
         parameters=[
-            arena_perception_config_file  # Load parameters from config file
+            arena_perception_config_file
         ],
         output='screen'
     )

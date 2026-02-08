@@ -41,23 +41,11 @@ def generate_launch_description():
         'config', 
         'arena_perception_config.yaml'
     ])
-
-    default_calibration = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
-        'config',
-        'world_to_camera_calibration.temp.yaml'
-    ])
         
     arena_perception_config_arg = DeclareLaunchArgument(
         'arena_perception_config',
         default_value=default_arena_perception_config,
         description='Path to arena_perception_config file'
-    )
-
-    calibration_arg = DeclareLaunchArgument(
-        'calibration_file',
-        default_value=default_calibration,
-        description='Path to world to camera calibration file'
     )
 
     # ============================================
@@ -77,11 +65,10 @@ def generate_launch_description():
     )
     
     # Get config files from launch arguments
-    arena_perception_config_file = LaunchConfiguration('arena_perception_config')
-    calibration_file = LaunchConfiguration('calibration_file')
-    robot_localization_config_file = LaunchConfiguration('robot_localization_config')
     use_sim_time = LaunchConfiguration('use_sim_time')
     prefix = LaunchConfiguration('prefix')
+    arena_perception_config_file = LaunchConfiguration('arena_perception_config')
+    robot_localization_config_file = LaunchConfiguration('robot_localization_config')
     
     # ============================================
     # BUILD LAUNCH DESCRIPTION
@@ -93,7 +80,6 @@ def generate_launch_description():
     ld.add_action(use_sim_time_arg)
     ld.add_action(prefix_arg)
     ld.add_action(arena_perception_config_arg)
-    ld.add_action(calibration_arg)
     ld.add_action(robot_localization_config_arg)
     
     # ============================================
@@ -132,7 +118,6 @@ def generate_launch_description():
         ]),
         launch_arguments={
             'arena_perception_config': arena_perception_config_file,
-            'calibration_file': calibration_file,
             'use_sim_time': use_sim_time
         }.items()
     )

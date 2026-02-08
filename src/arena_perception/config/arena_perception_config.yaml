@@ -42,6 +42,7 @@ find_camera_in_world_service:
     transform_timeout: 0.1
     median_filter_window: 10  #1 is diabled filtering
 
+    #calibration_file: "package://arena_perception/config/world_to_camera_calibration.temp.yaml"  #optional
 
 robot_detection_node:
   ros__parameters:

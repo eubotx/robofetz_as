@@ -33,6 +33,7 @@
   <exec_depend>python3-scipy</exec_depend>
   <build_depend>ament_python</build_depend>
   <exec_depend>ament_python</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
   <exec_depend>ros-${ROS_DISTRO}-usb-cam</exec_depend>
   <exec_depend>python3-pydantic</exec_depend>
   <exec_depend>python3-v4l2</exec_depend>

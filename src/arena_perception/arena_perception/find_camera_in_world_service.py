@@ -11,6 +11,7 @@ import os
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from scipy.spatial.transform import Rotation
 import statistics
+from ament_index_python.packages import get_package_share_directory
 
 class FindCameraInWorldService(Node):
     def __init__(self):
@@ -23,7 +24,7 @@ class FindCameraInWorldService(Node):
                 # Required parameter for calibration file
                 ('calibration_file', '', 
                  ParameterDescriptor(
-                     description='Optional path to YAML file for storing calibration results',
+                     description='Optional path to YAML file for storing calibration results. Can use package:// URLs.',
                      type=ParameterType.PARAMETER_STRING)),
                 
                 # Frame names
@@ -66,6 +67,9 @@ class FindCameraInWorldService(Node):
         )
         
         calibration_file = self.get_parameter('calibration_file').value
+        
+        # Resolve package:// URL if present
+        calibration_file = self.resolve_package_url(calibration_file)
         
         # Frame names from parameters
         self.world_frame = self.get_parameter('world_frame').value
@@ -132,6 +136,7 @@ class FindCameraInWorldService(Node):
         self.get_logger().info(f"  Calibration attempt rate: {self.get_parameter('calibration_attempt_rate').value} Hz")
         self.get_logger().info(f"  Dynamic publish rate: {self.get_parameter('publish_rate').value} Hz")
         self.get_logger().info(f"  Transform timeout: {self.transform_timeout} s")
+        self.get_logger().info(f"  Calibration file path: {calibration_file}")
         
         # Publish static marker transform
         self.publish_static_marker_transform()
@@ -144,6 +149,39 @@ class FindCameraInWorldService(Node):
         
         # Start continuous dynamic publishing of camera transform
         self.dynamic_publish_timer = self.create_timer(1.0 / self.publish_rate, self.publish_camera_dynamic)
+
+    def resolve_package_url(self, path):
+        """Resolve package:// URLs to absolute file paths"""
+        if not path:
+            return path
+            
+        if path.startswith('package://'):
+            try:
+                # Extract package name and relative path
+                # Format: package://package_name/relative/path/to/file
+                path_without_prefix = path[10:]  # Remove 'package://'
+                
+                # Split into package name and relative path
+                if '/' in path_without_prefix:
+                    package_name, relative_path = path_without_prefix.split('/', 1)
+                else:
+                    package_name = path_without_prefix
+                    relative_path = ""
+
+                package_dir = get_package_share_directory(package_name)
+                
+                # Construct full path
+                full_path = os.path.join(package_dir, relative_path)
+                
+                self.get_logger().info(f"Resolved package URL: {path} -> {full_path}")
+                return full_path
+                
+            except Exception as e:
+                self.get_logger().error(f"Failed to resolve package URL '{path}': {e}")
+                return path
+        else:
+            # Not a package URL, return as-is
+            return path
         
     # Simple median filter
     def _apply_median_filter(self):
@@ -198,6 +236,10 @@ class FindCameraInWorldService(Node):
     def load_calibration(self, calibration_file):
         """Try to load existing camera calibration of world -> camera tf from file"""
 
+        if not calibration_file:
+            self.get_logger().info("No calibration file specified")
+            return False
+            
         if not os.path.exists(calibration_file):
             self.get_logger().info(f"No calibration file found at {calibration_file}")
             return False
