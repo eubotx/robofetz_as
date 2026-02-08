@@ -143,19 +143,19 @@ def get_map_dir():
     # Logic to find the correct directory (same as before)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     current_dir = os.getcwd()
-    src_utils_dir = os.path.join(current_dir, 'src', 'utils')
+    src_robot_navigation_dir = os.path.join(current_dir, 'src', 'robot_navigation')
     
-    if os.path.exists(src_utils_dir):
-        map_dir = os.path.join(src_utils_dir, 'map')
+    if os.path.exists(src_robot_navigation_dir):
+        map_dir = os.path.join(src_robot_navigation_dir, 'map')
     else:
         workspace_root = script_dir
         while workspace_root != '/' and not os.path.exists(os.path.join(workspace_root, 'src')):
             workspace_root = os.path.dirname(workspace_root)
         
-        if os.path.exists(os.path.join(workspace_root, 'src', 'utils')):
-            map_dir = os.path.join(workspace_root, 'src', 'utils', 'map')
+        if os.path.exists(os.path.join(workspace_root, 'src', 'robot_navigation')):
+            map_dir = os.path.join(workspace_root, 'src', 'robot_navigation', 'map')
         else:
-            map_dir = os.path.join(os.getcwd(), 'src', 'utils', 'map')
+            map_dir = os.path.join(os.getcwd(), 'src', 'robot_navigation', 'map')
             
     os.makedirs(map_dir, exist_ok=True)
     return map_dir

@@ -47,13 +47,6 @@ def generate_launch_description():
         choices=['robofetz_arena_wideangle.world', 'robofetz_arena_pinhole.world']
     )
     
-    # Robot prefix argument
-    prefix_arg = DeclareLaunchArgument(
-        'prefix',
-        default_value='robot/',  # Default to 'robot/' prefix
-        description='Robot namespace prefix (e.g., "robot1/")'
-    )
-    
     # RViz launch argument
     launch_rviz_arg = DeclareLaunchArgument(
         'launch_rviz',
@@ -105,7 +98,6 @@ def generate_launch_description():
     use_sim = LaunchConfiguration('use_sim')
     use_fake_perception = LaunchConfiguration('use_fake_perception')
     world_file = LaunchConfiguration('world')
-    prefix = LaunchConfiguration('prefix')
     arena_perception_config_file = LaunchConfiguration('arena_perception_config')
     robot_localization_config_file = LaunchConfiguration('robot_localization_config')
     launch_rviz = LaunchConfiguration('launch_rviz')
@@ -121,7 +113,6 @@ def generate_launch_description():
     ld.add_action(use_sim_arg)
     ld.add_action(use_fake_perception_arg)
     ld.add_action(world_arg)
-    ld.add_action(prefix_arg)
     ld.add_action(launch_rviz_arg)
     ld.add_action(rviz_config_arg)
     ld.add_action(arena_perception_config_arg)
@@ -142,7 +133,7 @@ def generate_launch_description():
         ]),
         launch_arguments={
             'use_sim_time': use_sim,
-            'prefix': prefix
+            'prefix': 'robot/'
         }.items()
     )
     
@@ -246,7 +237,6 @@ def generate_launch_description():
         launch_arguments={
             'robot_localization_config': robot_localization_config_file,
             'use_sim_time': use_sim,
-            'prefix': prefix
         }.items()
     )
     

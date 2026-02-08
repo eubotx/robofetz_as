@@ -6,11 +6,12 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
-        - /RobotModel1
         - /Map1
         - /Map1/Topic1
         - /Path1
         - /Map2
+        - /RobotModel1
+        - /RobotModel1/Status1
       Splitter Ratio: 0.5
     Tree Height: 542
   - Class: rviz_common/Selection
@@ -59,6 +60,16 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        arena_camera_optical:
+          Value: true
+        arena_perception/robot/base_footprint:
+          Value: true
+        arena_perception/robot_top_tag:
+          Value: true
+        arena_tag:
+          Value: true
+        arena_tag_calibrated:
+          Value: true
         map:
           Value: true
         odom:
@@ -71,17 +82,35 @@ Visualization Manager:
           Value: true
         robot/base_footprint:
           Value: true
+        robot/base_footprint_sim:
+          Value: true
         robot/body_link:
           Value: true
         robot/bottom_apriltag_link:
           Value: true
-        robot/caster_link:
+        robot/bottom_apriltag_optical:
+          Value: true
+        robot/front_left_support_bottom_caster_link:
+          Value: true
+        robot/front_left_support_link:
+          Value: true
+        robot/front_left_support_top_caster_link:
+          Value: true
+        robot/front_right_support_bottom_caster_link:
+          Value: true
+        robot/front_right_support_link:
+          Value: true
+        robot/front_right_support_top_caster_link:
           Value: true
         robot/top_apriltag_link:
+          Value: true
+        robot/top_apriltag_optical:
           Value: true
         robot/wheel1_link:
           Value: true
         robot/wheel2_link:
+          Value: true
+        world:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -89,83 +118,40 @@ Visualization Manager:
       Show Axes: true
       Show Names: false
       Tree:
-        map:
-          odom:
+        world:
+          arena_camera_optical:
+            arena_perception/robot/base_footprint:
+              {}
+            arena_perception/robot_top_tag:
+              {}
+            arena_tag:
+              {}
+          arena_tag_calibrated:
             {}
-          robot/base_footprint:
-            robot/body_link:
-              robot/bottom_apriltag_link:
-                {}
-              robot/caster_link:
-                {}
-              robot/top_apriltag_link:
-                {}
-              robot/wheel1_link:
-                {}
-              robot/wheel2_link:
-                {}
+          map:
+            odom:
+              robot/base_footprint:
+                robot/body_link:
+                  robot/bottom_apriltag_link:
+                    robot/bottom_apriltag_optical:
+                      {}
+                  robot/front_left_support_link:
+                    robot/front_left_support_bottom_caster_link:
+                      {}
+                    robot/front_left_support_top_caster_link:
+                      {}
+                  robot/front_right_support_link:
+                    robot/front_right_support_bottom_caster_link:
+                      {}
+                    robot/front_right_support_top_caster_link:
+                      {}
+                  robot/top_apriltag_link:
+                    robot/top_apriltag_optical:
+                      {}
+            robot/base_footprint_sim:
+              {}
       Update Interval: 0
       Value: true
-    - Alpha: 1
-      Class: rviz_default_plugins/RobotModel
-      Collision Enabled: false
-      Description File: ""
-      Description Source: Topic
-      Description Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /robot_description
-      Enabled: true
-      Links:
-        All Links Enabled: true
-        Expand Joint Details: false
-        Expand Link Details: false
-        Expand Tree: false
-        Link Tree Style: Links in Alphabetic Order
-        robot/base_footprint:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        robot/body_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        robot/bottom_apriltag_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        robot/caster_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        robot/top_apriltag_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        robot/wheel1_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        robot/wheel2_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-      Mass Properties:
-        Inertia: false
-        Mass: false
-      Name: RobotModel
-      TF Prefix: ""
-      Update Interval: 0
-      Value: true
-      Visual Enabled: true
     - Alpha: 0.699999988079071
       Binary representation: false
       Binary threshold: 100
@@ -240,6 +226,99 @@ Visualization Manager:
         Value: /global_costmap/static_layer_updates
       Use Timestamp: false
       Value: true
+    - Alpha: 1
+      Class: rviz_default_plugins/RobotModel
+      Collision Enabled: false
+      Description File: ""
+      Description Source: Topic
+      Description Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_description
+      Enabled: true
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        base_footprint:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        body_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        bottom_apriltag_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        bottom_apriltag_optical:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        front_left_support_bottom_caster_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_left_support_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_left_support_top_caster_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_right_support_bottom_caster_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_right_support_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_right_support_top_caster_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        top_apriltag_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        top_apriltag_optical:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        wheel1_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        wheel2_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+      Mass Properties:
+        Inertia: false
+        Mass: false
+      Name: RobotModel
+      TF Prefix: robot
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -286,25 +365,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 4.548849105834961
+      Distance: 3.6937415599823
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.39469030499458313
-        Y: -0.15650098025798798
-        Z: 0.2716682553291321
+        X: 0.49308881163597107
+        Y: 0.33832767605781555
+        Z: 0.06816717982292175
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8503979444503784
+      Pitch: 0.5803985595703125
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.1053972244262695
+      Yaw: 3.005405902862549
     Saved: ~
 Window Geometry:
   Displays:
@@ -323,4 +402,4 @@ Window Geometry:
     collapsed: false
   Width: 1200
   X: 720
-  Y: 198
+  Y: 197
