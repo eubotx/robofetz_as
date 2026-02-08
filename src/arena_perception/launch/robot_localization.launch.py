@@ -12,7 +12,7 @@ def generate_launch_description():
     
     default_robot_localization_config = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
-        'robot_localization_config',
+        'config',
         'robot_localization_config.yaml'
     ])
     
@@ -35,7 +35,17 @@ def generate_launch_description():
         package='tf2_ros',
         executable='static_transform_publisher',
         name='static_map_tf_publisher',
-        arguments=['0', '0', '0', '0', '0', '0', 'world', 'map'],
+        arguments=[
+            '--x', '0',
+            '--y', '0',
+            '--z', '0',
+            '--qx', '0',
+            '--qy', '0',
+            '--qz', '0',
+            '--qw', '1',
+            '--frame-id', 'world',
+            '--child-frame-id', 'map'
+        ],
         output='screen'
     )
     
@@ -55,14 +65,23 @@ def generate_launch_description():
         package='tf2_ros',
         executable='static_transform_publisher',
         name='static_odom_tf_publisher',
-        arguments=['0', '0', '0', '0', '0', '0', 'odom', 'robot/base_footprint'],
+        arguments=[
+            '--x', '0',
+            '--y', '0',
+            '--z', '0',
+            '--qx', '0',
+            '--qy', '0',
+            '--qz', '0',
+            '--qw', '1',
+            '--frame-id', 'odom',
+            '--child-frame-id', 'robot/base_footprint'
+        ],
         output='screen'
     )
-
     
     # Add nodes with appropriate timing delays if needed
     ld.add_action(static_map_tf)
-
+    
     ld.add_action(TimerAction(
         period=1.0,
         actions=[static_odom_tf]

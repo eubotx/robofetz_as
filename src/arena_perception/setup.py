@@ -46,6 +46,7 @@ setup(
             'opponent_detection_node = arena_perception.opponent_detection:main',
             'filter_transform_node = arena_perception.filter_transform_node:main',
             'odom_drift_correction_node = arena_perception.odom_drift_correction_node:main',
+            'tf_frame_relay = arena_perception.tf_frame_relay:main',
         ],
     },
 )

@@ -36,7 +36,7 @@ def generate_launch_description():
     )
     
     # Declare argument to enable/disable robot state publisher if launhed in other place
-    robot_state_pub_arg = DeclareLaunchArgument(
+    enable_robot_state_pub_arg = DeclareLaunchArgument(
         'enable_robot_state_pub',
         default_value='true',
         description='Enable robot state publisher for the main robot',
@@ -182,7 +182,7 @@ def generate_launch_description():
     ld = LaunchDescription()
     
     ld.add_action(world_arg)
-    ld.add_action(robot_state_pub_arg)  # Add the new argument
+    ld.add_action(enable_robot_state_pub_arg)
 
     ld.add_action(gazebo_process)
     

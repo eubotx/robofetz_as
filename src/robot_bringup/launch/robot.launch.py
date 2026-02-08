@@ -5,27 +5,47 @@ Main launch file for robot software operation.
 
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
+from launch.conditions import IfCondition, UnlessCondition
 
 def generate_launch_description():
     # Package names
     perception_pkg = 'arena_perception'
     localization_pkg = 'arena_perception'
     robot_description_pkg = 'robot_description'
+    gazebo_pkg = 'robofetz_gazebo'
     
     # ============================================
-    # ROBOT STATE PUBLISHER CONFIGURATION
+    # LAUNCH ARGUMENTS
     # ============================================
     
-    # Define launch arguments for robot state publisher
-    use_sim_time_arg = DeclareLaunchArgument(
-        'use_sim_time',
-        default_value='false',
-        description='Use simulation (Gazebo) clock if true'
+    # Simulation mode argument
+    use_sim_arg = DeclareLaunchArgument(
+        'use_sim',
+        default_value='true',
+        description='Launch Gazebo simulation (true/false)',
+        choices=['true', 'false']
     )
     
+    # Fake perception argument - only usable with simulation
+    use_fake_perception_arg = DeclareLaunchArgument(
+        'use_fake_perception',
+        default_value='false',
+        description='Use fake arena perception (only valid when use_sim=true)',
+        choices=['true', 'false']
+    )
+    
+    # Gazebo world file argument
+    world_arg = DeclareLaunchArgument(
+        'world',
+        default_value='robofetz_arena_pinhole.world',
+        description='Name of the Gazebo world file to load',
+        choices=['robofetz_arena_wideangle.world', 'robofetz_arena_pinhole.world']
+    )
+    
+    # Robot prefix argument
     prefix_arg = DeclareLaunchArgument(
         'prefix',
         default_value='robot/',  # Default to 'robot/' prefix
@@ -54,7 +74,7 @@ def generate_launch_description():
 
     default_robot_localization_config = PathJoinSubstitution([
         FindPackageShare(localization_pkg),
-        'robot_localization_config',
+        'config',
         'robot_localization_config.yaml'
     ])
     
@@ -65,7 +85,9 @@ def generate_launch_description():
     )
     
     # Get config files from launch arguments
-    use_sim_time = LaunchConfiguration('use_sim_time')
+    use_sim = LaunchConfiguration('use_sim')
+    use_fake_perception = LaunchConfiguration('use_fake_perception')
+    world_file = LaunchConfiguration('world')
     prefix = LaunchConfiguration('prefix')
     arena_perception_config_file = LaunchConfiguration('arena_perception_config')
     robot_localization_config_file = LaunchConfiguration('robot_localization_config')
@@ -77,13 +99,16 @@ def generate_launch_description():
     ld = LaunchDescription()
     
     # Add launch arguments
-    ld.add_action(use_sim_time_arg)
+    ld.add_action(use_sim_arg)
+    ld.add_action(use_fake_perception_arg)
+    ld.add_action(world_arg)
     ld.add_action(prefix_arg)
     ld.add_action(arena_perception_config_arg)
     ld.add_action(robot_localization_config_arg)
     
+    
     # ============================================
-    # 1. ROBOT STATE PUBLISHER
+    # 0. ROBOT STATE PUBLISHER
     # ============================================
     
     robot_state_publisher_launch = IncludeLaunchDescription(
@@ -95,16 +120,46 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={
-            'use_sim_time': use_sim_time,
+            'use_sim_time': use_sim,
             'prefix': prefix
         }.items()
     )
     
-    # Start robot state publisher immediately
     ld.add_action(robot_state_publisher_launch)
-    
+
     # ============================================
-    # 2. ARENA PERCEPTION SYSTEM
+    # 1A. GAZEBO SIMULATION (CONDITIONAL)
+    # ============================================
+    
+    # Include Gazebo simulation launch when use_sim is true
+    gazebo_sim_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare(gazebo_pkg),
+                'launch',
+                'robofetz_gazebo_sim.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'world': world_file,
+            'enable_robot_state_pub': 'false'  # already covered above
+        }.items(),
+        condition=IfCondition(use_sim)
+    )
+
+    # ============================================
+    # 1B. REAL HARDWARE (CONDITIONAL)
+    # ============================================
+    
+    #includes to do
+
+    ld.add_action(TimerAction(
+        period=3.0,
+        actions=[gazebo_sim_launch]
+    ))
+
+    # ============================================
+    # 2A. ARENA PERCEPTION SYSTEM
     # ============================================
     
     # Create arena perception launch with parameters
@@ -118,14 +173,40 @@ def generate_launch_description():
         ]),
         launch_arguments={
             'arena_perception_config': arena_perception_config_file,
-            'use_sim_time': use_sim_time
-        }.items()
+            'use_sim_time': use_sim
+        }.items(),
+        # Only launch real perception when NOT using fake perception
+        condition=UnlessCondition(use_fake_perception)
+    )
+
+    # ============================================
+    # 2B. FAKE ARENA PERCEPTION SYSTEM
+    # ============================================
+
+    fake_arena_perception_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare(perception_pkg),
+                'launch',
+                'fake_arena_perception.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'use_sim_time': use_sim
+        }.items(),
+        # Only launch fake perception when use_fake_perception is true
+        condition=IfCondition(use_fake_perception)
     )
     
-    # Add arena perception
+    # Add arena perception with delay (in simulation, wait longer for Gazebo to start)
+    # Use PythonExpression to properly evaluate the string condition
+    arena_perception_delay = PythonExpression([
+        '8.0 if "', use_sim, '" == "true" else 3.0'
+    ])
+    
     ld.add_action(TimerAction(
-        period=3.0,  # Give robot_state_publisher time to establish TF tree
-        actions=[arena_perception_launch]
+        period=arena_perception_delay,
+        actions=[arena_perception_launch, fake_arena_perception_launch]
     ))
     
     # ============================================
@@ -143,14 +224,19 @@ def generate_launch_description():
         ]),
         launch_arguments={
             'robot_localization_config': robot_localization_config_file,
-            'use_sim_time': use_sim_time,
+            'use_sim_time': use_sim,
             'prefix': prefix
         }.items()
     )
     
-    # Add robot localization
+    # Add robot localization with longer delay in simulation
+    # Use PythonExpression to properly evaluate the string condition
+    localization_delay = PythonExpression([
+        '20.0 if "', use_sim, '" == "true" else 15.0'
+    ])
+    
     ld.add_action(TimerAction(
-        period=15.0,
+        period=localization_delay,
         actions=[robot_localization_launch]
     ))
     
