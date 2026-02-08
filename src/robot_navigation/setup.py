@@ -17,6 +17,11 @@ setup(
         # Include all config files
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
         (os.path.join('share', package_name, 'config'), glob('config/*.xml')),
+        # Include map
+        (os.path.join('share', package_name, 'map'), glob('map/*.yaml')),
+        (os.path.join('share', package_name, 'map'), glob('map/*.png')),
+        (os.path.join('share', package_name, 'map'), glob('map/*.pgm')),
+
 
     ],
     install_requires=['setuptools'],
