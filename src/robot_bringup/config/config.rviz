@@ -6,7 +6,12 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Map1
+        - /Map1/Topic1
+        - /Path1
+        - /Map2
         - /RobotModel1
+        - /RobotModel1/Status1
       Splitter Ratio: 0.5
     Tree Height: 542
   - Class: rviz_common/Selection
@@ -55,17 +60,57 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        base_footprint:
+        arena_camera_optical:
           Value: true
-        body_link:
+        arena_perception/robot/base_footprint:
           Value: true
-        caster_link:
+        arena_perception/robot_top_tag:
+          Value: true
+        arena_tag:
+          Value: true
+        arena_tag_calibrated:
           Value: true
         map:
           Value: true
-        wheel1_link:
+        odom:
           Value: true
-        wheel2_link:
+        opponent/base_footprint:
+          Value: true
+        opponent/body_link:
+          Value: true
+        opponent/caster_link:
+          Value: true
+        robot/base_footprint:
+          Value: true
+        robot/base_footprint_sim:
+          Value: true
+        robot/body_link:
+          Value: true
+        robot/bottom_apriltag_link:
+          Value: true
+        robot/bottom_apriltag_optical:
+          Value: true
+        robot/front_left_support_bottom_caster_link:
+          Value: true
+        robot/front_left_support_link:
+          Value: true
+        robot/front_left_support_top_caster_link:
+          Value: true
+        robot/front_right_support_bottom_caster_link:
+          Value: true
+        robot/front_right_support_link:
+          Value: true
+        robot/front_right_support_top_caster_link:
+          Value: true
+        robot/top_apriltag_link:
+          Value: true
+        robot/top_apriltag_optical:
+          Value: true
+        robot/wheel1_link:
+          Value: true
+        robot/wheel2_link:
+          Value: true
+        world:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -73,16 +118,113 @@ Visualization Manager:
       Show Axes: true
       Show Names: false
       Tree:
-        map:
-          base_footprint:
-            body_link:
-              caster_link:
-                {}
-              wheel1_link:
-                {}
-              wheel2_link:
-                {}
+        world:
+          arena_camera_optical:
+            arena_perception/robot/base_footprint:
+              {}
+            arena_perception/robot_top_tag:
+              {}
+            arena_tag:
+              {}
+          arena_tag_calibrated:
+            {}
+          map:
+            odom:
+              robot/base_footprint:
+                robot/body_link:
+                  robot/bottom_apriltag_link:
+                    robot/bottom_apriltag_optical:
+                      {}
+                  robot/front_left_support_link:
+                    robot/front_left_support_bottom_caster_link:
+                      {}
+                    robot/front_left_support_top_caster_link:
+                      {}
+                  robot/front_right_support_link:
+                    robot/front_right_support_bottom_caster_link:
+                      {}
+                    robot/front_right_support_top_caster_link:
+                      {}
+                  robot/top_apriltag_link:
+                    robot/top_apriltag_optical:
+                      {}
+            robot/base_footprint_sim:
+              {}
       Update Interval: 0
+      Value: true
+    - Alpha: 0.699999988079071
+      Binary representation: false
+      Binary threshold: 100
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map
+      Update Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map_updates
+      Use Timestamp: false
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 224; 27; 36
+      Enabled: true
+      Head Diameter: 0.30000001192092896
+      Head Length: 0.20000000298023224
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.029999999329447746
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.10000000149011612
+      Shaft Length: 0.10000000149011612
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /plan
+      Value: true
+    - Alpha: 0.699999988079071
+      Binary representation: false
+      Binary threshold: 100
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /global_costmap/static_layer
+      Update Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /global_costmap/static_layer_updates
+      Use Timestamp: false
       Value: true
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
@@ -111,11 +253,54 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        caster_link:
+        bottom_apriltag_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
+        bottom_apriltag_optical:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        front_left_support_bottom_caster_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_left_support_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_left_support_top_caster_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_right_support_bottom_caster_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_right_support_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_right_support_top_caster_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        top_apriltag_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        top_apriltag_optical:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
         wheel1_link:
           Alpha: 1
           Show Axes: false
@@ -130,7 +315,7 @@ Visualization Manager:
         Inertia: false
         Mass: false
       Name: RobotModel
-      TF Prefix: ""
+      TF Prefix: robot
       Update Interval: 0
       Value: true
       Visual Enabled: true
@@ -180,25 +365,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 3.8008627891540527
+      Distance: 3.6937415599823
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.19757118821144104
-        Y: 0.8898975253105164
-        Z: 0.06492821872234344
+        X: 0.49308881163597107
+        Y: 0.33832767605781555
+        Z: 0.06816717982292175
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.84539794921875
+      Pitch: 0.5803985595703125
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.1053972244262695
+      Yaw: 3.005405902862549
     Saved: ~
 Window Geometry:
   Displays:
@@ -216,5 +401,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1200
-  X: 984
-  Y: 246
+  X: 720
+  Y: 197

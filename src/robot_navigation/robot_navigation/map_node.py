@@ -11,7 +11,7 @@ import sys
 
 # Try to import get_map_dir handling different execution contexts
 try:
-    from utils.create_map import get_map_dir
+    from robot_navigation.create_map import get_map_dir
 except ImportError:
     try:
         from .create_map import get_map_dir

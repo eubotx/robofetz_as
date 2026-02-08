@@ -30,19 +30,6 @@ def generate_launch_description():
         parameters=[{'log_level': 'warn'}]  # Set the logging level to 'warn'
     )
 
-    # RViz2 launch node
-    rviz2 = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        output='screen',
-        arguments=['-d', os.path.join(
-            get_package_share_directory('robot_navigation'), 
-            'config', 
-            'rviz_config.rviz'  # Specify your RViz config file if you have one
-        )]
-    )
-
     # Include the slider_publisher launch file with the parameters
     slider_publisher = IncludeLaunchDescription(
         XMLLaunchDescriptionSource(
@@ -59,7 +46,7 @@ def generate_launch_description():
     slider_publisher = IncludeLaunchDescription(
         XMLLaunchDescriptionSource(
             os.path.join(
-                get_package_share_directory('utils'),
+                get_package_share_directory('robot_bringup'),
                 'launch',
                 'weaponspeed_slider.launch'
             )
@@ -80,7 +67,6 @@ def generate_launch_description():
     ld = LaunchDescription()
     ld.add_action(simple_navigator)
     ld.add_action(combat_strategizer)
-    ld.add_action(rviz2)
     ld.add_action(slider_publisher)
     ld.add_action(micro_ros_agent) 
 

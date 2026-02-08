@@ -16,7 +16,13 @@ setup(
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
         # Include all config files
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
-        (os.path.join('share', package_name, 'config'), glob('config/*.rviz')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.xml')),
+        # Include map
+        (os.path.join('share', package_name, 'map'), glob('map/*.yaml')),
+        (os.path.join('share', package_name, 'map'), glob('map/*.png')),
+        (os.path.join('share', package_name, 'map'), glob('map/*.pgm')),
+
+
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -28,6 +34,9 @@ setup(
     entry_points={
         'console_scripts': [
             'simple_navigator = robot_navigation.simple_navigator:main',
+            'create_map = robot_navigation.create_map:main',
+            'map_node = robot_navigation.map_node:main',
+            'cmd_vel_relay = robot_navigation.cmd_vel_relay:main',
         ],
     },
 )

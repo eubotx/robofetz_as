@@ -18,8 +18,8 @@ setup(
          glob('launch/*.launch.py')),
         
         # Add config files
-        (os.path.join('share', package_name, 'config'), 
-         glob('config/*.yaml')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.rviz')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -34,6 +34,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'keyboard_node = robot_bringup.keyboard_node:main',
         ],
     },
 )

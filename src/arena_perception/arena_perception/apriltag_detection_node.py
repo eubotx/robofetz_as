@@ -9,8 +9,6 @@ import numpy as np
 from tf2_ros import TransformBroadcaster
 from scipy.spatial.transform import Rotation
 import pyapriltags
-import yaml
-import os
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 class ApriltagDetectionNode(Node):
@@ -24,22 +22,42 @@ class ApriltagDetectionNode(Node):
             depth=1  # Only keep the latest message
         )
         
-        # Declare parameters with descriptions
-        self.declare_parameter('config_file', '', 
-                              ParameterDescriptor(
-                                  description='Path to YAML configuration file',
-                                  type=ParameterType.PARAMETER_STRING))
+        # Declare all parameters with descriptions
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('camera_info', 'camera/camera_info', 
+                 ParameterDescriptor(description='Camera info topic', 
+                                   type=ParameterType.PARAMETER_STRING)),
+                ('image_rect', 'camera/image_rect',
+                 ParameterDescriptor(description='Rectified image topic', 
+                                   type=ParameterType.PARAMETER_STRING)),
+                ('camera_frame', 'camera_optical',
+                 ParameterDescriptor(description='Camera optical frame name', 
+                                   type=ParameterType.PARAMETER_STRING)),
+                ('tag.family', 'tag36h11',
+                 ParameterDescriptor(description='AprilTag family', 
+                                   type=ParameterType.PARAMETER_STRING)),
+                ('tag.ids', [0],
+                 ParameterDescriptor(description='List of tag IDs to detect', 
+                                   type=ParameterType.PARAMETER_INTEGER_ARRAY)),
+                ('tag.frames', ['tag_0'],
+                 ParameterDescriptor(description='List of frame names for each tag', 
+                                   type=ParameterType.PARAMETER_STRING_ARRAY)),
+                ('tag.sizes', [0.1],
+                 ParameterDescriptor(description='List of tag sizes (meters) for each tag', 
+                                   type=ParameterType.PARAMETER_DOUBLE_ARRAY)),
+                ('debug_image', False,
+                 ParameterDescriptor(description='Enable debug image output', 
+                                   type=ParameterType.PARAMETER_BOOL)),
+                ('debug_image_topic', 'apriltag_detection/debug',
+                 ParameterDescriptor(description='Debug image topic', 
+                                   type=ParameterType.PARAMETER_STRING))
+            ]
+        )
         
-        # Load configuration
-        config_file = self.get_parameter('config_file').value
-        if not config_file:
-            self.get_logger().error("No configuration file specified. Use '--ros-args -p config_file:=/path/to/config.yaml'")
-            raise ValueError("Configuration file path is required")
-        
-        self.config = self.load_config(config_file)
-        
-        # Initialize from configuration
-        self.initialize_from_config()
+        # Initialize from parameters
+        self.initialize_from_params()
         
         # Subscribers with QoS profile
         self.image_sub = self.create_subscription(
@@ -63,53 +81,124 @@ class ApriltagDetectionNode(Node):
         self.april_intrinsics = None
         self.has_published_once = False
         
-    def load_config(self, config_path):
-        """Load YAML configuration file"""
-        if not os.path.exists(config_path):
-            self.get_logger().error(f"Configuration file not found: {config_path}")
-            raise FileNotFoundError(f"Config file not found: {config_path}")
+        # Set up parameter callback for runtime parameter changes
+        self.add_on_set_parameters_callback(self.parameters_callback)
         
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
+    def parameters_callback(self, params):
+        """Handle parameter changes at runtime"""
+        successful = True
+        reasons = []
         
-        self.get_logger().info(f"Loaded configuration from {config_path}")
-        return config
+        for param in params:
+            param_name = param.name
+            
+            if param_name in ['tag.ids', 'tag.frames', 'tag.sizes']:
+                # Get all three related parameters to validate together
+                tag_ids = self.get_parameter('tag.ids').value
+                tag_frames = self.get_parameter('tag.frames').value
+                tag_sizes = self.get_parameter('tag.sizes').value
+                
+                # Update the specific parameter that changed
+                if param_name == 'tag.ids':
+                    tag_ids = param.value
+                elif param_name == 'tag.frames':
+                    tag_frames = param.value
+                elif param_name == 'tag.sizes':
+                    tag_sizes = param.value
+                
+                # Validate the combination
+                if len(tag_frames) != len(tag_ids):
+                    successful = False
+                    reasons.append(f"Number of frames ({len(tag_frames)}) doesn't match number of tags ({len(tag_ids)})")
+                
+                if len(tag_sizes) != len(tag_ids):
+                    successful = False
+                    reasons.append(f"Number of sizes ({len(tag_sizes)}) doesn't match number of tags ({len(tag_ids)})")
+                
+                if successful:
+                    # Update tag mapping
+                    self.tag_mapping = {}
+                    for i, tag_id in enumerate(tag_ids):
+                        self.tag_mapping[tag_id] = {
+                            'frame': tag_frames[i],
+                            'size': tag_sizes[i]
+                        }
+                    self.get_logger().info(f"Updated tag configuration: {len(tag_ids)} tags")
+            
+            elif param_name == 'tag.family':
+                self.tag_family = param.value
+                # Need to reinitialize detector with new family
+                if self.april_intrinsics is not None:
+                    self.april_detector = pyapriltags.Detector(families=param.value)
+                    self.get_logger().info(f"Updated tag family to: {param.value}")
+            
+            elif param_name == 'camera_info':
+                self.camera_info_topic = param.value
+                self.get_logger().info(f"Updated camera info topic to: {param.value}")
+            
+            elif param_name == 'image_rect':
+                self.image_topic = param.value
+                self.get_logger().info(f"Updated image topic to: {param.value}")
+            
+            elif param_name == 'camera_frame':
+                self.camera_frame = param.value
+                self.get_logger().info(f"Updated camera frame to: {param.value}")
+            
+            elif param_name == 'debug_image':
+                self.debug_enabled = param.value
+                if param.value and not hasattr(self, 'debug_pub'):
+                    self.debug_pub = self.create_publisher(
+                        Image, self.debug_image_topic, qos_profile=qos_profile)
+                    self.get_logger().info(f"Enabled debug image publishing to: {self.debug_image_topic}")
+                elif not param.value and hasattr(self, 'debug_pub'):
+                    self.destroy_publisher(self.debug_pub)
+                    delattr(self, 'debug_pub')
+                    self.get_logger().info("Disabled debug image publishing")
+            
+            elif param_name == 'debug_image_topic':
+                self.debug_image_topic = param.value
+                if self.debug_enabled and hasattr(self, 'debug_pub'):
+                    self.destroy_publisher(self.debug_pub)
+                    self.debug_pub = self.create_publisher(
+                        Image, self.debug_image_topic, qos_profile=qos_profile)
+                    self.get_logger().info(f"Updated debug image topic to: {param.value}")
+        
+        if successful:
+            return rclpy.node.SetParametersResult(successful=True)
+        else:
+            error_msg = "; ".join(reasons)
+            self.get_logger().error(f"Parameter validation failed: {error_msg}")
+            return rclpy.node.SetParametersResult(successful=False, reason=error_msg)
     
-    def initialize_from_config(self):
-        """Initialize parameters from configuration"""
-        # Topics
-        self.camera_info_topic = self.config.get('camera_info_topic', 'camera/camera_info')
-        self.image_topic = self.config.get('input_image_topic', 'camera/image_rect')
+    def initialize_from_params(self):
+        """Initialize parameters from ROS parameters"""
+        # Get parameters
+        self.camera_info_topic = self.get_parameter('camera_info').value
+        self.image_topic = self.get_parameter('image_rect').value
+        self.camera_frame = self.get_parameter('camera_frame').value
+        self.tag_family = self.get_parameter('tag.family').value
+        self.debug_enabled = self.get_parameter('debug_image').value
+        self.debug_image_topic = self.get_parameter('debug_image_topic').value
         
-        # Camera frame
-        self.camera_frame = self.config.get('camera_frame', 'camera_optical')
-        
-        # Debug configuration
-        self.debug_enabled = self.config.get('debug_image', False)
-        self.debug_image_topic = self.config.get('debug_image_topic', 'apriltag_detection/debug')
-        
-        # Tag configuration
-        tag_config = self.config.get('tag', {})
-        
-        # Get tag IDs, frames, and sizes
-        self.tag_ids = tag_config.get('ids', [])
-        self.tag_frames = tag_config.get('frames', [])
-        self.tag_sizes = tag_config.get('sizes', [])
+        # Get tag arrays
+        self.tag_ids = self.get_parameter('tag.ids').value
+        self.tag_frames = self.get_parameter('tag.frames').value
+        self.tag_sizes = self.get_parameter('tag.sizes').value
         
         # Validate configuration
         if not self.tag_ids:
-            raise ValueError("No tag IDs specified in configuration")
+            raise ValueError("No tag IDs specified. Set 'tag.ids' parameter.")
         
         if len(self.tag_frames) != len(self.tag_ids):
             raise ValueError(
                 f"Number of frames ({len(self.tag_frames)}) doesn't match number of tags ({len(self.tag_ids)}). "
-                f"Please specify exactly {len(self.tag_ids)} frame names."
+                f"Please set 'tag.frames' parameter with exactly {len(self.tag_ids)} frame names."
             )
     
         if len(self.tag_sizes) != len(self.tag_ids):
             raise ValueError(
                 f"Number of sizes ({len(self.tag_sizes)}) doesn't match number of tags ({len(self.tag_ids)}). "
-                f"Please specify exactly {len(self.tag_ids)} sizes."
+                f"Please set 'tag.sizes' parameter with exactly {len(self.tag_ids)} sizes."
             )
         
         # Create a mapping from tag ID to frame name and size
@@ -119,9 +208,6 @@ class ApriltagDetectionNode(Node):
                 'frame': self.tag_frames[i],
                 'size': self.tag_sizes[i]
             }
-        
-        # Tag family (default to standard)
-        self.tag_family = tag_config.get('family', 'tag36h11')
         
         # Log configuration
         self.get_logger().info(f"Topics: camera_info={self.camera_info_topic}, image={self.image_topic}")

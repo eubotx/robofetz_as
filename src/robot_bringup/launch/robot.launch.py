@@ -5,91 +5,103 @@ Main launch file for robot software operation.
 
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.actions import Node
+from launch.conditions import IfCondition, UnlessCondition
 
 def generate_launch_description():
     # Package names
     perception_pkg = 'arena_perception'
+    localization_pkg = 'arena_perception'
     robot_description_pkg = 'robot_description'
+    gazebo_pkg = 'robofetz_gazebo'
+    robot_bringup_pkg = 'robot_bringup'  # Assuming you have a robot_bringup package
     
     # ============================================
-    # ROBOT STATE PUBLISHER CONFIGURATION
+    # LAUNCH ARGUMENTS
     # ============================================
     
-    # Define launch arguments for robot state publisher
-    use_sim_time_arg = DeclareLaunchArgument(
-        'use_sim_time',
-        default_value='false',
-        description='Use simulation (Gazebo) clock if true'
+    # Simulation mode argument
+    use_sim_arg = DeclareLaunchArgument(
+        'use_sim',
+        default_value='true',
+        description='Launch Gazebo simulation (true/false)',
+        choices=['true', 'false']
     )
     
-    prefix_arg = DeclareLaunchArgument(
-        'prefix',
-        default_value='robot/',  # Default to 'robot/' prefix
-        description='Robot namespace prefix (e.g., "robot1/")'
+    # Fake perception argument - only usable with simulation
+    use_fake_perception_arg = DeclareLaunchArgument(
+        'use_fake_perception',
+        default_value='false',
+        description='Use fake arena perception (only valid when use_sim=true)',
+        choices=['true', 'false']
+    )
+    
+    # Gazebo world file argument
+    world_arg = DeclareLaunchArgument(
+        'world',
+        default_value='robofetz_arena_pinhole.world',
+        description='Name of the Gazebo world file to load',
+        choices=['robofetz_arena_wideangle.world', 'robofetz_arena_pinhole.world']
+    )
+    
+    # RViz launch argument
+    launch_rviz_arg = DeclareLaunchArgument(
+        'launch_rviz',
+        default_value='true',
+        description='Launch RViz2 visualization',
+        choices=['true', 'false']
+    )
+    
+    # RViz config file argument
+    rviz_config_arg = DeclareLaunchArgument(
+        'rviz_config',
+        default_value='config.rviz',
+        description='Name of the RViz configuration file (located in robot_bringup/config/)'
     )
     
     # ============================================
     # ARENA PERCEPTION CONFIGURATION
     # ============================================
-    
-    # Define config paths using PathJoinSubstitution
-    default_apriltag_config = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
-        'config',
-        'apriltag_detection_config.yaml'
-    ])
-    
-    default_arena_config = PathJoinSubstitution([
+        
+    default_arena_perception_config = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
         'config', 
-        'arena_detection_config.yaml'
+        'arena_perception_config.yaml'
     ])
-    
-    default_filter_config = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
+        
+    arena_perception_config_arg = DeclareLaunchArgument(
+        'arena_perception_config',
+        default_value=default_arena_perception_config,
+        description='Path to arena_perception_config file'
+    )
+
+    # ============================================
+    # ROBOT LOCALIZATION CONFIGURATION
+    # ============================================
+
+    default_robot_localization_config = PathJoinSubstitution([
+        FindPackageShare(localization_pkg),
         'config',
-        'robot_detection_filter_config.yaml'
+        'robot_localization_config.yaml'
     ])
     
-    default_calibration = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
-        'config',
-        'world_to_camera_calibration.temp.yaml'
-    ])
-    
-    # Declare launch arguments for arena perception config files
-    apriltag_config_arg = DeclareLaunchArgument(
-        'apriltag_config',
-        default_value=default_apriltag_config,
-        description='Path to apriltag detection config file'
-    )
-    
-    arena_config_arg = DeclareLaunchArgument(
-        'arena_config',
-        default_value=default_arena_config,
-        description='Path to arena detection config file'
-    )
-    
-    filter_config_arg = DeclareLaunchArgument(
-        'filter_config',
-        default_value=default_filter_config,
-        description='Path to robot detection filter config file'
-    )
-    
-    calibration_arg = DeclareLaunchArgument(
-        'calibration_file',
-        default_value=default_calibration,
-        description='Path to world to camera calibration file'
+    robot_localization_config_arg = DeclareLaunchArgument(
+        'robot_localization_config',
+        default_value=default_robot_localization_config,
+        description='Path to robot localization config file'
     )
     
     # Get config files from launch arguments
-    apriltag_config_file = LaunchConfiguration('apriltag_config')
-    camera_finder_config_file = LaunchConfiguration('arena_config')
-    filter_config_file = LaunchConfiguration('filter_config')
-    calibration_file = LaunchConfiguration('calibration_file')
+    use_sim = LaunchConfiguration('use_sim')
+    use_fake_perception = LaunchConfiguration('use_fake_perception')
+    world_file = LaunchConfiguration('world')
+    arena_perception_config_file = LaunchConfiguration('arena_perception_config')
+    robot_localization_config_file = LaunchConfiguration('robot_localization_config')
+    launch_rviz = LaunchConfiguration('launch_rviz')
+    rviz_config = LaunchConfiguration('rviz_config')
     
     # ============================================
     # BUILD LAUNCH DESCRIPTION
@@ -98,15 +110,17 @@ def generate_launch_description():
     ld = LaunchDescription()
     
     # Add launch arguments
-    ld.add_action(use_sim_time_arg)
-    ld.add_action(prefix_arg)
-    ld.add_action(apriltag_config_arg)
-    ld.add_action(arena_config_arg)
-    ld.add_action(filter_config_arg)
-    ld.add_action(calibration_arg)
+    ld.add_action(use_sim_arg)
+    ld.add_action(use_fake_perception_arg)
+    ld.add_action(world_arg)
+    ld.add_action(launch_rviz_arg)
+    ld.add_action(rviz_config_arg)
+    ld.add_action(arena_perception_config_arg)
+    ld.add_action(robot_localization_config_arg)
+    
     
     # ============================================
-    # 1. ROBOT STATE PUBLISHER
+    # 0. ROBOT STATE PUBLISHER
     # ============================================
     
     robot_state_publisher_launch = IncludeLaunchDescription(
@@ -118,16 +132,46 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={
-            'use_sim_time': LaunchConfiguration('use_sim_time'),
-            'prefix': LaunchConfiguration('prefix')
+            'use_sim_time': use_sim,
+            'prefix': 'robot/'
         }.items()
     )
     
-    # Start robot state publisher immediately
     ld.add_action(robot_state_publisher_launch)
-    
+
     # ============================================
-    # 2. ARENA PERCEPTION SYSTEM
+    # 1A. GAZEBO SIMULATION (CONDITIONAL)
+    # ============================================
+    
+    # Include Gazebo simulation launch when use_sim is true
+    gazebo_sim_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare(gazebo_pkg),
+                'launch',
+                'robofetz_gazebo_sim.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'world': world_file,
+            'enable_robot_state_pub': 'false'  # already covered above
+        }.items(),
+        condition=IfCondition(use_sim)
+    )
+
+    # ============================================
+    # 1B. REAL HARDWARE (CONDITIONAL)
+    # ============================================
+    
+    #includes to do
+
+    ld.add_action(TimerAction(
+        period=3.0,
+        actions=[gazebo_sim_launch]
+    ))
+
+    # ============================================
+    # 2A. ARENA PERCEPTION SYSTEM
     # ============================================
     
     # Create arena perception launch with parameters
@@ -140,25 +184,48 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={
-            'apriltag_config': apriltag_config_file,
-            'arena_config': camera_finder_config_file,
-            'filter_config': filter_config_file,
-            'calibration_file': calibration_file,
-            'use_sim_time': LaunchConfiguration('use_sim_time')
-        }.items()
+            'arena_perception_config': arena_perception_config_file,
+            'use_sim_time': use_sim
+        }.items(),
+        # Only launch real perception when NOT using fake perception
+        condition=UnlessCondition(use_fake_perception)
+    )
+
+    # ============================================
+    # 2B. FAKE ARENA PERCEPTION SYSTEM
+    # ============================================
+
+    fake_arena_perception_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare(perception_pkg),
+                'launch',
+                'fake_arena_perception.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'use_sim_time': use_sim
+        }.items(),
+        # Only launch fake perception when use_fake_perception is true
+        condition=IfCondition(use_fake_perception)
     )
     
-    # Add arena perception
+    # Add arena perception with delay (in simulation, wait longer for Gazebo to start)
+    # Use PythonExpression to properly evaluate the string condition
+    arena_perception_delay = PythonExpression([
+        '8.0 if "', use_sim, '" == "true" else 3.0'
+    ])
+    
     ld.add_action(TimerAction(
-        period=3.0,  # Give robot_state_publisher time to establish TF tree
-        actions=[arena_perception_launch]
+        period=arena_perception_delay,
+        actions=[arena_perception_launch, fake_arena_perception_launch]
     ))
     
     # ============================================
     # 3. ROBOT LOCALIZATION
     # ============================================
     
-    # Include robot localization launch
+    # Include robot localization launch with the config file
     robot_localization_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
@@ -168,14 +235,52 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={
-            'use_sim_time': LaunchConfiguration('use_sim_time')  # Pass through
+            'robot_localization_config': robot_localization_config_file,
+            'use_sim_time': use_sim,
         }.items()
     )
     
-    # Add robot localization
+    # Add robot localization with longer delay in simulation
+    # Use PythonExpression to properly evaluate the string condition
+    localization_delay = PythonExpression([
+        '20.0 if "', use_sim, '" == "true" else 15.0'
+    ])
+    
     ld.add_action(TimerAction(
-        period=15.0,
+        period=localization_delay,
         actions=[robot_localization_launch]
     ))
     
+    # ============================================
+    # 4. RVIZ2 VISUALIZATION (CONDITIONAL)
+    # ============================================
+    
+    # RViz2 config file path - using the configurable file name
+    rviz_config_file = PathJoinSubstitution([
+        FindPackageShare(robot_bringup_pkg),
+        'config',
+        rviz_config  # Use the configurable RViz config file name
+    ])
+    
+    # RViz2 node
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        output='screen',
+        arguments=['-d', rviz_config_file],
+        parameters=[{'use_sim_time': use_sim}],
+        condition=IfCondition(launch_rviz)
+    )
+    
+    # Add RViz2 with a delay to ensure all other systems are up
+    rviz_delay = PythonExpression([
+        '25.0 if "', use_sim, '" == "true" else 20.0'
+    ])
+    
+    ld.add_action(TimerAction(
+        period=rviz_delay,
+        actions=[rviz_node]
+    ))
+
     return ld

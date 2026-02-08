@@ -56,7 +56,7 @@ class SimpleNavigator(Node):
         # Subscribers
         self.pose_sub = self.create_subscription(
             PoseStamped, 
-            'arena_perception/robot/pose', 
+            '/robot/pose', 
             self.pose_callback, 
             10)
             

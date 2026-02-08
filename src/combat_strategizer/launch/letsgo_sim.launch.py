@@ -44,19 +44,6 @@ def generate_launch_description():
         output='screen'
     )
 
-    # RViz2 node
-    rviz2 = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        output='screen',
-        arguments=['-d', os.path.join(
-            robot_navigation_dir, 
-            'config', 
-            'rviz_config.rviz'
-        )]
-    )
-
     # Include teleop launch file for joystick control
     teleop_opponent = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -74,7 +61,6 @@ def generate_launch_description():
     return LaunchDescription([
         combat_strategizer,
         weapon_control,
-        rviz2,
         teleop_opponent,
         nav2_launch
     ])
