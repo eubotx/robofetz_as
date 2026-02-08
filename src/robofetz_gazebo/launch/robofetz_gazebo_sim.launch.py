@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Gazebo simulation launch - uses robot_description for main robot, keeps opponent as is.
-"""
 
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -11,6 +8,7 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Pyth
 from launch_ros.actions import Node
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
+from launch.conditions import UnlessCondition
 import xacro
 
 def generate_launch_description():
@@ -18,9 +16,12 @@ def generate_launch_description():
     # Package and file paths
     gazebo_pkg = 'robofetz_gazebo'
     desc_pkg = 'robot_description'
+
+    # Robot names also used to build prefix
+    robot_name = 'robot'
+    opponent_name = 'opponent'
     
-    gazebo_pkg_share = get_package_share_directory(gazebo_pkg)
-    desc_pkg_share = get_package_share_directory(desc_pkg)
+    gazebo_pkg_share = get_package_share_directory(gazebo_pkg)  #use get_package share, FindPackageShare causes problems here
     
     worlds_dir = os.path.join(gazebo_pkg_share, 'worlds')
     config_dir = os.path.join(gazebo_pkg_share, 'config')
@@ -34,9 +35,20 @@ def generate_launch_description():
         choices=['robofetz_arena_wideangle.world', 'robofetz_arena_pinhole.world']
     )
     
+    # Declare argument to enable/disable robot state publisher if launhed in other place
+    robot_state_pub_arg = DeclareLaunchArgument(
+        'enable_robot_state_pub',
+        default_value='true',
+        description='Enable robot state publisher for the main robot',
+        choices=['true', 'false']
+    )
+    
     # Get the world file from launch argument
     world_file = LaunchConfiguration('world')
     full_world_path = PathJoinSubstitution([worlds_dir, world_file])
+    
+    # Get robot state publisher flag
+    enable_robot_state_pub = LaunchConfiguration('enable_robot_state_pub')
     
     # Setup Gazebo environment paths
     existing_gz_path = os.environ.get('GZ_SIM_RESOURCE_PATH', '')
@@ -53,11 +65,7 @@ def generate_launch_description():
     print(f"Setting GZ_SIM_RESOURCE_PATH to: {new_gz_path}")
     print(f"Setting GAZEBO_MODEL_PATH to: {new_gazebo_path}")
     
-    # Robot names
-    robot_name = 'robot'
-    opponent_name = 'opponent'
-    
-    # 1. Start Gazebo
+    # Start Gazebo
     gazebo_process = ExecuteProcess(
         cmd=['gz', 'sim', '-r', '-v', '4', full_world_path],
         output='screen',
@@ -68,11 +76,11 @@ def generate_launch_description():
         }
     )
     
-    # 2. Include robot_state_publisher for MAIN robot from robot_description package
+    # Robot description via robot_state_publisher from robot_description package
     robot_description_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
-                FindPackageShare('robot_description'),
+                FindPackageShare(desc_pkg),
                 'launch',
                 'robot_state_publisher.launch.py'
             ])
@@ -80,10 +88,25 @@ def generate_launch_description():
         launch_arguments={
             'use_sim_time': 'true',
             'prefix': f'{robot_name}/'
-        }.items()
+        }.items(),
+        condition=UnlessCondition(enable_robot_state_pub)  # Conditionally include
     )
     
-    # 3. OPPONENT robot stays as before (using opponent xacro from this package)
+    # Spawn Robot (uses robot_description from included launch)
+    spawn_robot = Node(
+        package='ros_gz_sim',
+        executable='create',
+        name='spawn_robot',
+        arguments=[
+            '-name', robot_name,
+            '-topic', '/robot_description',
+            '-x', '0.3', '-y', '0.3', '-z', '0.0',
+            '-R', '0.0', '-P', '0.0', '-Y', '0.0'
+        ],
+        output='screen',
+    )
+
+    # Opponent description using opponent xacro from this package
     opponent_xacro = os.path.join(gazebo_pkg_share, 'models/simple_diff_drive_opponent/simple_diff_drive_opponent.xacro')
     opponent_description = xacro.process_file(
         opponent_xacro, 
@@ -101,22 +124,8 @@ def generate_launch_description():
             'use_sim_time': True,
         }]
     )
-    
-    # 4. Spawn Robot (uses robot_description from included launch)
-    spawn_robot = Node(
-        package='ros_gz_sim',
-        executable='create',
-        name='spawn_robot',
-        arguments=[
-            '-name', robot_name,
-            '-topic', '/robot_description',
-            '-x', '0.3', '-y', '0.3', '-z', '0.0',
-            '-R', '0.0', '-P', '0.0', '-Y', '0.0'
-        ],
-        output='screen',
-    )
 
-    # 5. Spawn Opponent Robot
+    # Spawn Opponent Robot directly from xacro
     spawn_opponent = Node(
         package='ros_gz_sim',
         executable='create',
@@ -130,7 +139,7 @@ def generate_launch_description():
         output='screen',
     )
     
-    # 6. Bridge
+    # Gazebo Ros Bridge
     bridge_params = os.path.join(gazebo_pkg_share, 'parameters/bridge_parameters.yaml')
     bridge = Node(
         package='ros_gz_bridge',
@@ -139,30 +148,8 @@ def generate_launch_description():
         arguments=['--ros-args', '-p', f'config_file:={bridge_params}'],
         output='screen'
     )
-    
-    # 7. My robot tf to pose instance
-    robot_tf_to_pose = Node(
-        package='robofetz_gazebo',
-        executable='tf_to_pose',
-        name='tf_to_pose_robot',
-        parameters=[{
-            'tf_topic': '/pose_tf_sim',
-            'pose_topic': '/pose_sim'
-        }]
-    )
-    
-    # 8. Opponent robot tf to pose instance
-    opponent_tf_to_pose = Node(
-        package='robofetz_gazebo',
-        executable='tf_to_pose',
-        name='tf_to_pose_opponent',
-        parameters=[{
-            'tf_topic': f'/{opponent_name}/pose_tf_sim',
-            'pose_topic': 'opponent/pose_sim',
-        }]
-    )
 
-    # 9. Grayscale Image Republisher Node
+    # Grayscale Image Republisher Node to get grayscale cam
     grayscale_republisher = Node(
         package='robofetz_gazebo',
         executable='grayscale_republisher',
@@ -171,14 +158,14 @@ def generate_launch_description():
         output='screen'
     )
 
-    # 10. Use PythonExpression to create conditional config file path
-    config_file = PythonExpression([
+    # Use PythonExpression to create conditional config file path
+    camera_info_file = PythonExpression([
         "'", os.path.join(config_dir, 'camera_pinhole.yaml'), 
         "' if 'pinhole' in '", world_file, 
         "' else '", os.path.join(config_dir, 'camera_wideangle.yaml'), "'"
     ])
 
-    # 11. Camera info publisher
+    # Camera info publisher using correct camera info
     camera_info_publisher = Node(
         package='robofetz_gazebo',
         executable='camera_info_publisher',
@@ -186,7 +173,7 @@ def generate_launch_description():
         namespace='arena_camera',
         parameters=[{
             'use_sim_time': True,
-            'config_file': config_file
+            'config_file': camera_info_file
         }],
         output='screen'
     )
@@ -195,36 +182,25 @@ def generate_launch_description():
     ld = LaunchDescription()
     
     ld.add_action(world_arg)
+    ld.add_action(robot_state_pub_arg)  # Add the new argument
 
-    
-    # 1. Start Gazebo first
     ld.add_action(gazebo_process)
     
-    # 2. Wait 3 seconds for Gazebo to initialize
     ld.add_action(TimerAction(
-        period=3.0,
+        period=2.0,
         actions=[robot_description_launch, opponent_state_pub]
     ))
     
-    # 3. Wait 5 seconds then spawn robots
     ld.add_action(TimerAction(
         period=5.0,
         actions=[spawn_robot, spawn_opponent]
     ))
     
-    # 4. Wait 6 seconds then start bridge
     ld.add_action(TimerAction(
         period=6.0,
         actions=[bridge]
     ))
-    
-    # 5. Wait 7 seconds then start tf_to_pose nodes
-    ld.add_action(TimerAction(
-        period=7.0,
-        actions=[robot_tf_to_pose, opponent_tf_to_pose]
-    ))
 
-    # 6. Wait 8 seconds then start image processing nodes
     ld.add_action(TimerAction(
         period=8.0,
         actions=[grayscale_republisher, camera_info_publisher]
