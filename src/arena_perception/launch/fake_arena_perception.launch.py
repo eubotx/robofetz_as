@@ -10,18 +10,29 @@ def generate_launch_description():
     # Package name (assuming this file is in arena_perception package)
     pkg = 'arena_perception'
 
+    use_sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='false',
+        description='Use simulation (Gazebo) clock if true'
+    )
+    
     # Build launch description
     ld = LaunchDescription()
     
+    ld.add_action(use_sim_time_arg)
+    
+    use_sim_time = LaunchConfiguration('use_sim_time')
+    
     # TF relay for robot - reads robot/base_footprint_sim and publishes to arena_perception/robot/base_footprint
     robot_tf_relay = Node(
-        package=pkg,  # Your package name
-        executable='tf_frame_relay',  # The executable name from setup.py
+        package=pkg,
+        executable='tf_frame_relay',
         name='robot_tf_relay',
         parameters=[{
             'source_frame': 'robot/base_footprint_sim',
             'target_frame': 'arena_perception/robot/base_footprint',
-            'rate': 60.0
+            'rate': 60.0,
+            'use_sim_time': use_sim_time
         }],
         output='screen'
     )
@@ -34,7 +45,8 @@ def generate_launch_description():
         parameters=[{
             'source_frame': 'opponent/base_footprint_sim',
             'target_frame': 'arena_perception/opponent/base_footprint',
-            'rate': 60.0
+            'rate': 60.0,
+            'use_sim_time': use_sim_time
         }],
         output='screen'
     )

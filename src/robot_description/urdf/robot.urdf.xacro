@@ -5,7 +5,6 @@
     <!-- ########################## -->
     <!--   Geometry and constants   -->
     <!-- ########################## -->
-    <xacro:arg name="prefix" default="" />
 
     <!-- Pi -->
     <xacro:property name="pi_const" value="3.14159265" />
@@ -106,13 +105,13 @@
     <xacro:include filename="$(find robot_description)/urdf/gazebo/robot.gazebo.xacro" />
 
     <!-- Links and joints -->
-    <link name="$(arg prefix)base_footprint"> </link>
-    <joint name="$(arg prefix)body_link_joint" type="fixed">
-        <parent link="$(arg prefix)base_footprint"/>
-        <child link="$(arg prefix)body_link"/>
+    <link name="base_footprint"> </link>
+    <joint name="body_link_joint" type="fixed">
+        <parent link="base_footprint"/>
+        <child link="body_link"/>
     </joint>
 
-    <link name="$(arg prefix)body_link">
+    <link name="body_link">
         <visual>
             <geometry><box size="${a} ${c} ${b}" /></geometry>
             <origin rpy="0 0 0" xyz="0 0 ${s1}"/>
@@ -126,12 +125,12 @@
     </link>
 
     <!-- Top AprilTag -->
-    <joint name="$(arg prefix)top_tag_joint" type="fixed">
-        <parent link="$(arg prefix)body_link"/>
-        <child link="$(arg prefix)top_apriltag_link"/>
+    <joint name="top_tag_joint" type="fixed">
+        <parent link="body_link"/>
+        <child link="top_apriltag_link"/>
         <origin xyz="0 0 ${s1 + b/2 + tag_thickness/2}" rpy="0 0 0"/>
     </joint>
-    <link name="$(arg prefix)top_apriltag_link">
+    <link name="top_apriltag_link">
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry><box size="${tag_size} ${tag_size} ${tag_thickness}"/></geometry>
@@ -145,20 +144,20 @@
     </link>
 
     <!-- Top AprilTag Optical Frame -->
-    <joint name="$(arg prefix)top_tag_optical_joint" type="fixed">
-        <parent link="$(arg prefix)top_apriltag_link"/>
-        <child link="$(arg prefix)top_apriltag_optical"/>
+    <joint name="top_tag_optical_joint" type="fixed">
+        <parent link="top_apriltag_link"/>
+        <child link="top_apriltag_optical"/>
         <origin xyz="0 0 0" rpy="0 ${pi_const} ${pi_const/2}"/>
     </joint>
-    <link name="$(arg prefix)top_apriltag_optical"/>
+    <link name="top_apriltag_optical"/>
 
     <!-- Bottom AprilTag -->
-    <joint name="$(arg prefix)bottom_tag_joint" type="fixed">
-        <parent link="$(arg prefix)body_link"/>
-        <child link="$(arg prefix)bottom_apriltag_link"/>
+    <joint name="bottom_tag_joint" type="fixed">
+        <parent link="body_link"/>
+        <child link="bottom_apriltag_link"/>
         <origin xyz="0 0 ${s1 - b/2 - tag_thickness/2}" rpy="${pi_const} 0 0"/>
     </joint>
-    <link name="$(arg prefix)bottom_apriltag_link">
+    <link name="bottom_apriltag_link">
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry><box size="${tag_size} ${tag_size} ${tag_thickness}"/></geometry>
@@ -172,23 +171,23 @@
     </link>
 
     <!-- Bottom AprilTag Optical Frame -->
-    <joint name="$(arg prefix)bottom_tag_optical_joint" type="fixed">
-        <parent link="$(arg prefix)bottom_apriltag_link"/>
-        <child link="$(arg prefix)bottom_apriltag_optical"/>
+    <joint name="bottom_tag_optical_joint" type="fixed">
+        <parent link="bottom_apriltag_link"/>
+        <child link="bottom_apriltag_optical"/>
                 <origin xyz="0 0 0" rpy="0 0 ${pi_const/2}"/>
     </joint>
-    <link name="$(arg prefix)bottom_apriltag_optical"/>
+    <link name="bottom_apriltag_optical"/>
 
     <!-- Wheels -->
-    <joint name="$(arg prefix)wheel1_joint" type="continuous">
-        <parent link="$(arg prefix)body_link"/>
-        <child link="$(arg prefix)wheel1_link"/>
+    <joint name="right_wheel_joint" type="continuous">
+        <parent link="body_link"/>
+        <child link="right_wheel_link"/>
         <origin xyz="${-s2} ${-s4} ${r}" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
         <limit effort="50000" velocity="10"/>
         <dynamics damping="1.0" friction="1.0"/>
     </joint>
-    <link name="$(arg prefix)wheel1_link">
+    <link name="right_wheel_link">
         <visual>
             <origin rpy="${pi_const/2} 0 0" xyz="0 0 0"/>
             <geometry><cylinder length="${d}" radius="${r}"/></geometry>
@@ -201,15 +200,15 @@
         <xacro:inertia_wheel/>
     </link>
 
-    <joint name="$(arg prefix)wheel2_joint" type="continuous">
-        <parent link="$(arg prefix)body_link"/>
-        <child link="$(arg prefix)wheel2_link"/>
+    <joint name="left_wheel_joint" type="continuous">
+        <parent link="body_link"/>
+        <child link="left_wheel_link"/>
         <origin xyz="${-s2} ${s4} ${r}" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
         <limit effort="50000" velocity="10"/>
         <dynamics damping="1.0" friction="1.0"/>
     </joint>
-    <link name="$(arg prefix)wheel2_link">
+    <link name="left_wheel_link">
         <visual>
             <origin rpy="${pi_const/2} 0 0" xyz="0 0 0"/>
             <geometry><cylinder length="${d}" radius="${r}"/></geometry>
@@ -225,12 +224,12 @@
     <!-- Two upright boxes with top/bottom casters -->
     <xacro:macro name="upright_with_casters" params="name y_offset">
         <!-- Upright box -->
-        <joint name="$(arg prefix)${name}_joint" type="fixed">
-            <parent link="$(arg prefix)body_link"/>
-            <child link="$(arg prefix)${name}_link"/>
+        <joint name="${name}_joint" type="fixed">
+            <parent link="body_link"/>
+            <child link="${name}_link"/>
             <origin xyz="${a/2+f} ${y_offset} ${r}" rpy="0 0 0"/>
         </joint>
-        <link name="$(arg prefix)${name}_link">
+        <link name="${name}_link">
             <visual>
                 <origin rpy="0 0 0"/>
                 <geometry><box size="${support_width} ${support_width} ${support_height}"/></geometry>
@@ -244,12 +243,12 @@
         </link>
 
         <!-- Top caster -->
-        <joint name="$(arg prefix)${name}_top_caster_joint" type="fixed">
-            <parent link="$(arg prefix)${name}_link"/>
-            <child link="$(arg prefix)${name}_top_caster_link"/>
+        <joint name="${name}_top_caster_joint" type="fixed">
+            <parent link="${name}_link"/>
+            <child link="${name}_top_caster_link"/>
             <origin xyz="0 0 ${support_height/2}" rpy="0 0 0"/>
         </joint>
-        <link name="$(arg prefix)${name}_top_caster_link">
+        <link name="${name}_top_caster_link">
             <visual>
                 <origin rpy="0 0 0"/>
                 <geometry><sphere radius="${f}"/></geometry>
@@ -263,12 +262,12 @@
         </link>
 
         <!-- Bottom caster -->
-        <joint name="$(arg prefix)${name}_bottom_caster_joint" type="fixed">
-            <parent link="$(arg prefix)${name}_link"/>
-            <child link="$(arg prefix)${name}_bottom_caster_link"/>
+        <joint name="${name}_bottom_caster_joint" type="fixed">
+            <parent link="${name}_link"/>
+            <child link="${name}_bottom_caster_link"/>
             <origin xyz="0 0 ${-support_height/2}" rpy="0 0 0"/>
         </joint>
-        <link name="$(arg prefix)${name}_bottom_caster_link">
+        <link name="${name}_bottom_caster_link">
             <visual>
                 <origin rpy="0 0 0"/>
                 <geometry><sphere radius="${f}"/></geometry>
