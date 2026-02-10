@@ -61,23 +61,16 @@
             
         </plugin>
 
-        <!-- joint state publisher -->
-        <plugin filename="gz-sim-joint-state-publisher-system"
-          name="gz::sim::systems::JointStatePublisher">
-            <topic>opponent/joint_states</topic>
-            <joint_name>$(arg prefix)wheel1_joint</joint_name>
-            <joint_name>$(arg prefix)wheel2_joint</joint_name>
-        </plugin>
-
+        <!-- Publishes ground truth just for debugging and fake perception.-->
         <plugin filename="gz-sim-odometry-publisher-system"
         name="gz::sim::systems::OdometryPublisher">
-            <odom_frame>map</odom_frame>
-            <robot_base_frame>$opponent/base_footprint</robot_base_frame>
-            <odom_publish_frequency>30</odom_publish_frequency>
+            <odom_frame>world</odom_frame>
+            <robot_base_frame>opponent/base_footprint_sim</robot_base_frame>
+            <odom_publish_frequency>60</odom_publish_frequency>
             <odom_topic>opponent/odometry_ground_truth</odom_topic>
             <odom_covariance_topic>opponent/odometry_ground_truth_with_covariance</odom_covariance_topic>
             <tf_topic>opponent/pose_ground_truth</tf_topic>
-            <dimensions>2</dimensions>
+            <dimensions>3</dimensions>
         </plugin>
 
 

@@ -6,12 +6,13 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /TF1
+        - /TF1/Frames1
         - /Map1
         - /Map1/Topic1
         - /Path1
         - /Map2
         - /RobotModel1
-        - /RobotModel1/Status1
       Splitter Ratio: 0.5
     Tree Height: 542
   - Class: rviz_common/Selection
@@ -59,16 +60,38 @@ Visualization Manager:
       Filter (whitelist): ""
       Frame Timeout: 15
       Frames:
-        All Enabled: true
+        All Enabled: false
         arena_camera_optical:
           Value: true
         arena_perception/robot/base_footprint:
-          Value: true
+          Value: false
         arena_perception/robot_top_tag:
           Value: true
         arena_tag:
           Value: true
         arena_tag_calibrated:
+          Value: true
+        base_footprint:
+          Value: true
+        body_link:
+          Value: true
+        bottom_apriltag_link:
+          Value: false
+        bottom_apriltag_optical:
+          Value: true
+        front_left_support_bottom_caster_link:
+          Value: false
+        front_left_support_link:
+          Value: false
+        front_left_support_top_caster_link:
+          Value: false
+        front_right_support_bottom_caster_link:
+          Value: false
+        front_right_support_link:
+          Value: false
+        front_right_support_top_caster_link:
+          Value: false
+        left_wheel_link:
           Value: true
         map:
           Value: true
@@ -80,35 +103,13 @@ Visualization Manager:
           Value: true
         opponent/caster_link:
           Value: true
-        robot/base_footprint:
+        right_wheel_link:
           Value: true
         robot/base_footprint_sim:
           Value: true
-        robot/body_link:
-          Value: true
-        robot/bottom_apriltag_link:
-          Value: true
-        robot/bottom_apriltag_optical:
-          Value: true
-        robot/front_left_support_bottom_caster_link:
-          Value: true
-        robot/front_left_support_link:
-          Value: true
-        robot/front_left_support_top_caster_link:
-          Value: true
-        robot/front_right_support_bottom_caster_link:
-          Value: true
-        robot/front_right_support_link:
-          Value: true
-        robot/front_right_support_top_caster_link:
-          Value: true
-        robot/top_apriltag_link:
-          Value: true
-        robot/top_apriltag_optical:
-          Value: true
-        robot/wheel1_link:
-          Value: true
-        robot/wheel2_link:
+        top_apriltag_link:
+          Value: false
+        top_apriltag_optical:
           Value: true
         world:
           Value: true
@@ -130,23 +131,23 @@ Visualization Manager:
             {}
           map:
             odom:
-              robot/base_footprint:
-                robot/body_link:
-                  robot/bottom_apriltag_link:
-                    robot/bottom_apriltag_optical:
+              base_footprint:
+                body_link:
+                  bottom_apriltag_link:
+                    bottom_apriltag_optical:
                       {}
-                  robot/front_left_support_link:
-                    robot/front_left_support_bottom_caster_link:
+                  front_left_support_link:
+                    front_left_support_bottom_caster_link:
                       {}
-                    robot/front_left_support_top_caster_link:
+                    front_left_support_top_caster_link:
                       {}
-                  robot/front_right_support_link:
-                    robot/front_right_support_bottom_caster_link:
+                  front_right_support_link:
+                    front_right_support_bottom_caster_link:
                       {}
-                    robot/front_right_support_top_caster_link:
+                    front_right_support_top_caster_link:
                       {}
-                  robot/top_apriltag_link:
-                    robot/top_apriltag_optical:
+                  top_apriltag_link:
+                    top_apriltag_optical:
                       {}
             robot/base_footprint_sim:
               {}
@@ -237,87 +238,20 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /robot_description
-      Enabled: true
+      Enabled: false
       Links:
         All Links Enabled: true
         Expand Joint Details: false
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
-        base_footprint:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        body_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        bottom_apriltag_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        bottom_apriltag_optical:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        front_left_support_bottom_caster_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        front_left_support_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        front_left_support_top_caster_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        front_right_support_bottom_caster_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        front_right_support_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        front_right_support_top_caster_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        top_apriltag_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        top_apriltag_optical:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        wheel1_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        wheel2_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
       Mass Properties:
         Inertia: false
         Mass: false
       Name: RobotModel
-      TF Prefix: robot
+      TF Prefix: ""
       Update Interval: 0
-      Value: true
+      Value: false
       Visual Enabled: true
   Enabled: true
   Global Options:
@@ -365,7 +299,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 3.6937415599823
+      Distance: 1.7919385433197021
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -401,5 +335,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1200
-  X: 720
-  Y: 197
+  X: 334
+  Y: 110
