@@ -5,7 +5,6 @@
     <!-- ########################## -->
     <!--   Geometry and constants   -->
     <!-- ########################## -->
-    <xacro:arg name="prefix" default="" />
 
     <!-- Pi -->
     <xacro:property name="pi_const" value="3.14159265" />
@@ -100,14 +99,14 @@
     <!-- ########################## -->
 
     <!-- Fictious link of the robot - we need to have this link otherwise Gazebo will complain -->
-    <link name="$(arg prefix)base_footprint"> </link>
-    <joint name="$(arg prefix)body_link_joint" type="fixed">
-        <parent link="$(arg prefix)base_footprint"/>
-        <child link="$(arg prefix)body_link"/>
+    <link name="base_footprint"> </link>
+    <joint name="body_link_joint" type="fixed">
+        <parent link="base_footprint"/>
+        <child link="body_link"/>
     </joint>
 
     <!-- Body link of the robot -->
-    <link name="$(arg prefix)body_link">
+    <link name="body_link">
 
         <visual>
             <geometry>
@@ -130,16 +129,16 @@
 
     <!-- Wheel1 of the robot -->
 
-    <joint name="$(arg prefix)wheel1_joint" type="continuous" >
-        <parent link="$(arg prefix)body_link"/>
-        <child link="$(arg prefix)wheel1_link"/>
+    <joint name="wheel1_joint" type="continuous" >
+        <parent link="body_link"/>
+        <child link="wheel1_link"/>
         <origin xyz="${-s2} ${-s4} ${r}" rpy="0 0 0" />
         <axis xyz="0 1 0"/>
         <limit effort="50000" velocity="10"/>
         <dynamics damping="1.0" friction="1.0"/>
     </joint>
 
-    <link name="$(arg prefix)wheel1_link">
+    <link name="wheel1_link">
         <visual>
             <origin rpy="${pi_const/2} 0 0" xyz="0 0 0"/>
             <geometry>
@@ -160,16 +159,16 @@
 
     <!-- Wheel2 of the robot -->
 
-    <joint name="$(arg prefix)wheel2_joint" type="continuous" >
-        <parent link="$(arg prefix)body_link"/>
-        <child link="$(arg prefix)wheel2_link"/>
+    <joint name="wheel2_joint" type="continuous" >
+        <parent link="body_link"/>
+        <child link="wheel2_link"/>
         <origin xyz="${-s2} ${s4} ${r}" rpy="0 0 0" />
         <axis xyz="0 1 0"/>
         <limit effort="50000" velocity="10"/>
         <dynamics damping="1.0" friction="1.0"/>
     </joint>
 
-    <link name="$(arg prefix)wheel2_link">
+    <link name="wheel2_link">
         <visual>
             <origin rpy="${pi_const/2} 0 0" xyz="0 0 0"/>
             <geometry>
@@ -190,13 +189,13 @@
 
     <!-- Caster wheel of the robot -->
 
-    <joint name="$(arg prefix)caster_joint" type="fixed" >
-        <parent link="$(arg prefix)body_link"/>
-        <child link="$(arg prefix)caster_link"/>
+    <joint name="caster_joint" type="fixed" >
+        <parent link="body_link"/>
+        <child link="caster_link"/>
         <origin xyz="${s3} 0 ${r}" rpy="0 0 0" />
     </joint>
 
-    <link name="$(arg prefix)caster_link">
+    <link name="caster_link">
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>

@@ -8,7 +8,7 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Pyth
 from launch_ros.actions import Node
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
-from launch.conditions import UnlessCondition
+from launch.conditions import IfCondition, UnlessCondition
 import xacro
 
 def generate_launch_description():
@@ -35,7 +35,7 @@ def generate_launch_description():
         choices=['robofetz_arena_wideangle.world', 'robofetz_arena_pinhole.world']
     )
     
-    # Declare argument to enable/disable robot state publisher if launhed in other place
+    # Declare argument to enable/disable robot state publisher
     enable_robot_state_pub_arg = DeclareLaunchArgument(
         'enable_robot_state_pub',
         default_value='true',
@@ -89,7 +89,7 @@ def generate_launch_description():
             'use_sim_time': 'true',
             'prefix': f'{robot_name}/'
         }.items(),
-        condition=UnlessCondition(enable_robot_state_pub)  # Conditionally include
+        condition=IfCondition(enable_robot_state_pub)  # Only include if enabled
     )
     
     # Spawn Robot (uses robot_description from included launch)
@@ -112,27 +112,15 @@ def generate_launch_description():
         opponent_xacro, 
         mappings={'prefix': f'{opponent_name}/'}
     ).toxml()
-    
-    opponent_state_pub = Node(
-        package='robot_state_publisher',
-        executable='robot_state_publisher',
-        name='opponent_state_publisher',
-        namespace=opponent_name,
-        output='screen',
-        parameters=[{
-            'robot_description': opponent_description,
-            'use_sim_time': True,
-        }]
-    )
 
-    # Spawn Opponent Robot directly from xacro
+    # Spawn Opponent Robot directly from URDF string
     spawn_opponent = Node(
         package='ros_gz_sim',
         executable='create',
         name='spawn_opponent',
         arguments=[
             '-name', opponent_name,
-            '-topic', f'/{opponent_name}/robot_description',
+            '-string', opponent_description,
             '-x', '1.2', '-y', '1.2', '-z', '0.0',
             '-R', '0.0', '-P', '0.0', '-Y', '3.14'
         ],
@@ -146,6 +134,7 @@ def generate_launch_description():
         executable='parameter_bridge',
         name='gz_bridge',
         arguments=['--ros-args', '-p', f'config_file:={bridge_params}'],
+        parameters=[{'use_sim_time': True}],
         output='screen'
     )
 
@@ -186,9 +175,10 @@ def generate_launch_description():
 
     ld.add_action(gazebo_process)
     
+    # Add robot_description_launch with timer (it will only execute if condition is true)
     ld.add_action(TimerAction(
         period=2.0,
-        actions=[robot_description_launch, opponent_state_pub]
+        actions=[robot_description_launch]
     ))
     
     ld.add_action(TimerAction(

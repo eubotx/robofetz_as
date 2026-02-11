@@ -32,15 +32,14 @@
 
   # gz topic published by JointState plugin
 - ros_topic_name: "joint_states"
-  gz_topic_name: "joint_states"
+  gz_topic_name: "robot/joint_states"
   ros_type_name: "sensor_msgs/msg/JointState"
   gz_type_name: "gz.msgs.Model"
   direction: GZ_TO_ROS
 
   # gz topic published by Odom plugin
-  # Ground truth: map -> robot/odom
-  # Should be just used for error checking of real localization stack
-  # Child tf needs to be changed to robot/base_foodprint_sim once arena perception works reliably
+  # Ground truth: world -> robot_baseframe
+  # Publishes ground truth just for debugging and fake perception
 - ros_topic_name: "tf"
   gz_topic_name: "robot/pose_ground_truth"
   ros_type_name: "tf2_msgs/msg/TFMessage"
@@ -71,20 +70,21 @@
   direction: ROS_TO_GZ
 
 # gz topic published by Odom plugin
-# Should be just used for error checking of real opponent detection stack
-- ros_topic_name: "opponent/pose_tf_sim"
+# Ground truth: world -> opponent/robot_baseframe
+# Publishes ground truth just for debugging and fake perception
+- ros_topic_name: "tf"
   gz_topic_name: "opponent/pose_ground_truth"
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"
   direction: GZ_TO_ROS
 
-# gz topic published by Odom plugin
-# odometry message type but is ground truth -> parent is map!
-- ros_topic_name: "opponent/odometry_ground_truth_sim"
-  gz_topic_name: "opponent/odometry_ground_truth"
-  ros_type_name: "nav_msgs/msg/Odometry"
-  gz_type_name: "gz.msgs.Odometry"
-  direction: GZ_TO_ROS
+# # gz topic published by Odom plugin
+# # odometry message type but is ground truth -> parent is map!
+# - ros_topic_name: "opponent/odometry_ground_truth_sim"
+#   gz_topic_name: "opponent/odometry_ground_truth"
+#   ros_type_name: "nav_msgs/msg/Odometry"
+#   gz_type_name: "gz.msgs.Odometry"
+#   direction: GZ_TO_ROS
 
   # Camera image bridge
 - ros_topic_name: "arena_camera/image_sim_color"

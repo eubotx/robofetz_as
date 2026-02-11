@@ -11,7 +11,7 @@ import tf_transformations
 
 class OdometryCorrectionNode(Node):
     def __init__(self):
-        super().__init__('odometry_correction_node')
+        super().__init__('odom_drift_correction_node')
         
         # Declare parameters with default values 
         self.declare_parameters(

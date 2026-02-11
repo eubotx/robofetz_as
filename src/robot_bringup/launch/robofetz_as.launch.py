@@ -236,7 +236,7 @@ def generate_launch_description():
         ]),
         launch_arguments={
             'robot_localization_config': robot_localization_config_file,
-            'use_sim_time': use_sim,
+            'use_sim_time': use_sim
         }.items()
     )
     

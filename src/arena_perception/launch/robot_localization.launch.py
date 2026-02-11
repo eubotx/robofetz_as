@@ -7,14 +7,20 @@ from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
-    # Package name
-    perception_pkg = 'arena_perception'
+
+    localization_pkg = 'arena_perception'
     
     default_robot_localization_config = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
+        FindPackageShare(localization_pkg),
         'config',
         'robot_localization_config.yaml'
     ])
+    
+    use_sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='false',
+        description='Use simulation (Gazebo) clock if true'
+    )
     
     robot_localization_config_arg = DeclareLaunchArgument(
         'robot_localization_config',
@@ -23,11 +29,13 @@ def generate_launch_description():
     )
     
     robot_localization_config_file = LaunchConfiguration('robot_localization_config')
+    use_sim_time = LaunchConfiguration('use_sim_time')
     
     # Build launch description
     ld = LaunchDescription()
     
     # Add launch arguments
+    ld.add_action(use_sim_time_arg)
     ld.add_action(robot_localization_config_arg)
     
     # Static transform world -> map (publishes world to map transform)
@@ -46,6 +54,7 @@ def generate_launch_description():
             '--frame-id', 'world',
             '--child-frame-id', 'map'
         ],
+        parameters=[{'use_sim_time': use_sim_time}],
         output='screen'
     )
     
@@ -55,7 +64,8 @@ def generate_launch_description():
         executable='odom_drift_correction_node',
         name='odom_drift_correction_node',
         parameters=[
-            robot_localization_config_file
+            robot_localization_config_file,
+            {'use_sim_time': use_sim_time}
         ],
         output='screen'
     )
@@ -76,6 +86,7 @@ def generate_launch_description():
             '--frame-id', 'odom',
             '--child-frame-id', 'robot/base_footprint'
         ],
+        parameters=[{'use_sim_time': use_sim_time}],
         output='screen'
     )
     

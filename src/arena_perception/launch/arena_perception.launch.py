@@ -14,6 +14,12 @@ def generate_launch_description():
     # Package name
     perception_pkg = 'arena_perception'
     
+    use_sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='false',
+        description='Use simulation (Gazebo) clock if true'
+    )
+    
     default_arena_perception_config = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
         'config', 
@@ -28,11 +34,13 @@ def generate_launch_description():
     
     # Get config files from launch arguments
     arena_perception_config_file = LaunchConfiguration('arena_perception_config')
+    use_sim_time = LaunchConfiguration('use_sim_time')
     
     # Build launch description
     ld = LaunchDescription()
     
     # Add launch arguments
+    ld.add_action(use_sim_time_arg)
     ld.add_action(arena_perception_config_arg)
     
     # Camera rectification node
@@ -41,6 +49,7 @@ def generate_launch_description():
         executable='camera_rectification_node',
         namespace='arena_camera',
         name='camera_rectification',
+        parameters=[{'use_sim_time': use_sim_time}],
         output='screen'
     )
     
@@ -53,7 +62,8 @@ def generate_launch_description():
         executable='apriltag_detection_node',
         name='apriltag_detection_node',
         parameters=[
-            arena_perception_config_file
+            arena_perception_config_file,
+            {'use_sim_time': use_sim_time}
         ],
         output='screen'
     )
@@ -64,7 +74,8 @@ def generate_launch_description():
         executable='find_camera_in_world_service',
         name='find_camera_in_world_service',
         parameters=[
-            arena_perception_config_file
+            arena_perception_config_file,
+            {'use_sim_time': use_sim_time}
         ],
         output='screen'
     )
@@ -75,7 +86,8 @@ def generate_launch_description():
         executable='robot_detection_node',
         name='robot_detection_node',
         parameters=[
-            arena_perception_config_file
+            arena_perception_config_file,
+            {'use_sim_time': use_sim_time}
         ],
         output='screen'
     )

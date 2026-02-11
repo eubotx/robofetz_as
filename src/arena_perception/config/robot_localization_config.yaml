@@ -1,4 +1,4 @@
-odometry_correction_node:
+odom_drift_correction_node:
   ros__parameters:
     world_frame: "world"
     map_frame: "map"
