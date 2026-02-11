@@ -1,9 +1,6 @@
-# ROBOFETZ_AS - Autonomous Battle Bot System Based on ROS2 Jazzy
+# ROBOFETZ_AS - An Autonomous System for Battle Bot Toournaments / Combat Robotics
 
-Welcome to **ROBOFETZ_AS**, an autonomous system designed for a battle bot competition built on **ROS2 Jazzy**. This project aims to control a robot for competitive scenarios, utilizing ROS2, a flexible robotics middleware.
-
-### Prerequisites
-To run this repository, you'll need a system running **Ubuntu 24.04 LTS** as either a native installation or via **WSL2** (Windows Subsystem for Linux). Note that when running on WSL2, some hardware-related functionalities (such as interfacing with the ESP32, gamepads, or cameras) may be limited.
+**ROBOFETZ_AS** is an autonomous system based on ROS2 (Jazzy) to make battle bots actual autonomous robots. It provides robot perception, robot localization, combat strategy,  robot navigation and robot controls as well as all the needed ROS2 infrastructure and a simulation environment. To run the real thing outside of simulation you will need a network, a camera and a robot controlled by an esp32.
 
 ---
 
@@ -20,8 +17,11 @@ To run this repository, you'll need a system running **Ubuntu 24.04 LTS** as eit
 
 ## Installation Instructions
 
+### Prerequisites
+To run this repository, you'll need a system running **Ubuntu 24.04 LTS** as either a native installation or via **WSL2** (Windows Subsystem for Linux). Note that when running on WSL2, some hardware-related functionalities (such as interfacing with the ESP32, gamepads, or cameras) may be limited. Docker setup is on the roadmap.
+
 ### 1. Clone the Repository
-Start by cloning this repository to your local machine:
+Start by cloning this repository and all its submodules to your local machine:
 
 ```bash
 git clone https://github.com/eubotx/robofetz_as.git
@@ -31,21 +31,13 @@ git submodule update --init --recursive
 
 ### 2. Install ROS 2 Jazzy
 
-To install **ROS 2 Jazzy**, follow the official installation guide:
-
-```bash
-sudo apt update
-```
-
-Then, follow the steps outlined on the [ROS 2 Jazzy Installation Page](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html).
+Follow the steps outlined on the [ROS 2 Jazzy Installation Page](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html).
 
 Once installed, add ROS 2 to your shell's environment variables to ensure it gets sourced automatically:
 
 ```bash
 echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
 ```
-
-For further setup details, check the [ROS 2 Environment Configuration Tutorial](https://docs.ros.org/en/jazzy/Tutorials/Beginner-CLI-Tools/Configuring-ROS2-Environment.html#add-sourcing-to-your-shell-startup-script).
 
 ### 3. Install Additional ROS 2 Packages
 
@@ -56,11 +48,14 @@ sudo apt update
 sudo apt-get install ros-jazzy-teleop-twist-keyboard
 sudo apt-get install ros-jazzy-teleop-twist-joy
 sudo apt install ros-jazzy-rqt*
+sudo apt install ros-jazzy-joint-state-publisher
+sudo apt install ros-jazzy-joint-state-publisher-gui
+sudo apt install ros-jazzy-xacro
 ```
 
 ### 4. Install Gazebo for Simulation
 
-Gazebo is essential for simulating your robot in a virtual environment. Install it and the necessary packages:
+The simulation environment is based on Gazebo. Install it and the necessary packages:
 
 ```bash
 sudo apt update
@@ -72,31 +67,22 @@ Check if Gazebo is correctly installed by running:
 ```bash
 which gz            # Should show the location of gz
 gz sim              # Should start the Gazebo simulation environment
+ros2 pkg list | grep gz # Verify that Gazebo-related packages
 ```
 
-Next, install additional Gazebo-related packages:
+### 5. Source ROS2
+
+Open new terminal window or run
 
 ```bash
-sudo apt install ros-jazzy-joint-state-publisher
-sudo apt install ros-jazzy-joint-state-publisher-gui
-sudo apt install ros-jazzy-xacro
+source /opt/ros/jazzy/setup.bash
 ```
-
-Verify that Gazebo-related packages are installed:
-
-```bash
-ros2 pkg list | grep gz
-```
-
-### 5. Final Setup
-
-Restart your terminal application.
 
 ---
 
 ## Rebuilding Packages
 
-After the initial setup, code change or if you pull updates from the repository, you may need to rebuild the packages.
+After installation, code change or if you pull updates from the repository, you may need to rebuild the packages.
 
 ### Steps:
 1. Navigate to your workspace:
@@ -105,16 +91,16 @@ After the initial setup, code change or if you pull updates from the repository,
    cd robofetz_as
    ```
 
-2. **Always source the environment** before rebuilding:
-
-   ```bash
-   source install/local_setup.bash
-   ```
-
-3. Build the packages:
+2. Build the packages:
 
    ```bash
    colcon build
+   ```
+
+3. **Always source the environment** after rebuilding:
+
+   ```bash
+   source install/local_setup.bash
    ```
 
 ---
@@ -124,7 +110,7 @@ After the initial setup, code change or if you pull updates from the repository,
 ### Real Robot (Remote Controlled)
 
 
-1. **Open a new terminal tab** and navigate to the repository:
+1. **Navigate to the repository** if you're not already in it:
 
    ```bash
    cd robofetz_as
@@ -136,91 +122,45 @@ After the initial setup, code change or if you pull updates from the repository,
    source install/local_setup.bash
    ```
 
-3. **Launch the teleoperation control**:
+3. **Launch robofetz_as**:
 
-   - For Xbox controller:
-
-     ```bash
-     ros2 launch teleop_twist_joy teleop-launch.py joy_config:='xbox'
-     ```
-
-   - If you need to adjust robot limits, use a custom configuration:
-
-     ```bash
-     ros2 launch teleop_twist_joy teleop-launch.py joy_config:='xbox' config_filepath:=config/bot135smallWheel_teleop.config.yaml
-     ```
-
-   - If you don’t have a gamepad, you can use the graphical interface with:
-
-     ```bash
-     rqt_robot_steering
-     ```
-
-4. **Open another terminal tab** and navigate to the repository: 
-
-   ```bash
-   cd robofetz_as
+    ```bash
+   ros2 launch robofetz_as.launch.py
    ```
 
-5. **Source the environment**:
 
-   ```bash
-   source install/local_setup.bash
-   ```
+<table>
+  <tr>
+    <th>argument</th>
+    <th>options</th>
+    <th>explanation</th>
+    <th>condition</th>
+    <th>note</th>
+  </tr>
 
-6. **Run the micro-ROS agent** by specifying the ESP32’s IP address::
+  <tr>
+    <td rowspan="3">--world</td>
+    <td>file.txt</td>
+    <td>Pfad zur Eingabedatei</td>
+    <td>muss existieren</td>
+    <td>required</td>
+  </tr>
 
-   ```
-   ros2 run micro_ros_agent micro_ros_agent udp4 --port 8888 --dev 192.168.8.135
-   ```
+  <tr>
+    <td>stdin</td>
+    <td>Liest Daten von der Standard‑Eingabe</td>
+    <td>nur wenn kein file angegeben</td>
+    <td>optional</td>
+  </tr>
 
-    Replace `192.168.8.135` with the actual IP of your ESP32.
-   
-
-
-### Simulation (Remote Controlled)
-
-1. **Open a new terminal tab** and navigate to the repository:
-
-   ```bash
-   cd robofetz_as
-   ```
-
-2. **Source the environment**:
-
-   ```bash
-   source install/local_setup.bash
-   ```
-
-3. **Launch the simulation in Gazebo**:
-
-   ```bash
-   ros2 launch robofetz_gazebo  gazebo_bot_with_opponent.launch.py world:=robofetz_arena_pinhole.world
-   ```
-
-4. **Open another terminal tab** and launch the teleoperation control (same as for the real robot):
-
-   - For Xbox controller:
-
-     ```bash
-     cd robofetz_as
-     source install/local_setup.bash
-     ros2 launch teleop_twist_joy teleop-launch.py joy_config:='xbox'
-     ```
-
-   - Use a custom configuration if needed:
-
-     ```bash
-     cd robofetz_as
-     source install/local_setup.bash
-     ros2 launch teleop_twist_joy teleop-launch.py joy_config:='xbox' config_filepath:=config/bot135smallWheel_teleop.config.yaml
-     ```
-
-   - If you don’t have a gamepad, use the graphical interface:
-
-     ```bash
-     rqt_robot_steering
-     ```
+  <tr>
+    <td>--verbose</td>
+    <td>true / false</td>
+    <td>gibt mehr Log‑Ausgaben aus</td>
+    <td>keine</td>
+    <td>optional</td>
+  </tr>
+</table>
 
 ---
 
