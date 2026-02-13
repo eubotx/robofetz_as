@@ -1,26 +1,3 @@
-# Method 1: Default (video0) - just run
-ros2 launch arena_perception camera.launch.py
-
-# Method 2: Environment variable (set once, works forever)
-export ARENA_CAMERA_CONFIG=laptop_camera_params.yaml
-ros2 launch arena_perception camera.launch.py
-
-# Method 3: Command line (overrides method 1 & 2)
-ros2 launch arena_perception camera.launch.py video_device:=/dev/video2
-
-
-
-This now also works with ARENA_CAMERA_CONFIG to give the config name to use!!!
-
-
-
-____________________
-
-
-## The Problem with Environment Variables Here
-
-Environment variables are **static** - they don't automatically update when you plug into a different USB port. You'd have to manually update them every time.
-
 ## Best Solution: **UDEV Rules + Symlinks**
 
 This is the professional approach that avoids both rebuilding AND manual configuration.
@@ -91,45 +68,6 @@ Then in your UDEV rule:
 ```
 SUBSYSTEM=="video4linux", ATTRS{serial}=="ABC123", SYMLINK+="arena_camera_left"
 SUBSYSTEM=="video4linux", ATTRS{serial}=="DEF456", SYMLINK+="arena_camera_right"
-```
-
-## Why This Beats Everything Else:
-
-| Solution | USB Port Changes | Rebuild Needed | User Setup |
-|----------|------------------|----------------|------------|
-| Environment Variables | ❌ Manual update | ❌ | Medium |
-| Command-line Args | ❌ Type every time | ❌ | Annoying |
-| UDEV Rules | ✅ Automatic | ✅ None | **Set once, forever** |
-
-## Real-World Workflow:
-
-**Before:**
-1. Plug camera into different USB port
-2. Run `ls /dev/video*` to find new path  
-3. Update environment variable or command-line arg
-4. Hope you remember next time
-
-**After:**
-1. Plug camera into any USB port
-2. Run your code → **it just works**
-3. That's it.
-
-## For Multiple Users:
-
-If different users have different cameras, combine with environment variables:
-
-```yaml
-video_device: "/dev/arena_camera"  # UDEV rule for consistency
-```
-
-Or if users need different cameras:
-
-```bash
-# User A's UDEV rule: 
-SUBSYSTEM=="video4linux", ATTRS{idVendor}=="1234", SYMLINK+="user_a_camera"
-
-# User B's UDEV rule:
-SUBSYSTEM=="video4linux", ATTRS{idVendor}=="5678", SYMLINK+="user_b_camera"
 ```
 
 ## Bottom Line:
@@ -261,3 +199,23 @@ sudo apt-get install python3 python3-pip v4l-utils pkg-config
 pip3 install camset --break-system-packages
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 camset
+
+
+
+
+# List all video devices
+ls -l /dev/video*
+
+# Check camera info
+sudo apt install v4l-utils
+v4l2-ctl --list-devices
+
+# See detailed info about each camera
+v4l2-ctl --device=/dev/video0 --info
+v4l2-ctl --device=/dev/video1 --info
+v4l2-ctl --device=/dev/video6 --list-ctrls
+
+
+
+
+# Camset

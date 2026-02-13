@@ -216,6 +216,25 @@ Here are some helpful ROS 2 commands for interacting with the robot and troubles
   rm -rf build install log
   ```
 
+- Calibrate camera
+
+  ```bash
+  ros2 run camera_calibration cameracalibrator   --size=9x6   --square=0.024   --no-service-check   --fisheye-k-coefficients=4   --ros-args   -r image:=/arena_camera/image_raw   -p camera:=/arena_camera
+  ```
+
+- Weapon arm
+
+  ```bash
+  ros2 topic pub /weapon/armed std_msgs/Bool "{data: true}"
+  ros2 topic pub /weapon/armed std_msgs/Bool "{data: false}"
+  ```
+
+- Check times
+  ```bash
+  for node in $(ros2 node list); do   echo "=== $node ===";   ros2 param get $node use_sim_time 2>/dev/null || echo "No use_sim_time param"; done
+  ```
+
+  ros2 run tf2_tools view_frames
   
 ---
 
