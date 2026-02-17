@@ -59,7 +59,7 @@ class CameraInfoPublisher(Node):
         """Publish camera calibration info"""
         msg = CameraInfo()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'arena_camera/link/arena_camera'
+        msg.header.frame_id = 'arena_camera_optical'
         
         msg.height = self.image_height
         msg.width = self.image_width

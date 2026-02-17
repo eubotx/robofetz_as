@@ -19,12 +19,18 @@ def generate_launch_description():
         Node(
             package='arena_perception',
             executable='camera_rectification_node',
-            namespace='arena_camera'
+            namespace='arena_camera',
+            parameters=[{
+                'use_sim_time': True,  # Set to True instead of LaunchConfiguration
+            }],
         ),
         Node(
             package='arena_perception',
             executable='arena_calibration_service',
             name='arena_calibration_service',
-            parameters=[{'config_file': arena_config_file}]
-        ),
+            parameters=[{
+                'config_file': arena_config_file, 
+                'use_sim_time': True  # Set to True directly
+            }]
+        )
     ])
