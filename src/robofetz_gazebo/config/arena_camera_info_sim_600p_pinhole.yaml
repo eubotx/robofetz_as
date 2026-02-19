@@ -1,0 +1,28 @@
+#narrow_stereo
+
+image_width: 800
+image_height: 600
+
+camera_name: "sim_camera"
+
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [355.923093, 0.000000, 399.419571, 0.000000, 355.968665, 299.149208, 0.000000, 0.000000, 1.000000]
+
+distortion_model: "plumb_bob"
+
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.000552, -0.000214, -0.000013, -0.000121, 0.000000]
+
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000]
+
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [356.055241, 0.000000, 399.251635, 0.000000, 0.000000, 356.166436, 299.136292, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]

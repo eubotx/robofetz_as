@@ -57,6 +57,7 @@ ros2 run rqt_image_view rqt_image_view
 sudo apt install ros-${ROS_DISTRO}-camera-calibration
 sudo apt-get install ros-${ROS_DISTRO}-tf-transformations
 sudo apt install ros-jazzy-navigation2 ros-jazzy-nav2-bringup
+sudo apt install ros-jazzy-topic-tools
 ```
 
 ### 4. Install Gazebo for Simulation
