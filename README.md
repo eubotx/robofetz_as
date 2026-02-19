@@ -14,7 +14,7 @@ The system can run:
 ## Prerequisites
 
 * Ubuntu 24.04 LTS (native installation recommended)
-_When running on WSL2, hardware-related features (camera, ESP32, gamepads) may be limited._
+  *When running on WSL2, hardware-related features (camera, ESP32, gamepads) may be limited.*
 
 ---
 
@@ -82,18 +82,6 @@ colcon build
 source install/local_setup.bash
 ```
 
-Selective build with symlink install:
-
-```bash
-colcon build --packages-select your_package --symlink-install
-```
-
-Clean workspace:
-
-```bash
-rm -rf build install log
-```
-
 ---
 
 # Running the Robot
@@ -118,15 +106,15 @@ ros2 launch robofetz_as robofetz_as.launch.py use_sim:=false
 
 ## Available Arguments
 
-| Argument                  | Default                      | Options                                                       | Description                      | Notes                               |
-| ------------------------- | ---------------------------- | ------------------------------------------------------------- | -------------------------------- | ----------------------------------- |
-| use_sim                   | true                         | true / false                                                  | Launch Gazebo simulation         | false = real robot mode             |
-| use_fake_perception       | false                        | true / false                                                  | Use fake arena perception        | Only relevant when use_sim=true . Wideangle world currently not supported.    |
-| world                     | robofetz_arena_pinhole.world | robofetz_arena_wideangle.world / robofetz_arena_pinhole.world | Gazebo world file                | Only used when use_sim=true         |
-| launch_rviz               | true                         | true / false                                                  | Launch RViz2                     | Visualization toggle                |
-| rviz_config               | config.rviz                  | any .rviz file                                                | RViz config file                 | Must exist in robot_bringup/config/ |
-| arena_perception_config   | package default              | path to YAML file                                             | Arena perception configuration   | Must be valid YAML                  |
-| robot_localization_config | package default              | path to YAML file                                             | Robot localization configuration | Must be valid YAML                  |
+| Argument                  | Description                      | Default                      | Options                                                       | Notes                                                                     |
+| ------------------------- | -------------------------------- | ---------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| use_sim                   | Launch Gazebo simulation         | true                         | true / false                                                  | false = real robot mode                                                   |
+| use_fake_perception       | Use fake arena perception        | false                        | true / false                                                  | Only relevant when use_sim=true. Wideangle world currently not supported. |
+| world                     | Gazebo world file                | robofetz_arena_pinhole.world | robofetz_arena_wideangle.world / robofetz_arena_pinhole.world | Only used when use_sim=true                                               |
+| launch_rviz               | Launch RViz2                     | true                         | true / false                                                  | Visualization toggle                                                      |
+| rviz_config               | RViz config file                 | config.rviz                  | any .rviz file                                                | Must exist in robot_bringup/config/                                       |
+| arena_perception_config   | Arena perception configuration   | package default              | path to YAML file                                             | Must be valid YAML                                                        |
+| robot_localization_config | Robot localization configuration | package default              | path to YAML file                                             | Must be valid YAML                                                        |
 
 ---
 
@@ -159,13 +147,6 @@ Real robot mode:
 ```bash
 ros2 launch robofetz_as robofetz_as.launch.py \
 use_sim:=false
-```
-
-Headless mode (no RViz):
-
-```bash
-ros2 launch robofetz_as robofetz_as.launch.py \
-launch_rviz:=false
 ```
 
 ---
@@ -202,17 +183,16 @@ Launch RViz manually:
 rviz2
 ```
 
-Calibrate camera:
+Selective build with symlink install:
 
 ```bash
-ros2 run camera_calibration cameracalibrator \
---size=9x6 \
---square=0.024 \
---no-service-check \
---fisheye-k-coefficients=4 \
---ros-args \
--r image:=/arena_camera/image_raw \
--p camera:=/arena_camera
+colcon build --packages-select your_package --symlink-install
+```
+
+Clean workspace:
+
+```bash
+rm -rf build install log
 ```
 
 Arm weapon:
@@ -240,5 +220,3 @@ done
 ```bash
 source install/local_setup.bash
 ```
-
----
