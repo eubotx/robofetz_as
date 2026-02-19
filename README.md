@@ -54,11 +54,13 @@ sudo apt install ros-jazzy-joint-state-publisher
 sudo apt install ros-jazzy-joint-state-publisher-gui
 sudo apt install ros-jazzy-xacro
 sudo apt install ros-${ROS_DISTRO}-usb-cam
+sudo apt install ros-jazzy-camera-ros
 sudo apt install python3-pydantic
 sudo apt install ros-${ROS_DISTRO}-camera-calibration
 sudo apt install ros-${ROS_DISTRO}-tf-transformations
 sudo apt install ros-jazzy-navigation2 ros-jazzy-nav2-bringup
 sudo apt install ros-jazzy-topic-tools
+sudo apt install v4l-utils
 ```
 
 ---
