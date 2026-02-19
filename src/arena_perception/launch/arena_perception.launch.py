@@ -6,6 +6,7 @@ apriltag detection, robot detection, and odometry correction.
 
 from launch import LaunchDescription
 from launch.actions import TimerAction, DeclareLaunchArgument
+from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -18,6 +19,12 @@ def generate_launch_description():
         'use_sim_time',
         default_value='false',
         description='Use simulation (Gazebo) clock if true'
+    )
+    
+    run_rectification_arg = DeclareLaunchArgument(
+        'run_rectification',
+        default_value='true',
+        description='Whether to run the camera rectification node. Set to false for pinhole cameras (like in Gazebo simulation)'
     )
     
     default_arena_perception_config = PathJoinSubstitution([
@@ -35,25 +42,50 @@ def generate_launch_description():
     # Get config files from launch arguments
     arena_perception_config_file = LaunchConfiguration('arena_perception_config')
     use_sim_time = LaunchConfiguration('use_sim_time')
+    run_rectification = LaunchConfiguration('run_rectification')
     
     # Build launch description
     ld = LaunchDescription()
     
     # Add launch arguments
     ld.add_action(use_sim_time_arg)
+    ld.add_action(run_rectification_arg)
     ld.add_action(arena_perception_config_arg)
     
-    # Camera rectification node
+    # Camera rectification node - only runs if run_rectification is true
     camera_rectification = Node(
-        package='arena_perception',
-        executable='camera_rectification_node',
+        package='image_proc',
+        executable='rectify_node',
         namespace='arena_camera',
-        name='camera_rectification',
+        name='rectify_node',
+        condition=IfCondition(run_rectification),
         parameters=[{'use_sim_time': use_sim_time}],
-        output='screen'
+        output='screen',
+        remappings=[
+                ('image', 'image'),
+                ('image_rect', 'image_rect')
+            ],
     )
     
     ld.add_action(camera_rectification)
+
+    # IMAGE REMAPPING NODE (for pinhole camera case) - only runs when run_rectifaction is false
+    # republishes image to image_rect so downstream nodes work and we safe computing power
+    
+    image_remap_node = Node(
+        package='topic_tools',
+        executable='relay',
+        name='image_to_rect_relay',
+        namespace='arena_camera',
+        parameters=[{
+            'use_sim_time': use_sim_time
+        }],
+        arguments=['image', 'image_rect'],
+        condition=UnlessCondition(run_rectification),
+        output='screen'
+    )
+    
+    ld.add_action(image_remap_node)
     
     # Apriltag detection node 
     # swap with premade ros one for efficiency
