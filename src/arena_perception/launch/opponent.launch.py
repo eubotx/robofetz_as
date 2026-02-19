@@ -4,11 +4,10 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
-from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    # =================== PACKAGE PATHS ===================
+    # =================== PACKAGE ===================
     pkg = 'arena_perception'
     
     # =================== LAUNCH ARGUMENTS ===================
@@ -75,32 +74,30 @@ def generate_launch_description():
         description='Z-plane height for intersection'
     )
     
-    declare_publish_as_pose_array = DeclareLaunchArgument(
-        'publish_as_pose_array',
-        default_value='false',
-        description='Publish as PoseArray instead of individual points'
-    )
-    
     declare_confidence_threshold = DeclareLaunchArgument(
         'confidence_threshold',
         default_value='0.5',
         description='Minimum confidence to process detection'
     )
     
-    # Simulation time argument
+    declare_publish_visualization = DeclareLaunchArgument(
+        'publish_visualization',
+        default_value='true',
+        description='Publish visualization topics for RViz'
+    )
+    
     declare_use_sim_time = DeclareLaunchArgument(
         'use_sim_time',
         default_value='true',
         description='Use simulation time if true'
     )
     
-    # =================== NODES ===================
-    
-    # Node 1: Frame Difference Detector (2D Detections)
+    # =================== NODE 1: DETECTOR ===================
+    # This node publishes 2D detections
     detector_node = Node(
         package=pkg,
-        executable='frame_diff_detector',
-        name='opponent_detector_2d',
+        executable='opponent_det_MOG2multiple',
+        name='opponent_det_MOG2multiple',
         output='screen',
         parameters=[{
             'min_contour_area': LaunchConfiguration('min_contour_area'),
@@ -119,29 +116,31 @@ def generate_launch_description():
             ('/arena_camera/camera_info', LaunchConfiguration('camera_info_topic')),
             ('/bot/pose', '/bot/pose'),
             ('/detections_2d', '/detections_2d'),
-            ('/debug/detection_image', '/debug/opponent_detector_2d'),
+            ('/debug/detection_image', '/debug/detection_image'),
         ]
     )
     
-    # Node 2: 2D to 3D Converter
+    # =================== NODE 2: CONVERTER ===================
+    # This node converts 2D detections to 3D positions
     converter_node = Node(
         package=pkg,
-        executable='detection_2d_to_3d_node',
-        name='detection_to_3d_converter',
+        executable='detection_transformation_2D_3D',
+        name='detection_transformation_2D_3D',  # Match the internal node name
         output='screen',
         parameters=[{
             'target_frame': LaunchConfiguration('target_frame'),
             'camera_frame': LaunchConfiguration('camera_optical_frame'),
             'z_plane': LaunchConfiguration('z_plane'),
-            'publish_as_pose_array': LaunchConfiguration('publish_as_pose_array'),
             'confidence_threshold': LaunchConfiguration('confidence_threshold'),
             'use_sim_time': LaunchConfiguration('use_sim_time'),
+            'publish_visualization': LaunchConfiguration('publish_visualization'),
         }],
         remappings=[
             ('camera_info', LaunchConfiguration('camera_info_topic')),
             ('detections_2d', '/detections_2d'),
-            ('detections_3d_points', '/detected_opponent/point'),
-            ('detections_3d_poses', '/detected_opponent/poses'),
+            ('detections_3d', '/detected_opponent/detections_3d'),
+            ('detections_3d_viz_point', '/detected_opponent/viz_point'),
+            ('detections_3d_viz_poses', '/detected_opponent/viz_poses'),
         ]
     )
     
@@ -158,8 +157,8 @@ def generate_launch_description():
         declare_camera_optical_frame,
         declare_target_frame,
         declare_z_plane,
-        declare_publish_as_pose_array,
         declare_confidence_threshold,
+        declare_publish_visualization,
         declare_use_sim_time,
         
         # Launch both nodes
