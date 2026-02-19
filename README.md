@@ -1,27 +1,24 @@
-# ROBOFETZ_AS - An Autonomous System for Battle Bot Toournaments / Combat Robotics
+# ROBOFETZ_AS - An Autonomous System for Battle Bot Tournaments / Combat Robotics
 
-**ROBOFETZ_AS** is an autonomous system based on ROS2 (Jazzy) to make battle bots actual autonomous robots. It provides robot perception, robot localization, combat strategy,  robot navigation and robot controls as well as all the needed ROS2 infrastructure and a simulation environment. To run the real thing outside of simulation you will need a network, a camera and a robot controlled by an esp32.
+**ROBOFETZ_AS** is an autonomous system based on ROS2 (Jazzy) to make battle bots actual autonomous robots. It provides robot perception, robot localization, combat strategy infrastructure, robot navigation, robot controls, and all required ROS2 infrastructure including a full simulation environment.
 
----
+The system can run:
 
-## Table of Contents
-1. [Installation Instructions](#installation-instructions)
-2. [Rebuilding Packages](#rebuilding-packages)
-3. [Running the Robot](#running-the-robot)
-   - [Real Robot](#real-robot)
-   - [Simulation](#simulation)
-4. [Useful Commands](#useful-commands)
-5. [Notes](#notes)
+* Fully in simulation (Gazebo)
+* On real hardware (camera + ESP32 controlled robot)
 
 ---
 
-## Installation Instructions
+# Installation Instructions
 
-### Prerequisites
-To run this repository, you'll need a system running **Ubuntu 24.04 LTS** as either a native installation or via **WSL2** (Windows Subsystem for Linux). Note that when running on WSL2, some hardware-related functionalities (such as interfacing with the ESP32, gamepads, or cameras) may be limited. Docker setup is on the roadmap.
+## Prerequisites
 
-### 1. Clone the Repository
-Start by cloning this repository and all its submodules to your local machine:
+* Ubuntu 24.04 LTS (native installation recommended)
+_When running on WSL2, hardware-related features (camera, ESP32, gamepads) may be limited._
+
+---
+
+## 1. Clone the Repository
 
 ```bash
 git clone https://github.com/eubotx/robofetz_as.git
@@ -29,225 +26,219 @@ cd robofetz_as
 git submodule update --init --recursive
 ```
 
-### 2. Install ROS 2 Jazzy
+---
 
-Follow the steps outlined on the [ROS 2 Jazzy Installation Page](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html).
+## 2. Install ROS 2 Jazzy
 
-Once installed, add ROS 2 to your shell's environment variables to ensure it gets sourced automatically:
+Follow the official installation guide:
+
+[https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html)
+
+Add ROS 2 to your shell:
 
 ```bash
 echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
+source ~/.bashrc
 ```
 
-### 3. Install Additional ROS 2 Packages
+---
 
-Install the required ROS 2 packages:
+## 3. Install Required ROS 2 Packages
 
 ```bash
 sudo apt update
-sudo apt-get install ros-jazzy-teleop-twist-keyboard
-sudo apt-get install ros-jazzy-teleop-twist-joy
+sudo apt install ros-jazzy-teleop-twist-keyboard
+sudo apt install ros-jazzy-teleop-twist-joy
 sudo apt install ros-jazzy-rqt*
 sudo apt install ros-jazzy-joint-state-publisher
 sudo apt install ros-jazzy-joint-state-publisher-gui
 sudo apt install ros-jazzy-xacro
 sudo apt install ros-${ROS_DISTRO}-usb-cam
 sudo apt install python3-pydantic
-ros2 run rqt_image_view rqt_image_view
 sudo apt install ros-${ROS_DISTRO}-camera-calibration
-sudo apt-get install ros-${ROS_DISTRO}-tf-transformations
+sudo apt install ros-${ROS_DISTRO}-tf-transformations
 sudo apt install ros-jazzy-navigation2 ros-jazzy-nav2-bringup
 sudo apt install ros-jazzy-topic-tools
 ```
 
-### 4. Install Gazebo for Simulation
+---
 
-The simulation environment is based on Gazebo. Install it and the necessary packages:
+## 4. Install Gazebo
 
 ```bash
 sudo apt update
-sudo apt-get install ros-${ROS_DISTRO}-ros-gz
+sudo apt install ros-${ROS_DISTRO}-ros-gz
 ```
 
-Check if Gazebo is correctly installed by running:
+---
+
+# Rebuilding Packages
+
+After pulling updates or modifying code:
 
 ```bash
-which gz            # Should show the location of gz
-gz sim              # Should start the Gazebo simulation environment
-ros2 pkg list | grep gz # Verify that Gazebo-related packages
+cd robofetz_as
+colcon build
+source install/local_setup.bash
 ```
 
-### 5. Source ROS2
-
-Open new terminal window or run
+Selective build with symlink install:
 
 ```bash
-source /opt/ros/jazzy/setup.bash
+colcon build --packages-select your_package --symlink-install
+```
+
+Clean workspace:
+
+```bash
+rm -rf build install log
 ```
 
 ---
 
-## Rebuilding Packages
+# Running the Robot
 
-After installation, code change or if you pull updates from the repository, you may need to rebuild the packages.
-
-### Steps:
-1. Navigate to your workspace:
-
-   ```bash
-   cd robofetz_as
-   ```
-
-2. Build the packages:
-
-   ```bash
-   colcon build
-   ```
-
-3. **Always source the environment** after rebuilding:
-
-   ```bash
-   source install/local_setup.bash
-   ```
+```bash
+cd robofetz_as
+source install/local_setup.bash
+ros2 launch robofetz_as robofetz_as.launch.py
+```
 
 ---
 
-## Running the Robot
+# Launch Arguments
 
-### Real Robot (Remote Controlled)
+Launch arguments can be overridden like this:
 
-
-1. **Navigate to the repository** if you're not already in it:
-
-   ```bash
-   cd robofetz_as
-   ```
-
-2. **Source the environment**:
-
-   ```bash
-   source install/local_setup.bash
-   ```
-
-3. **Launch robofetz_as**:
-
-    ```bash
-   ros2 launch robofetz_as.launch.py
-   ```
-
-
-<table>
-  <tr>
-    <th>argument</th>
-    <th>options</th>
-    <th>explanation</th>
-    <th>condition</th>
-    <th>note</th>
-  </tr>
-
-  <tr>
-    <td rowspan="3">--world</td>
-    <td>file.txt</td>
-    <td>Pfad zur Eingabedatei</td>
-    <td>muss existieren</td>
-    <td>required</td>
-  </tr>
-
-  <tr>
-    <td>stdin</td>
-    <td>Liest Daten von der Standard‑Eingabe</td>
-    <td>nur wenn kein file angegeben</td>
-    <td>optional</td>
-  </tr>
-
-  <tr>
-    <td>--verbose</td>
-    <td>true / false</td>
-    <td>gibt mehr Log‑Ausgaben aus</td>
-    <td>keine</td>
-    <td>optional</td>
-  </tr>
-</table>
+```bash
+ros2 launch robofetz_as robofetz_as.launch.py use_sim:=false
+```
 
 ---
 
-## Useful Commands
+## Available Arguments
 
-Here are some helpful ROS 2 commands for interacting with the robot and troubleshooting:
+| Argument                  | Default                      | Options                                                       | Description                      | Notes                               |
+| ------------------------- | ---------------------------- | ------------------------------------------------------------- | -------------------------------- | ----------------------------------- |
+| use_sim                   | true                         | true / false                                                  | Launch Gazebo simulation         | false = real robot mode             |
+| use_fake_perception       | false                        | true / false                                                  | Use fake arena perception        | Only relevant when use_sim=true . Wideangle world currently not supported.    |
+| world                     | robofetz_arena_pinhole.world | robofetz_arena_wideangle.world / robofetz_arena_pinhole.world | Gazebo world file                | Only used when use_sim=true         |
+| launch_rviz               | true                         | true / false                                                  | Launch RViz2                     | Visualization toggle                |
+| rviz_config               | config.rviz                  | any .rviz file                                                | RViz config file                 | Must exist in robot_bringup/config/ |
+| arena_perception_config   | package default              | path to YAML file                                             | Arena perception configuration   | Must be valid YAML                  |
+| robot_localization_config | package default              | path to YAML file                                             | Robot localization configuration | Must be valid YAML                  |
 
-- List all active topics:
-
-  ```bash
-  ros2 topic list
-  ```
-
-- View messages from a specific topic:
-
-  ```bash
-  ros2 topic echo /your_topic
-  ```
-
-- Launch `rqt` for graphical tools:
-
-  ```bash
-  rqt
-  ```
-
-- Launch `rqt image viewer` to view image streams:
-
-  ```bash
-  ros2 run rqt_image_view rqt_image_view
-  ```
-
-- Launch `rviz2` to do various things
-
-  ```bash
-  rviz2
-  ```
-
-- Building selective packages with symlink so you can make changes  without recompiling
-
-  ```bash
-  colcon build --packages-select your_package --symlink-install
-  ```
-
-- Cleaning compiled files
-
-  ```bash
-  rm -rf build install log
-  ```
-
-- Calibrate camera
-
-  ```bash
-  ros2 run camera_calibration cameracalibrator   --size=9x6   --square=0.024   --no-service-check   --fisheye-k-coefficients=4   --ros-args   -r image:=/arena_camera/image_raw   -p camera:=/arena_camera
-  ```
-
-- Weapon arm
-
-  ```bash
-  ros2 topic pub /weapon/armed std_msgs/Bool "{data: true}"
-  ros2 topic pub /weapon/armed std_msgs/Bool "{data: false}"
-  ```
-
-- Check times
-  ```bash
-  for node in $(ros2 node list); do   echo "=== $node ===";   ros2 param get $node use_sim_time 2>/dev/null || echo "No use_sim_time param"; done
-  ```
-
-  ros2 run tf2_tools view_frames
-  
 ---
 
-## Notes
+# Example Launch Scenarios
 
-- **Remember:** Every time you open a new terminal tab, you **must** source the environment by running:
+Full simulation (default):
 
-  ```bash
-  source install/local_setup.bash
-  ```
+```bash
+ros2 launch robofetz_as robofetz_as.launch.py
+```
 
-- Ensure you have the necessary permissions to run these commands on your system.
-- If you encounter any issues, refer to the [ROS 2 documentation](https://docs.ros.org/en/jazzy/) or explore relevant troubleshooting guides.
+Simulation with wide-angle world (currently not supported):
+
+```bash
+ros2 launch robofetz_as robofetz_as.launch.py \
+use_sim:=true \
+world:=robofetz_arena_wideangle.world
+```
+
+Simulation with fake perception:
+
+```bash
+ros2 launch robofetz_as robofetz_as.launch.py \
+use_sim:=true \
+use_fake_perception:=true
+```
+
+Real robot mode:
+
+```bash
+ros2 launch robofetz_as robofetz_as.launch.py \
+use_sim:=false
+```
+
+Headless mode (no RViz):
+
+```bash
+ros2 launch robofetz_as robofetz_as.launch.py \
+launch_rviz:=false
+```
+
+---
+
+# Useful Commands
+
+List active topics:
+
+```bash
+ros2 topic list
+```
+
+Echo topic messages:
+
+```bash
+ros2 topic echo /your_topic
+```
+
+Launch rqt:
+
+```bash
+rqt
+```
+
+Launch image viewer:
+
+```bash
+ros2 run rqt_image_view rqt_image_view
+```
+
+Launch RViz manually:
+
+```bash
+rviz2
+```
+
+Calibrate camera:
+
+```bash
+ros2 run camera_calibration cameracalibrator \
+--size=9x6 \
+--square=0.024 \
+--no-service-check \
+--fisheye-k-coefficients=4 \
+--ros-args \
+-r image:=/arena_camera/image_raw \
+-p camera:=/arena_camera
+```
+
+Arm weapon:
+
+```bash
+ros2 topic pub /weapon/armed std_msgs/Bool "{data: true}"
+ros2 topic pub /weapon/armed std_msgs/Bool "{data: false}"
+```
+
+Check simulation time usage:
+
+```bash
+for node in $(ros2 node list); do
+  echo "=== $node ==="
+  ros2 param get $node use_sim_time 2>/dev/null || echo "No use_sim_time param"
+done
+```
+
+---
+
+# Notes
+
+* Every new terminal must run:
+
+```bash
+source install/local_setup.bash
+```
 
 ---
