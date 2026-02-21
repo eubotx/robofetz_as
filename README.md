@@ -61,6 +61,7 @@ sudo apt install ros-${ROS_DISTRO}-tf-transformations
 sudo apt install ros-jazzy-navigation2 ros-jazzy-nav2-bringup
 sudo apt install ros-jazzy-topic-tools
 sudo apt install v4l-utils
+sudo apt install ros-jazzy-apriltag-ros
 ```
 
 ---

@@ -62,16 +62,15 @@ def generate_launch_description():
         parameters=[{'use_sim_time': use_sim_time}],
         output='screen',
         remappings=[
-                ('image', 'image'),
-                ('image_rect', 'image_rect')
-            ],
+            ('image', 'image'),
+            ('image_rect', 'image_rect')
+        ],
     )
     
     ld.add_action(camera_rectification)
 
     # IMAGE REMAPPING NODE (for pinhole camera case) - only runs when run_rectifaction is false
     # republishes image to image_rect so downstream nodes work and we safe computing power
-    
     image_remap_node = Node(
         package='topic_tools',
         executable='relay',
@@ -87,15 +86,36 @@ def generate_launch_description():
     
     ld.add_action(image_remap_node)
     
-    # Apriltag detection node 
+    # Self written Apriltag detection node 
     # swap with premade ros one for efficiency
-    apriltag_detection = Node(
+    apriltag_detection_diy = Node(
         package='arena_perception',
         executable='apriltag_detection_node',
         name='apriltag_detection_node',
         parameters=[
             arena_perception_config_file,
             {'use_sim_time': use_sim_time}
+        ],
+        output='screen'
+    )
+    
+    # Apriltag detection node (apriltag_ros version)
+    apriltag_detection_ros = Node(
+        package='apriltag_ros',
+        executable='apriltag_node',
+        name='apriltag_node',
+        parameters=[
+            arena_perception_config_file,
+            {
+                'use_sim_time': use_sim_time,
+                'approx_sync': True,  # Enable approximate sync
+                'queue_size': 20,      # Larger queue for matching
+                'slop': 0.5            # 0.5 second tolerance
+            }
+        ],
+        remappings=[
+            ('image_rect', '/arena_camera/image_rect'),
+            ('camera_info', '/arena_camera/camera_info')
         ],
         output='screen'
     )
@@ -125,13 +145,18 @@ def generate_launch_description():
     )
 
     ld.add_action(TimerAction(
-        period=3.0,
-        actions=[find_camera_service]
+        period=1.0,  # Slightly offset to avoid congestion
+        actions=[apriltag_detection_diy]
     ))
 
+    # ld.add_action(TimerAction(
+    #     period=1.0,  # Slightly offset to avoid congestion
+    #     actions=[apriltag_detection_ros]
+    # ))
+
     ld.add_action(TimerAction(
-        period=1.0,
-        actions=[apriltag_detection]
+        period=3.0,
+        actions=[find_camera_service]
     ))
 
     ld.add_action(TimerAction(
