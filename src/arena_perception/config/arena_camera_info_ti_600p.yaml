@@ -1,0 +1,28 @@
+#tiago cam mono
+
+image_width: 800
+image_height: 600
+
+camera_name: "GlobalShutterCamera_GlobalS___SB__PCI0_XHC__RHUB_HS03_3_1_0_32e4_0144_800x600"
+
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [448.114841, 2.043380, 374.311049, 0.000000, 447.871150, 328.809155, 0.000000, 0.000000, 1.000000]
+
+distortion_model: "equidistant"
+
+distortion_coefficients:
+  rows: 1
+  cols: 4
+  data: [-0.049763, -0.013695, 0.039168, -0.028475]
+
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000]
+
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [448.114841, 2.043380, 374.311049, 0.000000, 0.000000, 447.871150, 328.809155, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]

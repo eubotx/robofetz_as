@@ -139,33 +139,33 @@ def generate_launch_description():
     )
 
     # Grayscale Image Republisher Node to get grayscale cam
-    grayscale_republisher = Node(
-        package='robofetz_gazebo',
-        executable='grayscale_republisher',
-        name='grayscale_republisher',
-        parameters=[{'use_sim_time': True}],
-        output='screen'
-    )
+    # grayscale_republisher = Node(
+    #     package='robofetz_gazebo',
+    #     executable='grayscale_republisher',
+    #     name='grayscale_republisher',
+    #     parameters=[{'use_sim_time': True}],
+    #     output='screen'
+    # )
 
     # Use PythonExpression to create conditional config file path
-    camera_info_file = PythonExpression([
-        "'", os.path.join(config_dir, 'camera_pinhole.yaml'), 
-        "' if 'pinhole' in '", world_file, 
-        "' else '", os.path.join(config_dir, 'camera_wideangle.yaml'), "'"
-    ])
+    # camera_info_file = PythonExpression([
+    #     "'", os.path.join(config_dir, 'arena_camera_info_sim_600p_pinhole.yaml'), 
+    #     "' if 'pinhole' in '", world_file, 
+    #     "' else '", os.path.join(config_dir, 'arena_camera_info_sim_wideangle_600p_scaled.yaml'), "'"
+    # ])
 
-    # Camera info publisher using correct camera info
-    camera_info_publisher = Node(
-        package='robofetz_gazebo',
-        executable='camera_info_publisher',
-        name='camera_info_publisher',
-        namespace='arena_camera',
-        parameters=[{
-            'use_sim_time': True,
-            'config_file': camera_info_file
-        }],
-        output='screen'
-    )
+    # # Camera info publisher using correct camera info
+    # camera_info_publisher = Node(
+    #     package='robofetz_gazebo',
+    #     executable='camera_info_publisher',
+    #     name='camera_info_publisher',
+    #     namespace='arena_camera',
+    #     parameters=[{
+    #         'use_sim_time': True,
+    #         'config_file': camera_info_file
+    #     }],
+    #     output='screen'
+    # )
     
     # Build launch description with timing
     ld = LaunchDescription()
@@ -191,9 +191,9 @@ def generate_launch_description():
         actions=[bridge]
     ))
 
-    ld.add_action(TimerAction(
-        period=8.0,
-        actions=[grayscale_republisher, camera_info_publisher]
-    ))
+    # ld.add_action(TimerAction(
+    #     period=8.0,
+    #     actions=[camera_info_publisher]
+    # ))
     
     return ld

@@ -104,6 +104,14 @@ def generate_launch_description():
     rviz_config = LaunchConfiguration('rviz_config')
     
     # ============================================
+    # CALCULATE RUN_RECTIFICATION PARAMETER TO SAVE COMPUTE
+    # ============================================
+    # Logic: false when use_sim is true AND world contains "pinhole", else true
+    run_rectification = PythonExpression([
+        '"false" if ("', use_sim, '" == "true" and "pinhole" in "', world_file, '") else "true"'
+    ])
+    
+    # ============================================
     # BUILD LAUNCH DESCRIPTION
     # ============================================
     
@@ -185,7 +193,8 @@ def generate_launch_description():
         ]),
         launch_arguments={
             'arena_perception_config': arena_perception_config_file,
-            'use_sim_time': use_sim
+            'use_sim_time': use_sim,
+            'run_rectification': run_rectification  # Pass the calculated value
         }.items(),
         # Only launch real perception when NOT using fake perception
         condition=UnlessCondition(use_fake_perception)

@@ -1,0 +1,42 @@
+#sim wideangle
+
+image_width: 800
+image_height: 600
+
+camera_name: "sim_camera"
+
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [392.520714, 0.115982, 399.456412, 0.000000, 391.910969, 297.345470, 0.000000, 0.000000, 1.000000]
+
+distortion_model: "equidistant"
+
+distortion_coefficients:
+  rows: 1
+  cols: 4
+  data: [-0.100505, 0.079011, -0.127003, 0.067431]
+
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000]
+
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [392.520714, 0.115982, 399.456412, 0.000000, 0.000000, 391.910969, 297.345470, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]
+
+
+# used sdf config
+# <lens>
+#   <type>custom</type>
+#   <custom_function>
+#       <c1>1.8</c1>
+#       <c2>1.5</c2>
+#       <f>1.0</f>
+#       <fun>sin</fun>
+#   </custom_function>
+#   <scale_to_hfov>true</scale_to_hfov>
+#   <cutoff_angle>2.9671</cutoff_angle> <!-- 170 degrees -->
+# </lens>

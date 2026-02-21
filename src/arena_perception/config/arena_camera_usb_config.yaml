@@ -12,7 +12,7 @@ arena_camera/usb_cam:
     #Image format  
     image_width: 800                                   # int: resolution width  #800 is best
     image_height: 600                                  # int: resolution heigh  #600 is best
-    framerate: 100.0                                   # float: target FPS
+    framerate: 60.0                                   # float: target FPS
     pixel_format: "mjpeg2rgb"                               # string: 'yuyv', 'mjpeg', 'grey' -> 'yuyv' often also used in greyscale cams
     
     #Exposure tuning (uncomment to override)

@@ -87,14 +87,14 @@
 #   direction: GZ_TO_ROS
 
   # Camera image bridge
-- ros_topic_name: "arena_camera/image_sim_color"
-  gz_topic_name: "arena_camera/image_sim_color"
+- ros_topic_name: "arena_camera/image"
+  gz_topic_name: "arena_camera/image"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
 # Camera info bridge  
-- ros_topic_name: "arena_camera/camera_info_gazebo"
+- ros_topic_name: "arena_camera/camera_info"
   gz_topic_name: "arena_camera/camera_info"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"

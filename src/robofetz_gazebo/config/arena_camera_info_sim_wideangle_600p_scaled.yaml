@@ -1,0 +1,28 @@
+#narrow_stereo cam color
+
+image_width: 800
+image_height: 600
+
+camera_name: "sim_camera"
+
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [392.520710, 0.115980, 399.456410, 0.000000, 391.910970, 297.345470, 0.000000, 0.000000, 1.000000]
+
+distortion_model: "equidistant"
+
+distortion_coefficients:
+  rows: 1
+  cols: 4
+  data: [-0.100505, 0.079011, -0.127003, 0.067431]
+
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000]
+
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [301.939010, 0.115980, 399.456410, 0.000000, 0.000000, 301.469980, 297.345470, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]
