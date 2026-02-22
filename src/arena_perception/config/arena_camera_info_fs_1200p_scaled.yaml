@@ -1,0 +1,28 @@
+#fachschafts cam color
+
+image_width: 1600
+image_height: 1200
+
+camera_name: "fachschafts_cam"
+
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [759.624951, 0.356818, 797.610561, 0.000000, 759.038388, 561.809539, 0.000000, 0.000000, 1.000000]
+
+distortion_model: "equidistant"
+
+distortion_coefficients:
+  rows: 1
+  cols: 4
+  data: [-0.028878, 0.001935, -0.004762, 0.002690]
+
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000]
+
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [542.589250, 0.356818, 797.610561, 0.000000, 0.000000, 542.170280, 561.809539, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]

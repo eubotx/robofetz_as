@@ -27,6 +27,7 @@ class RobotDetectionNode(Node):
                 # timing parameters
                 ('update_rate', 60.0),  # hz (main update loop rate)
                 ('transform_timeout', 0.1),  # seconds
+                ('static_transform_retry_period', 1.0),  # seconds between retry attempts
                 
                 # marker configuration parameters
                 ('detection_marker_frames', rclpy.Parameter.Type.STRING_ARRAY),
@@ -48,6 +49,7 @@ class RobotDetectionNode(Node):
         update_rate = self.get_parameter('update_rate').value
         self.update_rate = 1.0 / update_rate if update_rate > 0 else 1.0 / 60.0
         self.transform_timeout = self.get_parameter('transform_timeout').value
+        self.static_transform_retry_period = self.get_parameter('static_transform_retry_period').value
         
         # marker configuration - USE LISTS DIRECTLY
         self.detection_marker_frames = self.get_parameter('detection_marker_frames').value
@@ -69,7 +71,6 @@ class RobotDetectionNode(Node):
                                   f"robot_frames={len(self.robot_marker_frames)}, "
                                   f"marker_names={len(self.marker_names)}")
         
-        
         # ========== log parameters ==========
         self.get_logger().info("robot detection node started with parameters:")
         self.get_logger().info(f"  camera_frame: {self.camera_frame}")
@@ -78,6 +79,7 @@ class RobotDetectionNode(Node):
         self.get_logger().info(f"  visible_marker_topic: {self.visible_marker_topic}")
         self.get_logger().info(f"  update_rate: {update_rate} hz")
         self.get_logger().info(f"  transform_timeout: {self.transform_timeout} s")
+        self.get_logger().info(f"  static_transform_retry_period: {self.static_transform_retry_period} s")
         self.get_logger().info(f"  configured_markers: {len(self.marker_names)}")
         for i in range(len(self.marker_names)):
             self.get_logger().info(f"    marker {i+1}: detection='{self.detection_marker_frames[i]}', "
@@ -101,53 +103,119 @@ class RobotDetectionNode(Node):
         # store static transforms - USE LISTS DIRECTLY
         self.marker_to_base_transforms = {}
         
+        # track loading status
+        self.initialized = False
+        self.loading_complete = False
+        self.failed_markers = set(self.marker_names) if self.marker_names else set()
+        
         # track current visible marker
         self.current_visible_marker = "none"
         self.last_published_marker = ""
         
-        # load static transforms once
-        self.load_static_transforms()
+        # start with loading static transforms
+        self.load_static_transforms_once()
         
-        # timer for transform updates
-        self.timer = self.create_timer(self.update_rate, self.update_transform)
+        # if not all loaded, start retry timer
+        if not self.loading_complete:
+            self.get_logger().warn("Not all static transforms loaded. Will retry periodically.")
+            self.retry_timer = self.create_timer(self.static_transform_retry_period, self.retry_load_static_transforms)
+        
+        # timer for transform updates (only start after initialization)
+        self.update_timer = None
+        if self.loading_complete:
+            self.start_update_timer()
     
-    def load_static_transforms(self):
-        """load static transforms from urdf for all configured markers"""
-        self.get_logger().info("loading static transforms...")
+    def start_update_timer(self):
+        """start the main update timer"""
+        if self.update_timer is None:
+            self.update_timer = self.create_timer(self.update_rate, self.update_transform)
+            self.get_logger().info("Started main update loop")
+    
+    def load_static_transforms_once(self):
+        """attempt to load static transforms once for all configured markers"""
+        self.get_logger().info("Attempting to load static transforms...")
         
         if not self.marker_names:
-            self.get_logger().warn("no markers configured! node will not function properly.")
-            return
-            
+            self.get_logger().warn("No markers configured! Node will not function properly.")
+            self.initialized = True
+            self.loading_complete = True
+            return True
+        
+        newly_loaded = 0
+        still_failed = []
+        
         for i, marker_name in enumerate(self.marker_names):
+            # skip if already loaded
+            if marker_name in self.marker_to_base_transforms:
+                continue
+                
             robot_marker_frame = self.robot_marker_frames[i]
             detection_marker_frame = self.detection_marker_frames[i]
             
-            self.get_logger().info(f"waiting for static transform: {robot_marker_frame} -> {self.base_frame}")
+            try:
+                transform = self.tf_buffer.lookup_transform(
+                    robot_marker_frame,
+                    self.base_frame,
+                    rclpy.time.Time()
+                )
+                
+                self.marker_to_base_transforms[marker_name] = {
+                    'transform': transform,
+                    'robot_marker_frame': robot_marker_frame,
+                    'detection_marker_frame': detection_marker_frame
+                }
+                
+                # remove from failed set
+                if marker_name in self.failed_markers:
+                    self.failed_markers.remove(marker_name)
+                
+                self.get_logger().info(f"✓ Successfully loaded static transform for '{marker_name}' marker")
+                newly_loaded += 1
+                
+            except tf2_ros.TransformException as e:
+                self.get_logger().debug(f"Transform not yet available for '{marker_name}': {e}")
+                still_failed.append(marker_name)
+                if marker_name not in self.failed_markers:
+                    self.failed_markers.add(marker_name)
+        
+        # update loading status
+        self.loading_complete = len(self.failed_markers) == 0
+        self.initialized = self.loading_complete
+        
+        if newly_loaded > 0:
+            self.get_logger().info(f"Loaded {newly_loaded} new transforms. "
+                                 f"Total loaded: {len(self.marker_to_base_transforms)}/{len(self.marker_names)}")
+        
+        if still_failed:
+            self.get_logger().info(f"Still waiting for transforms: {', '.join(still_failed)}")
+        
+        return self.loading_complete
+    
+    def retry_load_static_transforms(self):
+        """retry loading static transforms for failed markers"""
+        if self.loading_complete:
+            # all loaded, we can stop retrying
+            if hasattr(self, 'retry_timer'):
+                self.retry_timer.cancel()
+                delattr(self, 'retry_timer')
             
-            loaded = False
-            for attempt in range(20):  # try for 2 seconds
-                try:
-                    transform = self.tf_buffer.lookup_transform(
-                        robot_marker_frame,
-                        self.base_frame,
-                        rclpy.time.Time()
-                    )
-                    self.marker_to_base_transforms[marker_name] = {
-                        'transform': transform,
-                        'robot_marker_frame': robot_marker_frame,
-                        'detection_marker_frame': detection_marker_frame
-                    }
-                    self.get_logger().info(f"✓ loaded static transform for '{marker_name}' marker")
-                    loaded = True
-                    break
-                except tf2_ros.TransformException as e:
-                    if attempt == 19:  # last attempt
-                        self.get_logger().warn(f"✗ failed to load transform for '{marker_name}': {e}")
-                    rclpy.spin_once(self, timeout_sec=0.1)
+            # start the main update timer if not already started
+            if self.update_timer is None:
+                self.start_update_timer()
+            return
+        
+        self.get_logger().info("Retrying to load static transforms...")
+        success = self.load_static_transforms_once()
+        
+        if success:
+            self.get_logger().info("All static transforms successfully loaded!")
+            # stop retry timer
+            if hasattr(self, 'retry_timer'):
+                self.retry_timer.cancel()
+                delattr(self, 'retry_timer')
             
-            if not loaded:
-                self.get_logger().error(f"could not load transform for marker '{marker_name}'. node may not function properly.")
+            # start the main update timer
+            self.start_update_timer()
     
     def compose_transforms(self, transform_a, transform_b):
         """compose two transforms: result = a * b (apply b then a)"""
@@ -238,12 +306,13 @@ class RobotDetectionNode(Node):
     
     def publish_visible_marker(self, marker_name):
         """publish the currently visible marker name to the topic"""
-        #if marker_name != self.last_published_marker: #only publish if marker has changed
-        msg = String()
-        msg.data = marker_name
-        self.marker_publisher.publish(msg)
-        self.last_published_marker = marker_name
-        self.get_logger().debug(f"published visible marker: {marker_name}")
+        # Only publish if marker has changed to reduce traffic
+        if marker_name != self.last_published_marker:
+            msg = String()
+            msg.data = marker_name
+            self.marker_publisher.publish(msg)
+            self.last_published_marker = marker_name
+            self.get_logger().debug(f"published visible marker: {marker_name}")
     
     def update_transform(self):
         """main update loop to compute and publish camera->base transform"""
