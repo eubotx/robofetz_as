@@ -2,64 +2,69 @@
 
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import CameraInfo
+from sensor_msgs.msg import CameraInfo, Image
 import yaml
 
 class CameraInfoPublisher(Node):
     def __init__(self):
         super().__init__('camera_info_publisher')
         
-        # Declare parameter for config file path
+        # Declare parameters
         self.declare_parameter('config_file', '')
+        self.declare_parameter('image_topic', '/arena_camera/image')
         
-        # Get config file path
+        # Get parameters
         config_file = self.get_parameter('config_file').get_parameter_value().string_value
+        image_topic = self.get_parameter('image_topic').get_parameter_value().string_value
         
         if not config_file:
             self.get_logger().error('No config file specified! Please provide a config_file parameter.')
-            self.get_logger().info('Example usage: ros2 run your_package camera_info_publisher --ros-args -p config_file:=/path/to/camera.yaml')
             raise ValueError('config_file parameter is required')
         
         # Load camera calibration from YAML file
         try:
             with open(config_file, 'r') as file:
                 config = yaml.safe_load(file)
-        except FileNotFoundError:
-            self.get_logger().error(f'Config file not found: {config_file}')
-            raise
-        except yaml.YAMLError as e:
-            self.get_logger().error(f'Error parsing YAML file: {e}')
+        except Exception as e:
+            self.get_logger().error(f'Error loading config: {e}')
             raise
         
-        # Extract parameters from config
+        # Store camera info
         self.image_width = config['image_width']
         self.image_height = config['image_height']
         self.distortion_model = config['distortion_model']
-        
-        # Convert matrix data to flat lists for CameraInfo message
         self.k = config['camera_matrix']['data']
         self.d = config['distortion_coefficients']['data']
         self.r = config['rectification_matrix']['data']
         self.p = config['projection_matrix']['data']
         
         self.get_logger().info(f'Loaded camera config from: {config_file}')
-        self.get_logger().info(f'Image size: {self.image_width}x{self.image_height}')
-        self.get_logger().info(f'Distortion model: {self.distortion_model}')
         
         # Create publisher
-        self.publisher = self.create_publisher(
-            CameraInfo,
-            'camera_info',
+        self.publisher = self.create_publisher(CameraInfo, 'camera_info', 10)
+        
+        # Subscribe to image topic
+        self.subscription = self.create_subscription(
+            Image,
+            image_topic,
+            self.image_callback,
             10)
         
-        # Publish at 15Hz
-        self.timer = self.create_timer(1.0/15.0, self.publish_camera_info)
-    
-    def publish_camera_info(self):
-        """Publish camera calibration info"""
+        # Track last published timestamp to avoid duplicates
+        self.last_timestamp = None
+        
+        self.get_logger().info(f'Subscribed to image topic: {image_topic}')
+        
+    def image_callback(self, image_msg):
+        # Avoid publishing duplicate camera_info for same timestamp
+        if self.last_timestamp == image_msg.header.stamp:
+            return
+            
+        self.last_timestamp = image_msg.header.stamp
+        
         msg = CameraInfo()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'arena_camera_optical'
+        msg.header.frame_id = image_msg.header.frame_id
         
         msg.height = self.image_height
         msg.width = self.image_width
@@ -86,10 +91,8 @@ def main(args=None):
     try:
         node = CameraInfoPublisher()
         rclpy.spin(node)
-    except ValueError as e:
-        rclpy.logging.get_logger('camera_info_publisher').error(str(e))
     except Exception as e:
-        rclpy.logging.get_logger('camera_info_publisher').error(f'Unexpected error: {e}')
+        rclpy.logging.get_logger('camera_info_publisher').error(f'Error: {e}')
     finally:
         rclpy.shutdown()
 

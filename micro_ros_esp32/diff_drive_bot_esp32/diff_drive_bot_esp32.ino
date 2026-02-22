@@ -8,6 +8,7 @@
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/float64_multi_array.h>
 #include <geometry_msgs/msg/twist.h>
+#include <sensor_msgs/msg/joint_state.h>
 #include <ESP32Encoder.h>
 #include <algorithm> // For std::sort
 
@@ -24,38 +25,40 @@ constexpr double MAX_MOTOR_SPEED = 180.0;  // Max speed in RPS
 constexpr int MAX_MOTOR_DRIVER_DUTYCYCLE = 190; //255*(3/4) because we are running 4S Lipo
 constexpr int ENCODER_TICKS_PER_REVOLUTION = 14 * 2;
 constexpr double ENCODER_PT1_TIMECONSTANT_S = 0.1;  //TODO
-constexpr double GEARBOX_RATIO = 1.0/200.0;
+//constexpr double GEARBOX_RATIO = 1.0/200.0;
+constexpr double GEARBOX_RATIO = 1.0/9.6;
 constexpr int MAX_WEAPON_MOTOR_DRIVER_DUTYCYCLE = 50;
 
 constexpr unsigned long UPDATE_INTERVAL_ENCODER = 1;  // In ms
 constexpr unsigned long UPDATE_INTERVAL_PID_CONTROL = 1;  // In ms
 
 // PID controller parameters - adjust these during tuning
-double KP = 1.0;
+double KP = 5.0;
 double KI = 3.0;
 double KD = 0.0;
 double KI_MAX = 20.0;
 
 // WiFi configuration
 //constexpr const char* MY_IP = "192.168.8.171"; // Bjoern Gelb DO NOT DELETE
-constexpr const char* MY_IP = "192.168.8.204"; // Flo Gelb
+constexpr const char* MY_IP = "192.168.8.204"; // Flo Gelb DO NOT DELETE
+//constexpr const char* MY_IP = "192.168.8.231"; // Dario Gelb DO NOT DELETE
 constexpr const char* MY_SSID = "GL-MT300N-V2-7d8";
 constexpr const char* MY_PASSWORD = "goodlife";
 constexpr int MY_PORT = 8888;
 
 // Pin definitions
-constexpr int LEFT_ENCODER_C2_PIN = 18;
-constexpr int LEFT_ENCODER_C1_PIN = 19;
+constexpr int LEFT_ENCODER_C2_PIN = 19;
+constexpr int LEFT_ENCODER_C1_PIN = 18;
 constexpr int RIGHT_ENCODER_C1_PIN = 5;
 constexpr int RIGHT_ENCODER_C2_PIN = 4;
 
-constexpr int MOTORDRIVER_LEFT_CW_PIN = 32;
-constexpr int MOTORDRIVER_LEFT_CCW_PIN = 16;
-constexpr int MOTORDRIVER_LEFT_PWM_PIN = 17;
+constexpr int MOTORDRIVER_LEFT_CW_PIN = 26;
+constexpr int MOTORDRIVER_LEFT_CCW_PIN = 25;
+constexpr int MOTORDRIVER_LEFT_PWM_PIN = 27;
 
-constexpr int MOTORDRIVER_RIGHT_CW_PIN = 25;
-constexpr int MOTORDRIVER_RIGHT_CCW_PIN = 26;
-constexpr int MOTORDRIVER_RIGHT_PWM_PIN = 27;
+constexpr int MOTORDRIVER_RIGHT_CW_PIN = 32;
+constexpr int MOTORDRIVER_RIGHT_CCW_PIN = 16;
+constexpr int MOTORDRIVER_RIGHT_PWM_PIN = 17;
 
 constexpr int MOTORDRIVER_STBY_PIN = 33;
 
@@ -92,6 +95,9 @@ rclc_support_t support;
 rcl_allocator_t allocator;
 rcl_node_t node;
 rcl_timer_t timer;
+rcl_publisher_t jointStatePublisher;
+sensor_msgs__msg__JointState jointStateMsg;
+
 
 // Error handling macros
 #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if (temp_rc != RCL_RET_OK) {} }
@@ -487,8 +493,8 @@ public:
         double linearWheelSpeed = linear;
         double angularWheelSpeed = angular * (wheelDistance / 2.0);
         
-        double leftWheelSpeed = linearWheelSpeed + angularWheelSpeed;
-        double rightWheelSpeed = linearWheelSpeed - angularWheelSpeed;
+        double leftWheelSpeed = linearWheelSpeed - angularWheelSpeed;
+        double rightWheelSpeed = linearWheelSpeed + angularWheelSpeed;
 
         // Convert the wheel speeds from m/s to rps
         double leftWheelRps = leftWheelSpeed / (M_PI * wheelDiameter);
@@ -568,6 +574,24 @@ RobotControl robot(leftWheel, rightWheel, weapon, WHEEL_DIAMETER, WHEEL_DISTANCE
 void timer_callback(rcl_timer_t* timer, int64_t last_call_time) {
     RCLC_UNUSED(last_call_time);
     if (timer != NULL) {
+		
+		// ---------------- JOINT STATE PUBLISHER ----------------
+		jointStateMsg.header.stamp.sec = millis() / 1000;
+		jointStateMsg.header.stamp.nanosec = (millis() % 1000) * 1000000;
+
+		// Wheel angular position in radians
+		jointStateMsg.position.data[0] = leftWheel.getAngularPosition() * 2.0 * M_PI;
+		jointStateMsg.position.data[1] = rightWheel.getAngularPosition() * 2.0 * M_PI;
+
+		// Wheel speed in rad/s
+		jointStateMsg.velocity.data[0] = leftWheel.getMeasuredWheelSpeed() * 2.0 * M_PI;
+		jointStateMsg.velocity.data[1] = rightWheel.getMeasuredWheelSpeed() * 2.0 * M_PI;
+
+		// Effort: publish PWM duty cycle (optional)
+		jointStateMsg.effort.data[0] = leftMotorDriver.getMotorDutyCycle();
+		jointStateMsg.effort.data[1] = rightMotorDriver.getMotorDutyCycle();
+
+		RCSOFTCHECK(rcl_publish(&jointStatePublisher, &jointStateMsg, NULL));
 
 #ifdef DEBUG_DRIVE_LEFT
         // Publish left debug information (PID + PWM)
@@ -662,6 +686,42 @@ void setup() {
     pidTuningMsg.data.size = 4;      // 8 values total (4 for left, 4 for right)
     pidTuningMsg.data.data = (double*)malloc(4 * sizeof(double)); // Allocate memory for 8 values
     weaponSpeedMsg.data = 0.0;  // 1 value
+  	
+  	// Joint state publisher
+  RCCHECK(rclc_publisher_init_best_effort(
+      &jointStatePublisher,
+      &node,
+      ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, JointState),
+      "joint_states"
+  ));
+  
+  // Setup JointState message memory - following your existing pattern
+  jointStateMsg.name.capacity = 2;
+  jointStateMsg.name.size = 2;
+  jointStateMsg.name.data = (rosidl_runtime_c__String*)malloc(2 * sizeof(rosidl_runtime_c__String));
+  
+  // Initialize strings manually
+  jointStateMsg.name.data[0].data = (char*)"left_wheel_joint";
+  jointStateMsg.name.data[0].size = strlen("left_wheel_joint");
+  jointStateMsg.name.data[0].capacity = jointStateMsg.name.data[0].size + 1;
+  
+  jointStateMsg.name.data[1].data = (char*)"right_wheel_joint";
+  jointStateMsg.name.data[1].size = strlen("right_wheel_joint");
+  jointStateMsg.name.data[1].capacity = jointStateMsg.name.data[1].size + 1;
+  
+  // Allocate positions, velocities, efforts (like you do for pidTuningMsg)
+  jointStateMsg.position.capacity = 2;
+  jointStateMsg.position.size = 2;
+  jointStateMsg.position.data = (double*)malloc(2 * sizeof(double));
+  
+  jointStateMsg.velocity.capacity = 2;
+  jointStateMsg.velocity.size = 2;
+  jointStateMsg.velocity.data = (double*)malloc(2 * sizeof(double));
+  
+  jointStateMsg.effort.capacity = 2;
+  jointStateMsg.effort.size = 2;
+  jointStateMsg.effort.data = (double*)malloc(2 * sizeof(double));
+
 
 #ifdef DEBUG_DRIVE_LEFT
     // Initialize left debug publisher

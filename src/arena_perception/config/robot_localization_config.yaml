@@ -1,0 +1,9 @@
+odom_drift_correction_node:
+  ros__parameters:
+    world_frame: "world"
+    map_frame: "map"
+    odom_frame: "odom"
+    base_frame: "robot/base_footprint"
+    detection_base_frame: "arena_perception/robot/base_footprint"
+    update_rate: 60.0
+    transform_timeout: 0.1

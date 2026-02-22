@@ -1,6 +1,0 @@
-opencv-python>=4.11.0.86
-numpy>=2.2.3
-matplotlib>=3.10.1
-scipy>=1.15.2
-pyapriltags>=3.3.0.3
-bitstring

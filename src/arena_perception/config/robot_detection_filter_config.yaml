@@ -1,0 +1,52 @@
+# Enhanced Transform Filter Configuration
+# ========================================
+
+# Filter Configuration
+# -------------------
+filter:
+  # Filter type (choose one):
+  # - no_filter:       No filtering (for debugging)
+  # - moving_average:  Simple moving average
+  # - ewma:            Exponential weighted moving average (recommended)
+  # - kalman:          Kalman filter with constant velocity model
+  # - complementary:   Complementary filter (best for real-time)
+  # - median:          Median filter for outlier removal
+  # - butterworth:     Butterworth low-pass filter
+  type: "median"
+  
+  # General parameters
+  window_size: 10        # Number of samples for moving average/median
+  publish_rate: 30.0     # Publishing rate in Hz (when transform is available)
+  
+  # EWMA parameters (alpha = smoothing factor, 0-1)
+  # Higher alpha = more responsive, lower alpha = smoother
+  alpha: 0.3
+  
+  # Complementary filter parameters
+  # Higher complementary_alpha = trust measurements more
+  complementary_alpha: 0.7
+  
+  # Butterworth filter parameters
+  cutoff_freq: 5.0      # Cutoff frequency in Hz (should be < publish_rate/2)
+  order: 2              # Filter order (higher = steeper rolloff)
+  
+  # Kalman filter parameters
+  process_noise: 0.01   # Q matrix scaling
+  measurement_noise: 0.1 # R matrix scaling
+  
+  # Median filter parameters
+  median_window: 3      # Reduced from 10 for lower latency (3-5 is good for real-time)
+
+# Frame Configuration
+# ------------------
+frames:
+  # Parent frame (where the input transforms originate from)
+  # This should match the frame_id from your detection node
+  parent_frame: "arena_camera_optical"
+  
+
+# Performance Tuning
+# ------------------
+performance:
+  tf_cache_time: 1.0     # TF buffer cache time in seconds
+  diagnostics_rate: 5.0  # How often to print diagnostics (seconds)
