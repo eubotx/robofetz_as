@@ -63,7 +63,7 @@ class CameraInfoPublisher(Node):
         self.last_timestamp = image_msg.header.stamp
         
         msg = CameraInfo()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.stamp = image_msg.header.stamp
         msg.header.frame_id = image_msg.header.frame_id
         
         msg.height = self.image_height
