@@ -2,7 +2,7 @@
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, TimerAction, LogInfo
 from launch.substitutions import LaunchConfiguration
 
 
@@ -45,7 +45,7 @@ def generate_launch_description():
     
     declare_ignore_radius = DeclareLaunchArgument(
         'ignore_radius_px',
-        default_value='100',
+        default_value='60',
         description='Radius to ignore around robot position (pixels)'
     )
     
@@ -92,12 +92,31 @@ def generate_launch_description():
         description='Use simulation time if true'
     )
     
+    # =================== NEW: TF to PoseStamped node ===================
+    # This node publishes robot pose as PoseStamped for self-filtering
+    tf_to_pose_node = Node(
+        package='robofetz_gazebo',  # Assuming the node is in the same package
+        executable='tf_to_pose',
+        name='tf_to_pose_converter',
+        output='screen',
+        parameters=[{
+            'parent_frame': 'map',
+            'child_frame': 'robot/base_footprint',
+            'pose_topic': '/bot/pose',  # Matches the remapping in detector_node
+            'publish_rate': 60.0,  # Higher rate for better self-filtering
+        }],
+        remappings=[
+            # No remappings needed for this node
+        ],
+        # This node will output robot pose on /bot/pose for the detector node
+    )
+    
     # =================== NODE 1: DETECTOR ===================
     # This node publishes 2D detections
     detector_node = Node(
         package=pkg,
-        executable='opponent_det_MOG2single',
-        name='opponent_det_MOG2single',
+        executable='opponent_det_ContourSingle',
+        name='opponent_det_ContourSingle',
         output='screen',
         parameters=[{
             'min_contour_area': LaunchConfiguration('min_contour_area'),
@@ -114,7 +133,7 @@ def generate_launch_description():
         remappings=[
             ('/arena_camera/image_rect', LaunchConfiguration('camera_topic')),
             ('/arena_camera/camera_info', LaunchConfiguration('camera_info_topic')),
-            ('/bot/pose', '/bot/pose'),
+            ('/bot/pose', '/bot/pose'),  # Receives pose from tf_to_pose_node
             ('/detections_2d', '/detections_2d'),
             ('/debug/detection_image', '/debug/detection_image'),
         ]
@@ -125,7 +144,7 @@ def generate_launch_description():
     converter_node = Node(
         package=pkg,
         executable='detection_transformation_2D_3D',
-        name='detection_transformation_2D_3D',  # Match the internal node name
+        name='detection_transformation_2D_3D',
         output='screen',
         parameters=[{
             'target_frame': LaunchConfiguration('target_frame'),
@@ -142,6 +161,13 @@ def generate_launch_description():
             ('detections_3d_viz_point', '/detected_opponent/viz_point'),
             ('detections_3d_viz_poses', '/detected_opponent/viz_poses'),
         ]
+    )
+    
+    # Optional: Add a small delay for the detector node to ensure TF is available
+    # This ensures tf_to_pose_node has time to start publishing before detector needs it
+    delayed_detector = TimerAction(
+        period=1.0,  # 1 second delay
+        actions=[detector_node]
     )
     
     # =================== RETURN ===================
@@ -161,7 +187,18 @@ def generate_launch_description():
         declare_publish_visualization,
         declare_use_sim_time,
         
-        # Launch both nodes
+        # Launch TF node first (it's listed first, so it starts first)
+        tf_to_pose_node,
+        
+        # Log message to indicate TF node is running
+        LogInfo(msg="TF to PoseStamped node launched with map -> robot/base_footprint"),
+        
+        # Launch detector and converter
+        # Option A: Launch detector immediately (will work if TF is already being broadcast)
         detector_node,
+        
+        # Option B: Use delayed detector if you want to ensure TF is available
+        # delayed_detector,
+        
         converter_node,
     ])

@@ -39,8 +39,8 @@ class OpponentDetColorSingle(Node):
                 # Detection parameters
                 ('min_contour_area', 200),
                 ('max_contour_area', 8000),
-                ('ignore_radius_px', 100),
-                ('shadow_expansion_factor', 1.2),
+                ('ignore_radius_px', 60),
+                ('shadow_expansion_factor', 1.0),
                 
                 # Color selection mode
                 ('interactive_selection', True),  # True = click to select, False = use parameters

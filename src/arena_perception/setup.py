@@ -49,6 +49,7 @@ setup(
             'tf_frame_relay = arena_perception.tf_frame_relay:main',
             'opponent_det_MOG2single = arena_perception.opponent_det_MOG2single:main',
             'opponent_det_MOG2multiple = arena_perception.opponent_det_MOG2multiple:main',
+            'opponent_det_ColorSingle = arena_perception.opponent_det_ColorSingle:main',
             'opponent_det_ContourSingle = arena_perception.opponent_det_ContourSingle:main',
             'detection_transformation_2D_3D = arena_perception.detection_transformation_2D_3D:main',
             'opponent_tracker_node = arena_perception.opponent_tracker_node:main',

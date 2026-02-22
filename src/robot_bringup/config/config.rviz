@@ -5,6 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Map1/Topic1
+        - /PointStamped1
       Splitter Ratio: 0.5203094482421875
     Tree Height: 707
   - Class: rviz_common/Selection
@@ -57,8 +58,6 @@ Visualization Manager:
           Value: true
         arena_perception/robot/base_footprint:
           Value: false
-        arena_perception/robot_bottom_tag:
-          Value: true
         arena_perception/robot_top_tag:
           Value: true
         arena_tag:
@@ -109,11 +108,33 @@ Visualization Manager:
       Show Axes: true
       Show Names: false
       Tree:
+        map:
+          odom:
+            robot/base_footprint:
+              robot/body_link:
+                robot/bottom_apriltag_link:
+                  robot/bottom_apriltag_optical:
+                    {}
+                robot/front_left_support_link:
+                  robot/front_left_support_bottom_caster_link:
+                    {}
+                  robot/front_left_support_top_caster_link:
+                    {}
+                robot/front_right_support_link:
+                  robot/front_right_support_bottom_caster_link:
+                    {}
+                  robot/front_right_support_top_caster_link:
+                    {}
+                robot/left_wheel_link:
+                  {}
+                robot/right_wheel_link:
+                  {}
+                robot/top_apriltag_link:
+                  robot/top_apriltag_optical:
+                    {}
         world:
           arena_camera_optical:
             arena_perception/robot/base_footprint:
-              {}
-            arena_perception/robot_bottom_tag:
               {}
             arena_perception/robot_top_tag:
               {}
@@ -121,30 +142,6 @@ Visualization Manager:
               {}
           arena_tag_calibrated:
             {}
-          map:
-            odom:
-              robot/base_footprint:
-                robot/body_link:
-                  robot/bottom_apriltag_link:
-                    robot/bottom_apriltag_optical:
-                      {}
-                  robot/front_left_support_link:
-                    robot/front_left_support_bottom_caster_link:
-                      {}
-                    robot/front_left_support_top_caster_link:
-                      {}
-                  robot/front_right_support_link:
-                    robot/front_right_support_bottom_caster_link:
-                      {}
-                    robot/front_right_support_top_caster_link:
-                      {}
-                  robot/left_wheel_link:
-                    {}
-                  robot/right_wheel_link:
-                    {}
-                  robot/top_apriltag_link:
-                    robot/top_apriltag_optical:
-                      {}
           opponent/base_footprint_sim:
             {}
           robot/base_footprint_sim:
@@ -318,6 +315,21 @@ Visualization Manager:
       Update Interval: 0
       Value: true
       Visual Enabled: true
+    - Alpha: 1
+      Class: rviz_default_plugins/PointStamped
+      Color: 204; 41; 204
+      Enabled: true
+      History Length: 1
+      Name: PointStamped
+      Radius: 0.20000000298023224
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /detected_opponent/viz_point
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -364,7 +376,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 3.0487124919891357
+      Distance: 5.045219421386719
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -379,10 +391,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5703979730606079
+      Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 2.945404529571533
+      Yaw: 3.0104057788848877
     Saved: ~
 Window Geometry:
   Displays:
