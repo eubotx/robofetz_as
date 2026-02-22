@@ -44,6 +44,7 @@ setup(
             'opponent_detection_node = arena_perception.opponent_detection:main',
             'opponent_det_MOG2single = arena_perception.opponent_det_MOG2single:main', #new
             'opponent_det_MOG2multiple = arena_perception.opponent_det_MOG2multiple:main', #new
+            'opponent_det_ContourSingle = arena_perception.opponent_det_ContourSingle:main', #new
             'detection_transformation_2D_3D = arena_perception.detection_transformation_2D_3D:main', #new
             'opponent_tracker_node = arena_perception.opponent_tracker_node:main',  # ← Added comma
             'detection_2d_to_3d_node = arena_perception.detection_2d_to_3d_node:main',  # ← Added comma

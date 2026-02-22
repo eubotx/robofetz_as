@@ -12,6 +12,7 @@ from tf2_ros import Buffer, TransformListener
 from tf2_geometry_msgs import do_transform_point
 import threading
 from collections import OrderedDict
+from std_msgs.msg import Header
 
 
 class OpponentDetMOG2Multiple(Node):
@@ -38,8 +39,9 @@ class OpponentDetMOG2Multiple(Node):
                 ('robot_base_frame', 'robot_base'),
                 ('camera_optical_frame', 'arena_camera_optical'),
                 ('max_opponents', 2),
-                ('stationary_timeout', 2.0),  # How long to keep ID without detection
-                ('match_distance', 100),  # Pixel distance for matching
+                ('stationary_timeout', 5.0),  # INCREASED from 2.0 to 5.0 seconds
+                ('match_distance', 100),
+                ('cleanup_timeout_multiplier', 3.0),  # How many stationary timeouts before cleanup
             ]
         )
 
@@ -71,7 +73,8 @@ class OpponentDetMOG2Multiple(Node):
         
         # Tracking variables for persistent IDs
         self.next_id = 0
-        # Store: {id: {'last_position': (x,y), 'last_seen': time, 'stationary': bool}}
+        self.available_ids = set()  # Track IDs that can be reused
+        # Store: {id: {'last_position': (x,y), 'last_seen': time, 'stationary': bool, 'stationary_since': time}}
         self.tracked_opponents = OrderedDict()
         
         # =================== COMMS ===================
@@ -103,17 +106,30 @@ class OpponentDetMOG2Multiple(Node):
             10
         )
         
-        # Debug publisher
+        # Debug publisher for images
         self.debug_publisher = self.create_publisher(
             Image, 
             '/debug/detection_image', 
             10
         )
+        
+        # Dictionary to store publishers for each opponent's debug point
+        self.debug_point_pubs = {}  # Will be filled dynamically as opponents appear
 
-        # Cleanup timer - now cleans up only very old stationary opponents
+        # Cleanup timer
         self.cleanup_timer = self.create_timer(1.0, self.cleanup_stale_data)
 
+        # Status timer
+        self.status_timer = self.create_timer(5.0, self.status_callback)
+
         self.get_logger().info(f"Multi-Opponent MOG2 Detector initialized - detecting up to {self.get_parameter('max_opponents').value} opponents with persistent IDs")
+
+    def status_callback(self):
+        """Periodic status check"""
+        self.get_logger().debug(f"Status - Tracked opponents: {len(self.tracked_opponents)}, Next ID: {self.next_id}, Available IDs: {self.available_ids}")
+        # Log active point publishers
+        if self.debug_point_pubs:
+            self.get_logger().debug(f"Active point publishers: {list(self.debug_point_pubs.keys())}")
 
     def camera_info_callback(self, msg):
         if self.camera_matrix is not None: 
@@ -154,26 +170,70 @@ class OpponentDetMOG2Multiple(Node):
             # Just pass - TF might not be available yet
             pass
 
+    def get_next_available_id(self):
+        """Get the next available ID, reusing old ones if possible"""
+        max_opponents = self.get_parameter('max_opponents').value
+        
+        # First, try to reuse an available ID
+        if self.available_ids:
+            return min(self.available_ids)  # Return smallest available ID
+        
+        # If no available IDs and we haven't reached max_opponents, create new ID
+        if self.next_id < max_opponents:
+            new_id = self.next_id
+            self.next_id += 1
+            return new_id
+        
+        # If we've reached max_opponents, we need to replace the oldest stationary opponent
+        # Find the oldest stationary opponent
+        oldest_stationary_id = None
+        oldest_stationary_time = None
+        
+        for opp_id, data in self.tracked_opponents.items():
+            if data.get('stationary', False):
+                stationary_since = data.get('stationary_since')
+                if stationary_since is not None:
+                    if oldest_stationary_time is None or stationary_since < oldest_stationary_time:
+                        oldest_stationary_time = stationary_since
+                        oldest_stationary_id = opp_id
+        
+        if oldest_stationary_id is not None:
+            # Remove the oldest stationary opponent and reuse its ID
+            self.get_logger().info(f"Replacing oldest stationary opponent {oldest_stationary_id} with new detection")
+            class_id = f"opponent_{oldest_stationary_id}"
+            if class_id in self.debug_point_pubs:
+                del self.debug_point_pubs[class_id]
+            del self.tracked_opponents[oldest_stationary_id]
+            return oldest_stationary_id
+        
+        # If no stationary opponent to replace, we can't add a new one
+        self.get_logger().warn("Maximum opponents reached and no stationary opponents to replace")
+        return None
+
     def assign_persistent_ids(self, detections):
         """
         Assign persistent IDs to detections.
         Uses last known positions when opponents are stationary.
+        Ensures IDs don't exceed max_opponents.
         """
         current_time = self.get_clock().now()
         max_distance = self.get_parameter('match_distance').value
         stationary_timeout = self.get_parameter('stationary_timeout').value
+        max_opponents = self.get_parameter('max_opponents').value
         
         if not detections:
-            # No current detections - return empty list
-            # Tracked opponents will be kept for stationary_timeout seconds
             return []
         
         # Sort detections by size (largest first)
         detections.sort(key=lambda d: d.bbox.size_x * d.bbox.size_y, reverse=True)
         
-        # Create a copy of tracked opponents for matching
-        # We'll use OrderedDict to maintain some priority
-        available_tracked_ids = list(self.tracked_opponents.keys())
+        # Get currently active tracked IDs (those seen recently)
+        active_tracked_ids = []
+        for opp_id, data in self.tracked_opponents.items():
+            time_since_seen = (current_time - data['last_seen']).nanoseconds / 1e9
+            if time_since_seen < stationary_timeout * 2:  # Consider active if seen recently
+                active_tracked_ids.append(opp_id)
+        
         matched_detections = [None] * len(detections)
         
         # First, try to match detections to recently seen opponents
@@ -183,31 +243,27 @@ class OpponentDetMOG2Multiple(Node):
             cx = detection.bbox.center.position.x
             cy = detection.bbox.center.position.y
             
-            for opp_id in available_tracked_ids[:]:
+            for opp_id in active_tracked_ids[:]:
                 opp_data = self.tracked_opponents[opp_id]
                 prev_cx, prev_cy = opp_data['last_position']
                 
-                # Calculate distance
                 distance = np.sqrt((cx - prev_cx)**2 + (cy - prev_cy)**2)
                 
-                # Check if within threshold and better than previous match
                 if distance < max_distance and distance < min_distance:
-                    # Prefer recently seen opponents
                     time_since_seen = (current_time - opp_data['last_seen']).nanoseconds / 1e9
                     if time_since_seen < stationary_timeout:
                         min_distance = distance
                         best_match_id = opp_id
             
             if best_match_id is not None:
-                # Assign existing ID
                 detection.results[0].hypothesis.class_id = f"opponent_{best_match_id}"
                 matched_detections[det_idx] = detection
-                available_tracked_ids.remove(best_match_id)
-                # Update tracked position and time
+                active_tracked_ids.remove(best_match_id)
                 self.tracked_opponents[best_match_id] = {
                     'last_position': (cx, cy),
                     'last_seen': current_time,
-                    'stationary': False
+                    'stationary': False,
+                    'stationary_since': None
                 }
         
         # Assign new IDs to unmatched detections
@@ -216,46 +272,52 @@ class OpponentDetMOG2Multiple(Node):
             if matched_detections[i] is not None:
                 final_detections.append(matched_detections[i])
             else:
-                # Check if this might be a stationary opponent that just reappeared
-                # but wasn't matched due to distance threshold
+                # Try to match with stationary opponents first
                 matched_stationary = False
                 cx = detection.bbox.center.position.x
                 cy = detection.bbox.center.position.y
                 
-                for opp_id in available_tracked_ids[:]:
+                for opp_id in active_tracked_ids[:]:
                     opp_data = self.tracked_opponents[opp_id]
                     prev_cx, prev_cy = opp_data['last_position']
                     
-                    # Use a slightly larger threshold for stationary opponents
                     distance = np.sqrt((cx - prev_cx)**2 + (cy - prev_cy)**2)
-                    if distance < max_distance * 1.5:  # Larger threshold for stationary
-                        # This is likely the same opponent resuming movement
+                    if distance < max_distance * 1.5:
                         detection.results[0].hypothesis.class_id = f"opponent_{opp_id}"
                         final_detections.append(detection)
-                        available_tracked_ids.remove(opp_id)
+                        active_tracked_ids.remove(opp_id)
                         self.tracked_opponents[opp_id] = {
                             'last_position': (cx, cy),
                             'last_seen': current_time,
-                            'stationary': False
+                            'stationary': False,
+                            'stationary_since': None
                         }
                         matched_stationary = True
                         self.get_logger().info(f"Reacquired stationary opponent {opp_id}")
                         break
                 
                 if not matched_stationary:
-                    # Need new ID
-                    new_id = self.next_id
-                    self.next_id += 1
+                    # Get next available ID (this will handle replacement if needed)
+                    new_id = self.get_next_available_id()
                     
-                    detection.results[0].hypothesis.class_id = f"opponent_{new_id}"
-                    final_detections.append(detection)
-                    
-                    self.tracked_opponents[new_id] = {
-                        'last_position': (cx, cy),
-                        'last_seen': current_time,
-                        'stationary': False
-                    }
-                    self.get_logger().info(f"New opponent detected with persistent ID: {new_id}")
+                    if new_id is not None:
+                        detection.results[0].hypothesis.class_id = f"opponent_{new_id}"
+                        final_detections.append(detection)
+                        
+                        self.tracked_opponents[new_id] = {
+                            'last_position': (cx, cy),
+                            'last_seen': current_time,
+                            'stationary': False,
+                            'stationary_since': None
+                        }
+                        
+                        # Remove from available_ids if we're using one
+                        if new_id in self.available_ids:
+                            self.available_ids.remove(new_id)
+                        
+                        self.get_logger().info(f"New opponent detected with persistent ID: {new_id}")
+                    else:
+                        self.get_logger().debug(f"Ignoring detection - already tracking {max_opponents} opponents")
         
         return final_detections
 
@@ -274,7 +336,10 @@ class OpponentDetMOG2Multiple(Node):
         if self.camera_matrix is None:
             cv2.putText(debug_frame, "WAITING FOR CAMERA INFO...", (50, 50), 
                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
-            self.publish_debug(debug_frame)
+            try:
+                self.publish_debug(debug_frame, [], None)
+            except Exception as e:
+                self.get_logger().error(f"Failed to publish debug: {e}")
             return
 
         with self.lock:
@@ -335,7 +400,9 @@ class OpponentDetMOG2Multiple(Node):
                         
                         valid_detections.append(detection)
 
-        # Limit to max_opponents
+        self.get_logger().debug(f"Found {len(valid_detections)} raw detections")
+
+        # Limit raw detections to max_opponents
         if len(valid_detections) > max_opponents:
             valid_detections.sort(key=lambda d: d.bbox.size_x * d.bbox.size_y, reverse=True)
             valid_detections = valid_detections[:max_opponents]
@@ -346,7 +413,6 @@ class OpponentDetMOG2Multiple(Node):
         # Mark undetected opponents as stationary
         current_time = self.get_clock().now()
         for opp_id in self.tracked_opponents:
-            # Check if this opponent was detected in this frame
             detected = False
             for det in valid_detections:
                 if f"opponent_{opp_id}" == det.results[0].hypothesis.class_id:
@@ -354,9 +420,11 @@ class OpponentDetMOG2Multiple(Node):
                     break
             
             if not detected:
-                # This opponent is stationary (not moving)
-                self.tracked_opponents[opp_id]['stationary'] = True
-                # Keep last_position unchanged
+                if not self.tracked_opponents[opp_id]['stationary']:
+                    # Just became stationary
+                    self.tracked_opponents[opp_id]['stationary'] = True
+                    self.tracked_opponents[opp_id]['stationary_since'] = current_time
+                    self.get_logger().info(f"Opponent {opp_id} became stationary")
 
         # Create detection array
         detection_array = Detection2DArray()
@@ -369,7 +437,10 @@ class OpponentDetMOG2Multiple(Node):
 
         # Debug
         if self.get_parameter('debug').value:
-            self.publish_debug(debug_frame, valid_detections, robot_pos)
+            try:
+                self.publish_debug(debug_frame, valid_detections, robot_pos)
+            except Exception as e:
+                self.get_logger().error(f"Failed to publish debug image: {e}")
 
     def publish_debug(self, frame, detections, robot_pos=None):
         debug = frame.copy()
@@ -401,23 +472,63 @@ class OpponentDetMOG2Multiple(Node):
             class_id = detection.results[0].hypothesis.class_id
             cv2.putText(debug, f"{class_id} (moving)", (x, y - 5), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            
+            # Create or get publisher for this opponent's point
+            if class_id not in self.debug_point_pubs:
+                topic_name = f'/debug/point_{class_id}'
+                self.debug_point_pubs[class_id] = self.create_publisher(
+                    PointStamped, 
+                    topic_name, 
+                    10
+                )
+                self.get_logger().info(f"Created publisher for {class_id} on {topic_name}")
+            
+            # Publish point for this specific opponent
+            point_msg = PointStamped()
+            point_msg.header.stamp = self.get_clock().now().to_msg()
+            point_msg.header.frame_id = self.camera_frame_id
+            point_msg.point.x = float(cx)
+            point_msg.point.y = float(cy)
+            point_msg.point.z = 0.0
+            self.debug_point_pubs[class_id].publish(point_msg)
 
         # Draw stationary opponents (not currently detected)
-        current_time = self.get_clock().now()
         stationary_timeout = self.get_parameter('stationary_timeout').value
         
         for opp_id, data in self.tracked_opponents.items():
             if data['stationary']:
-                # Check if still within timeout
-                time_since_seen = (current_time - data['last_seen']).nanoseconds / 1e9
+                time_since_seen = (self.get_clock().now() - data['last_seen']).nanoseconds / 1e9
                 if time_since_seen < stationary_timeout:
                     cx, cy = data['last_position']
-                    # Draw with dashed line effect or different style
                     color = (128, 128, 128)  # Gray for stationary
+                    
+                    # Calculate time stationary for display
+                    stationary_duration = 0
+                    if data.get('stationary_since'):
+                        stationary_duration = (self.get_clock().now() - data['stationary_since']).nanoseconds / 1e9
+                    
                     cv2.circle(debug, (int(cx), int(cy)), 10, color, 2)
-                    cv2.putText(debug, f"opponent_{opp_id} (stationary)", 
-                               (int(cx) - 40, int(cy) - 15), 
+                    cv2.putText(debug, f"opponent_{opp_id} (stationary {stationary_duration:.1f}s)", 
+                               (int(cx) - 60, int(cy) - 15), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                    
+                    # Publish stationary points as well
+                    class_id = f"opponent_{opp_id}"
+                    if class_id not in self.debug_point_pubs:
+                        topic_name = f'/debug/point_{class_id}'
+                        self.debug_point_pubs[class_id] = self.create_publisher(
+                            PointStamped, 
+                            topic_name, 
+                            10
+                        )
+                    
+                    point_msg = PointStamped()
+                    point_msg.header.stamp = self.get_clock().now().to_msg()
+                    point_msg.header.frame_id = self.camera_frame_id
+                    point_msg.point.x = float(cx)
+                    point_msg.point.y = float(cy)
+                    point_msg.point.z = 0.0
+                    self.debug_point_pubs[class_id].publish(point_msg)
 
         # Header info
         cv2.putText(debug, f"opponent_det_MOG2multiple (max={self.get_parameter('max_opponents').value})", (10, 30), 
@@ -428,15 +539,29 @@ class OpponentDetMOG2Multiple(Node):
         stationary_count = sum(1 for d in self.tracked_opponents.values() if d['stationary'])
         cv2.putText(debug, f"Stationary: {stationary_count}", (10, 75), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (128, 128, 128), 2)
+        
+        # Show available IDs
+        cv2.putText(debug, f"Available IDs: {sorted(self.available_ids)}", (10, 95), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
 
-        out_msg = self.bridge.cv2_to_imgmsg(debug, "bgr8")
-        out_msg.header.frame_id = self.camera_frame_id
-        out_msg.header.stamp = self.get_clock().now().to_msg()
-        self.debug_publisher.publish(out_msg)
+        if debug is None or debug.size == 0:
+            self.get_logger().error("Debug frame is empty!")
+            return
+            
+        try:
+            out_msg = self.bridge.cv2_to_imgmsg(debug, "bgr8")
+            out_msg.header.frame_id = self.camera_frame_id
+            out_msg.header.stamp = self.get_clock().now().to_msg()
+            self.debug_publisher.publish(out_msg)
+        except Exception as e:
+            self.get_logger().error(f"Failed to convert/publish debug image: {e}")
 
     def cleanup_stale_data(self):
         """Clean up very old stationary opponents"""
         now = self.get_clock().now()
+        max_opponents = self.get_parameter('max_opponents').value
+        stationary_timeout = self.get_parameter('stationary_timeout').value
+        cleanup_multiplier = self.get_parameter('cleanup_timeout_multiplier').value
         
         # Clean up own robot position
         with self.lock:
@@ -445,18 +570,40 @@ class OpponentDetMOG2Multiple(Node):
                     self.own_robot_position_px = None
         
         # Clean up opponents that have been stationary for too long
-        stationary_timeout = self.get_parameter('stationary_timeout').value
+        # Use a longer timeout for actual removal (cleanup_multiplier * stationary_timeout)
         expired_ids = []
         
         for opp_id, data in self.tracked_opponents.items():
             if data['stationary']:
                 time_since_seen = (now - data['last_seen']).nanoseconds / 1e9
-                if time_since_seen > stationary_timeout * 2:  # Double timeout for cleanup
+                # Only remove if stationary for much longer than the stationary_timeout
+                if time_since_seen > stationary_timeout * cleanup_multiplier:
                     expired_ids.append(opp_id)
         
         for opp_id in expired_ids:
+            self.get_logger().info(f"Removing very old stationary opponent {opp_id} (not seen for {time_since_seen:.1f}s)")
             del self.tracked_opponents[opp_id]
-            self.get_logger().info(f"Removed very old stationary opponent {opp_id}")
+            class_id = f"opponent_{opp_id}"
+            if class_id in self.debug_point_pubs:
+                del self.debug_point_pubs[class_id]
+            # Add ID to available pool for reuse
+            self.available_ids.add(opp_id)
+        
+        # Also ensure we don't have more tracked opponents than max_opponents
+        # This is a safety measure
+        if len(self.tracked_opponents) > max_opponents:
+            # Sort by last seen time (oldest first) and remove extras
+            sorted_ids = sorted(self.tracked_opponents.keys(), 
+                              key=lambda id: self.tracked_opponents[id]['last_seen'])
+            ids_to_remove = sorted_ids[:len(self.tracked_opponents) - max_opponents]
+            
+            for opp_id in ids_to_remove:
+                self.get_logger().info(f"Removing excess opponent {opp_id} (max {max_opponents} enforced)")
+                del self.tracked_opponents[opp_id]
+                class_id = f"opponent_{opp_id}"
+                if class_id in self.debug_point_pubs:
+                    del self.debug_point_pubs[class_id]
+                self.available_ids.add(opp_id)
 
 
 def main(args=None):
