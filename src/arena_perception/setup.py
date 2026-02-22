@@ -47,6 +47,13 @@ setup(
             'filter_transform_node = arena_perception.filter_transform_node:main',
             'odom_drift_correction_node = arena_perception.odom_drift_correction_node:main',
             'tf_frame_relay = arena_perception.tf_frame_relay:main',
+            'opponent_det_MOG2single = arena_perception.opponent_det_MOG2single:main',
+            'opponent_det_MOG2multiple = arena_perception.opponent_det_MOG2multiple:main',
+            'opponent_det_ContourSingle = arena_perception.opponent_det_ContourSingle:main',
+            'detection_transformation_2D_3D = arena_perception.detection_transformation_2D_3D:main',
+            'opponent_tracker_node = arena_perception.opponent_tracker_node:main',
+            'detection_2d_to_3d_node = arena_perception.detection_2d_to_3d_node:main',
+            'frame_diff_detector = arena_perception.frame_diff_detector:main',
         ],
     },
 )
