@@ -115,8 +115,8 @@ def generate_launch_description():
     # This node publishes 2D detections
     detector_node = Node(
         package=pkg,
-        executable='opponent_det_ContourSingle',
-        name='opponent_det_ContourSingle',
+        executable='opponent_det_ColorSingle',
+        name='opponent_det_ColorSingle',
         output='screen',
         parameters=[{
             'min_contour_area': LaunchConfiguration('min_contour_area'),

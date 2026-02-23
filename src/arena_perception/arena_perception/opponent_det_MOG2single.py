@@ -68,7 +68,7 @@ class OpponentDetMOG2Single(Node):
         self.lock = threading.Lock()
         
         # Tracking variables for persistent ID (always use opponent_0)
-        self.opponent_id = 0  # Fixed ID for single opponent
+        self.opponent_id = 'MOG2_0'  # Fixed ID for single opponent
         self.last_position = None  # Last known position (cx, cy)
         self.last_seen = None  # Last time opponent was detected
         self.stationary = False  # Whether opponent is currently stationary

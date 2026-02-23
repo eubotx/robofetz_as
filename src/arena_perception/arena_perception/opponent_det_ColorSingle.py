@@ -96,7 +96,7 @@ class OpponentDetColorSingle(Node):
         self.lock = threading.Lock()
         
         # Tracking variables
-        self.opponent_id = 0  # Fixed ID for single opponent
+        self.opponent_id = 'color_0'  # Fixed ID for single opponent
         self.last_position = None
         self.last_seen = None
         self.stationary = False
@@ -424,7 +424,7 @@ class OpponentDetColorSingle(Node):
         
         if contour is None:
             if self.stationary and self.last_position is not None:
-                cv2.putText(debug, "Opponent stationary (ID: opponent_0)", (10, 60), 
+                cv2.putText(debug, f"Opponent stationary (ID: {self.opponent_id})", (10, 60), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (128, 128, 128), 2)
             else:
                 cv2.putText(debug, "No opponent detected", (10, 60), 
