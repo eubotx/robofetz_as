@@ -1,0 +1,71 @@
+# Opponent Kalman Fusion Configuration
+# Save as: fusion_config.yaml
+
+/**:
+  ros__parameters:
+    # Frame settings
+    world_frame: "world"
+    
+    # ========== SOURCE CONFIGURATION ==========
+    # Enable/disable detection sources
+    use_mog2: true
+    use_color: true
+    
+    # Measurement noise (lower = more trust)
+    # MOG2 is typically more reliable
+    mog2_measurement_noise: 0.3      # Low noise = high trust
+    color_measurement_noise: 0.8     # Higher noise = less trust
+    
+    # ========== KALMAN FILTER PARAMETERS ==========
+    # Process noise (model uncertainty)
+    # Higher = filter adapts faster to changes
+    # Lower = smoother but slower to react
+    process_noise: 0.1
+    
+    # Initial uncertainties
+    initial_velocity_std: 1.0        # m/s uncertainty when track starts
+    position_std: 1.0                 # m uncertainty when track starts
+    
+    # ========== TRACK MANAGEMENT ==========
+    # Maximum missed detections before removing track
+    max_missed_detections: 10
+    
+    # Maximum age (seconds) without updates before removal
+    max_track_age_seconds: 2.0
+    
+    # Gating distance (meters) - maximum distance for associating
+    # a measurement with an existing track
+    gating_distance: 1.0
+    
+    # Maximum time step for prediction (seconds)
+    # Prevents huge jumps if there's a processing delay
+    dt_max: 0.1
+    
+    # ========== DEBUG / VISUALIZATION ==========
+    # Publish PoseArray for RViz visualization
+    publish_debug_poses: true
+    
+# ========== USAGE EXAMPLES ==========
+# 
+# 1. Use both MOG2 and Color (default):
+#    ros2 run your_package opponent_kalman_fusion --ros-args --params-file fusion_config.yaml
+#
+# 2. Use only MOG2:
+#    ros2 run your_package opponent_kalman_fusion --ros-args --params-file fusion_config.yaml \
+#        -p use_color:=false
+#
+# 3. Use only Color:
+#    ros2 run your_package opponent_kalman_fusion --ros-args --params-file fusion_config.yaml \
+#        -p use_mog2:=false
+#
+# 4. Tune MOG2 trust (lower = more trust):
+#    ros2 run your_package opponent_kalman_fusion --ros-args --params-file fusion_config.yaml \
+#        -p mog2_measurement_noise:=0.1
+#
+# 5. Aggressive tracking (fast adaptation):
+#    ros2 run your_package opponent_kalman_fusion --ros-args --params-file fusion_config.yaml \
+#        -p process_noise:=0.3 -p gating_distance:=1.5
+#
+# 6. Conservative tracking (smooth but slow):
+#    ros2 run your_package opponent_kalman_fusion --ros-args --params-file fusion_config.yaml \
+#        -p process_noise:=0.05 -p gating_distance:=0.5
