@@ -102,7 +102,7 @@ ros2 launch robofetz_as robofetz_as.launch.py
 Launch arguments can be overridden like this:
 
 ```bash
-ros2 launch robofetz_as robofetz_as.launch.py use_sim:=false
+ros2 launch robot_bringup robofetz_as.launch.py use_sim:=true
 ```
 
 ---
