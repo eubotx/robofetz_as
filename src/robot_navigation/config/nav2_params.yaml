@@ -62,14 +62,14 @@ controller_server:
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: True
-      min_vel_x: -5.0
+      min_vel_x: -1.0
       min_vel_y: 0.0
-      max_vel_x: 5.0
+      max_vel_x: 1.0
       max_vel_y: 0.0
-      min_vel_theta: -5.0
-      max_vel_theta: 5.0
+      min_vel_theta: -1.0
+      max_vel_theta: 1.0
       min_speed_xy: 0.0
-      max_speed_xy: 5.0
+      max_speed_xy: 2.0
       min_speed_theta: 0.0
       # Add high acceleration limits to ensure the robot can accelerate
       acc_lim_x: 1.0
