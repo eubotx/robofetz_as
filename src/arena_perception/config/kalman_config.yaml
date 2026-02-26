@@ -1,0 +1,97 @@
+# config/kalman_config.yaml
+
+# Multi-Sensor Kalman Filter Configuration
+# Similar structure to robot_localization EKF
+
+# Output frame for fused tracks
+output_frame: "world"
+
+# TF timeout in seconds
+tf_timeout: 0.1
+
+# Process noise configuration (similar to process_noise_covariance in EKF)
+process_noise:
+  dt: 0.05                    # Prediction step size (seconds)
+  max_dt: 0.1                  # Maximum dt for prediction
+  position: 0.01               # Position noise
+  velocity: 0.1                 # Velocity noise
+  acceleration: 0.5             # Acceleration noise
+
+# Sensor definitions (similar to odomN_config in EKF)
+sensors:
+  - name: "mog2_detector"
+    topic: "/mog2_detections_3d"
+    weight: 1.0                 # Relative confidence in this sensor
+    noise_scale: 1.0            # Multiplier for measurement noise
+    measurement_covariance: [0.05, 0.05, 0.05]  # [x, y, z] noise
+    exclude_stationary: false   # Don't use this sensor for stationary objects
+    
+  - name: "color_detector"
+    topic: "/color_detections_3d"
+    weight: 0.8                  # Lower confidence than MOG2
+    noise_scale: 1.5             # Higher noise than MOG2
+    measurement_covariance: [0.08, 0.08, 0.08]
+    exclude_stationary: false
+    
+  # You can easily add more sensors here
+  - name: "future_sensor"
+    topic: "/future_detections_3d"
+    weight: 0.9
+    noise_scale: 1.2
+    measurement_covariance: [0.06, 0.06, 0.06]
+    exclude_stationary: false
+    enabled: false  # Can disable without removing
+
+# Track management parameters
+track_management:
+  max_tracks: 10
+  timeout: 2.0                   # Seconds before removing track
+  coast_time: 1.0                # Seconds before marking as coasting
+  min_updates_to_confirm: 3      # Updates needed for track to become ACTIVE
+  track_id_prefix: "opponent_"
+  cleanup_interval: 1.0          # Seconds between cleanup runs
+  track_history: 100              # Number of positions to keep per track
+
+# Data association parameters
+data_association:
+  gating_threshold: 3.0           # Mahalanobis distance threshold
+  association_method: "greedy"     # greedy or hungarian
+  max_distance: 2.0                # Maximum Euclidean distance for association
+
+# Stationary detection parameters
+stationary:
+  velocity_threshold: 0.02         # m/s - below this is considered stationary
+  min_duration: 1.0                # seconds stationary to confirm
+  position_variation: 0.05         # m - max position variation
+
+# Initial state parameters
+initial_covariance: 0.5            # Initial covariance for new tracks
+
+# Output configuration
+output:
+  publish_velocity: true
+  publish_acceleration: false
+  publish_covariance: true
+  publish_track_state: true
+
+# Output topics
+output_topics:
+  fused_tracks: "/fused_tracks"
+  track_poses: "/fused_tracks_poses"
+  track_markers: "/fused_tracks_markers"
+  debug_info: "/kalman_debug_info"
+  debug_tracks: "/kalman_debug_tracks"
+
+# Visualization settings
+visualization:
+  publish_poses: true
+  publish_markers: false
+  marker_lifetime: 0.1
+
+# Debug settings
+debug:
+  enabled: true
+  publish_interval: 1.0
+  publish_raw: true
+  publish_new_tracks: true
+  log_level: "info"                # debug, info, warn, error
