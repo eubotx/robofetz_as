@@ -28,6 +28,13 @@ def generate_launch_description():
             package='usb_cam',
             executable='usb_cam_node_exe',
             namespace='arena_camera',
-            parameters=[config_path]
+            parameters=[config_path],
+            remappings=[
+                # Remap all camera topics to remove the "camera" prefix
+                ('image_raw', 'image'),
+                ('camera_info', 'camera_info'),
+                ('camera/image_raw/compressed', 'image_raw/compressed'),
+
+            ],
         )
     ])

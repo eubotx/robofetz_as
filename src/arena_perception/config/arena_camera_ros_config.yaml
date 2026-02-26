@@ -7,4 +7,4 @@
     height: 600
     role: "video"
     frame_id: "arena_camera_optical"
-    camera_info_url: "package://arena_perception/config/arena_camera_info_600p.yaml"
+    camera_info_url: "package://arena_perception/config/arena_camera_info_ti_600p.yaml"

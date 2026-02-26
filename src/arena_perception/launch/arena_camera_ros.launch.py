@@ -30,7 +30,7 @@ def generate_launch_description():
             namespace='arena_camera',
             remappings=[
                 # Remap all camera topics to remove the "camera" prefix
-                ('camera/image_raw', 'image_raw'),
+                ('camera/image_raw', 'image'),
                 ('camera/camera_info', 'camera_info'),
                 ('camera/image_raw/compressed', 'image_raw/compressed'),
 
