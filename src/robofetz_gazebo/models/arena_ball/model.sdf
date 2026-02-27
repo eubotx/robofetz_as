@@ -2,6 +2,7 @@
 <sdf version='1.9'>
   <model name='ball'>
     <link name='link'>
+      <pose>0.5 -0.3 0.2 0 0 0</pose>
       <inertial>
         <mass>1</mass>
         <inertia>

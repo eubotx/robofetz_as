@@ -51,8 +51,8 @@ find_camera_in_world_service:
     
     # Marker position in world
     marker_position:
-      x: 1.275
-      y: 0.375
+      x: 0.2
+      y: 0.2
       z: 0.0
     
     # Marker orientation in world (radians)
