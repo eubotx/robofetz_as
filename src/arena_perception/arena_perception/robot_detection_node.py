@@ -51,7 +51,7 @@ class RobotDetectionNode(Node):
         self.transform_timeout = self.get_parameter('transform_timeout').value
         self.static_transform_retry_period = self.get_parameter('static_transform_retry_period').value
         
-        # marker configuration - USE LISTS DIRECTLY
+        # marker configuration
         self.detection_marker_frames = self.get_parameter('detection_marker_frames').value
         self.robot_marker_frames = self.get_parameter('robot_marker_frames').value
         self.marker_names = self.get_parameter('marker_names').value
