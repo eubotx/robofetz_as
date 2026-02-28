@@ -27,9 +27,9 @@ class MapNode(Node):
         self.map_path = os.path.join(self.map_dir, 'map.pgm')
         
         # Constants
-        self.width = 256
-        self.height = 256
-        self.map_size_meters = 1.5
+        self.width = 128
+        self.height = self.width
+        self.map_size_meters = 2.56
         self.resolution = self.map_size_meters / float(self.width) # ~0.00586 meters/pixel
         self.origin_x = 0
         self.origin_y = 0
@@ -47,7 +47,7 @@ class MapNode(Node):
 
         self.map_pub = self.create_publisher(OccupancyGrid, '/map_defence', 10)
         self.image_pub = self.create_publisher(RosImage, '/map_debug_image', 10)
-        self.pose_sub = self.create_subscription(PoseStamped, '/opponent/pose_sim', self.pose_callback, 10)
+        self.pose_sub = self.create_subscription(PoseStamped, '/arena_perception_opponent_base_footprint_pose', self.pose_callback, 10)
         
         self.opponent_pose = None
         # Timer 1 Hz
@@ -86,7 +86,7 @@ class MapNode(Node):
             px, py = self.world_to_map(self.opponent_pose.pose.position.x, self.opponent_pose.pose.position.y)
             
             # Draw Hole
-            r = 20 # User said "big black hole". 20px radius ~ 12cm radius.
+            r = 5 # User said "big black hole". 20px radius ~ 12cm radius.
             # Black = 0
             draw.ellipse((px-r, py-r, px+r, py+r), fill=0)
             draw.ellipse((px-r*2, py-r*2, px+r*2, py+r*2), fill=255//2) # White center
