@@ -1,8 +1,14 @@
+border_thickness: 2
+free_thresh: 0.196
 image: map.pgm
+map_size: 128
 mode: trinary
-resolution: 0.02
-origin: [-0.53, -0.53, 0.0]
 negate: 0
 occupied_thresh: 0.65
-free_thresh: 0.196
-                    
+origin:
+- -0.53
+- -0.53
+- 0.0
+real_size: 2.56
+resolution: 0.02
+square_length: 1.5
