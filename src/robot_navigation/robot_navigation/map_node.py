@@ -2,9 +2,9 @@
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, PointStamped
 from sensor_msgs.msg import Image as RosImage
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 import numpy as np
 import os
 import sys
@@ -85,6 +85,8 @@ class MapNode(Node):
             self.pose_callback,
             10
         )
+        # NEW: Publisher for the defense position (brightest pixel)
+        self.defense_pub = self.create_publisher(PointStamped, '/defense_position', 10)
         
         self.opponent_pose = None
         self.create_timer(1.0, self.timer_callback)
@@ -111,6 +113,35 @@ class MapNode(Node):
         py = self.height - 1 - iy
         return px, py
 
+    def pixel_to_coordinates(self, px, py):
+        """
+        Convert PIL pixel coordinates (top-left origin) to world coordinates (meters).
+        """
+        x = self.origin_x + px * self.resolution
+        y = self.origin_y + (self.height - 1 - py) * self.resolution
+        return x, y
+
+    def defense_position(self):
+        """
+        Find the brightest pixel in the latest map and return its world coordinates.
+        Returns (x, y) in meters, or None if no map is available.
+        """
+        if not hasattr(self, 'latest_map') or self.latest_map is None:
+            self.get_logger().warn("No map available for defense_position")
+            return None
+
+        # Convert PIL image to numpy array
+        img_arr = np.array(self.latest_map)
+
+        # Find the index of the maximum pixel value (brightest)
+        max_idx = np.argmax(img_arr)
+        py, px = np.unravel_index(max_idx, img_arr.shape)  # py is row (top-left origin)
+
+        # Convert to world coordinates
+        wx, wy = self.pixel_to_coordinates(px, py)
+        self.get_logger().info(f"Defense position: pixel ({px}, {py}) -> world ({wx:.3f}, {wy:.3f})")
+        return wx, wy
+
     def timer_callback(self):
         # Copy base map and draw opponent position
         current_map = self.base_map.copy()
@@ -122,10 +153,27 @@ class MapNode(Node):
                 self.opponent_pose.pose.position.y
             )
             # Draw a hole (black) with a white center
-            r = 5
+            r = 12
             draw.ellipse((px - r, py - r, px + r, py + r), fill=0)
-            draw.ellipse((px - r*2, py - r*2, px + r*2, py + r*2), fill=255 // 2)
+            draw.ellipse((px - r*2, py - r*2, px + r*2, py + r*2), fill=50)
         
+        # Apply Gaussian blur
+        current_map = current_map.filter(ImageFilter.GaussianBlur(radius=3))
+
+        # Store the processed map for use by defense_position()
+        self.latest_map = current_map
+
+        # --- NEW: Compute and publish defense position ---
+        defense_coords = self.defense_position()
+        if defense_coords is not None:
+            defense_msg = PointStamped()
+            defense_msg.header.stamp = self.get_clock().now().to_msg()
+            defense_msg.header.frame_id = 'map'
+            defense_msg.point.x = defense_coords[0]
+            defense_msg.point.y = defense_coords[1]
+            defense_msg.point.z = 0.0
+            self.defense_pub.publish(defense_msg)
+
         # Convert to OccupancyGrid
         grid_msg = OccupancyGrid()
         grid_msg.header.stamp = self.get_clock().now().to_msg()

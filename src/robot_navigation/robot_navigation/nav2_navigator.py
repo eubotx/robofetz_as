@@ -106,9 +106,10 @@ class Nav2Navigator(Node):
             target.header.frame_id = self.goal_frame
 
         # loop until oriented
-        rate = self.create_rate(10)
+        rate = self.create_rate(5)
         while rclpy.ok():
             # compute yaw error
+            self.get_logger().info(f'Orienting towards target at ({target.pose.position.x:.2f}, {target.pose.position.y:.2f})')
             dx = target.pose.position.x - self.current_pose.position.x
             dy = target.pose.position.y - self.current_pose.position.y
             desired_yaw = math.atan2(dy, dx)
