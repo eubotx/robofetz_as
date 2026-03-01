@@ -1,11 +1,6 @@
 import rclpy
-<<<<<<< HEAD
-from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped, PointStamped
-=======
 from geometry_msgs.msg import PoseStamped, PointStamped
 from enum import Enum
->>>>>>> e6e366e (Crappy but somehow working nav2 strategizer)
 import math
 import time
 
