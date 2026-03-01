@@ -6,220 +6,172 @@ from geometry_msgs.msg import PoseStamped, Twist
 from nav2_msgs.action import NavigateToPose
 import math
 
-
 class Nav2Navigator(Node):
-    """High‑level navigation helper that wraps the Nav2 action client and
-    provides convenience routines such as orienting towards a target before
-    sending a goal.  It can be used by other nodes (for example a
-    strategist) to issue ``attack`` and ``escape`` commands without having
-    to manage the low‑level details themselves.
-
-    The behaviour is deliberately similar to :class:`SimpleNavigator` and
-    :class:`Nav2Attack` so that existing code can be refactored to use it
-    without changing how the robot is driven.
+    """
+    High-level navigation helper that wraps the Nav2 action client.
+    Uses a non-blocking state machine to avoid deadlocks.
     """
 
     def __init__(self):
         super().__init__('nav2_navigator')
 
-        # navigation parameters (shared with simple_navigator)
+        # Navigation parameters
         self.declare_parameters(
             namespace='',
             parameters=[
                 ('linear_kp', 0.5),
-                ('angular_kp', 1.0),
-                ('max_linear', 0.2),
+                ('angular_kp', 1.5),
                 ('max_angular', 1.0),
                 ('orientation_tolerance', 0.1),
                 ('goal_frame', 'map'),
+                ('angular_ki', 0.05),
+                ('angular_kd', 0.1),
             ],
         )
 
-        self.linear_kp = self.get_parameter('linear_kp').value
-        self.angular_kp = self.get_parameter('angular_kp').value
-        self.max_linear = self.get_parameter('max_linear').value
-        self.max_angular = self.get_parameter('max_angular').value
-        self.orientation_tolerance = self.get_parameter('orientation_tolerance').value
-        self.goal_frame = self.get_parameter('goal_frame').value
-
-        # current robot pose coming from camera or odom
+        # Internal state
+        self.state = "IDLE"  # IDLE, ALIGNING, NAVIGATING
         self.current_pose = None
-        self.current_pose_header = None
-
-        # keep track of last goal sent; helpers can use this when deciding
-        # whether a new goal should be issued.
+        self.target_pose = None
+        self.goal_to_send = None # The final destination after orienting
         self.last_goal_pose = None
 
-        # subscribers / publishers
+        # PID state
+        self.error_integral = 0.0
+        self.last_error = 0.0
+        self.last_time = self.get_clock().now()
+
+        # Pubs/Subs
         self.pose_sub = self.create_subscription(
             PoseStamped, '/arena_perception_robot_base_footprint_pose', self._pose_callback, 10)
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
 
-        # action client for Nav2
+        # Action Client
         self._action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
-        self.goal_in_progress = False
+
+        # Control Timer - This replaces the blocking while-loop
+        self.create_timer(0.1, self._control_loop)
+
+        self.get_logger().info("Nav2 Navigator initialized and ready.")
 
     # ------------------------------------------------------------------
-    # callbacks and helpers
+    # State Logic (The "Attack" and "Escape" you asked for)
     # ------------------------------------------------------------------
-    def _pose_callback(self, msg: PoseStamped) -> None:
-        """Keep the last received robot pose for orientation calculations."""
-        self.current_pose = msg.pose
-        self.current_pose_header = msg.header
+    
+    def attack(self, opponent_pose: PoseStamped) -> None:
+        """Face the opponent and then drive towards them."""
+        self.get_logger().info("Orienting first...")
+        self.target_pose = opponent_pose
+        self.goal_to_send = opponent_pose # After turning, go to opponent
+        self.last_goal_pose = opponent_pose
+        self._start_alignment()
 
-    @staticmethod
-    def quaternion_to_yaw(q):
-        # same implementation as SimpleNavigator
-        t3 = +2.0 * (q.w * q.z + q.x * q.y)
-        t4 = +1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-        return math.atan2(t3, t4)
+    def escape(self, opponent_pose: PoseStamped, safe_pose: PoseStamped) -> None:
+        """Face the opponent, then drive to a safe location."""
+        self.get_logger().info("State: ESCAPE. Orienting towards threat...")
+        self.target_pose = opponent_pose
+        self.goal_to_send = safe_pose # After turning, go to safety
+        self._start_alignment()
 
-    @staticmethod
-    def normalize_angle(angle):
-        while angle > math.pi:
-            angle -= 2.0 * math.pi
-        while angle < -math.pi:
-            angle += 2.0 * math.pi
-        return angle
+    def _start_alignment(self):
+        """Resets PID and triggers the control loop to start turning."""
+        self.error_integral = 0.0
+        self.last_error = 0.0
+        self.last_time = self.get_clock().now()
+        self.state = "ALIGNING"
 
     # ------------------------------------------------------------------
-    # orientation logic
+    # Background Control Loop
     # ------------------------------------------------------------------
-    def orient_towards(self, target: PoseStamped) -> None:
-        """Rotate the base until it faces *target*.
 
-        The routine will block until the yaw error is within
-        ``orientation_tolerance``.  It uses the same simple proportional
-        controller as :class:`SimpleNavigator` so the behaviour is familiar.
-
-        This method calls ``rclpy.spin_once`` internally to allow the
-        subscription to the current pose to be serviced while spinning.
-        """
-
-        if self.current_pose is None or self.current_pose_header is None:
-            self.get_logger().warn('No current pose available, cannot orient')
+    def _control_loop(self):
+        """Executes one step of PID if in ALIGNING state. Non-blocking."""
+        if self.state != "ALIGNING" or self.current_pose is None or self.target_pose is None:
             return
 
-        # make sure the frame of the pose is set correctly
-        if target.header.frame_id == '':
-            target = PoseStamped(header=target.header, pose=target.pose)
-            target.header.frame_id = self.goal_frame
+        # 1. Heading Math
+        dx = self.target_pose.pose.position.x - self.current_pose.position.x
+        dy = self.target_pose.pose.position.y - self.current_pose.position.y
+        desired_yaw = math.atan2(dy, dx)
 
-        # loop until oriented
-        rate = self.create_rate(5)
-        while rclpy.ok():
-            # compute yaw error
-            self.get_logger().info(f'Orienting towards target at ({target.pose.position.x:.2f}, {target.pose.position.y:.2f})')
-            dx = target.pose.position.x - self.current_pose.position.x
-            dy = target.pose.position.y - self.current_pose.position.y
-            desired_yaw = math.atan2(dy, dx)
-            current_yaw = self.quaternion_to_yaw(self.current_pose.orientation)
-            yaw_error = self.normalize_angle(desired_yaw - current_yaw)
+        q = self.current_pose.orientation
+        current_yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        
+        # Normalized error between -pi and pi
+        error = math.atan2(math.sin(desired_yaw - current_yaw), math.cos(desired_yaw - current_yaw))
 
-            if abs(yaw_error) <= self.orientation_tolerance:
-                break
+        # 2. Check if we are facing the right way
+        if abs(error) < self.get_parameter('orientation_tolerance').value:
+            self.get_logger().info("Aligned! Sending Nav2 goal.")
+            self.cmd_pub.publish(Twist()) # Stop the motors
+            self.state = "NAVIGATING"
+            self._send_nav_goal(self.goal_to_send)
+            return
 
-            cmd = Twist()
-            cmd.angular.z = max(min(self.angular_kp * yaw_error,
-                                     self.max_angular), -self.max_angular)
-            self.cmd_pub.publish(cmd)
+        # 3. PID calculation
+        now = self.get_clock().now()
+        dt = (now - self.last_time).nanoseconds / 1e9
+        if dt <= 0: dt = 0.05
 
-            # allow callbacks to run so current_pose is updated
-            rclpy.spin_once(self, timeout_sec=0.1)
-            rate.sleep()
+        p = self.get_parameter('angular_kp').value * error
+        self.error_integral += error * dt
+        i = self.get_parameter('angular_ki').value * max(min(self.error_integral, 1.0), -1.0)
+        d = self.get_parameter('angular_kd').value * (error - self.last_error) / dt
 
-        # stop rotation
-        self.cmd_pub.publish(Twist())
+        angular_vel = max(min(p + i + d, self.get_parameter('max_angular').value), -self.get_parameter('max_angular').value)
+
+        cmd = Twist()
+        cmd.angular.z = angular_vel
+        self.cmd_pub.publish(cmd)
+
+        self.last_error = error
+        self.last_time = now
 
     # ------------------------------------------------------------------
-    # Nav2 goal wrappers
+    # Nav2 Goal & Callbacks
     # ------------------------------------------------------------------
-    def _send_nav_goal(self, pose: PoseStamped) -> None:
-        """Send a goal to the Nav2 ``navigate_to_pose`` action server."""
+
+    def _send_nav_goal(self, pose: PoseStamped):
         if not self._action_client.wait_for_server(timeout_sec=1.0):
-            self.get_logger().warn('Nav2 action server not available')
+            self.get_logger().error("Nav2 Action Server not available!")
+            self.state = "IDLE"
             return
 
-        goal = NavigateToPose.Goal()
-        goal.pose = pose
-        goal.pose.header.frame_id = self.goal_frame
-        goal.pose.header.stamp = self.get_clock().now().to_msg()
+        goal_msg = NavigateToPose.Goal()
+        goal_msg.pose = pose
+        goal_msg.pose.header.frame_id = self.get_parameter('goal_frame').value
+        goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
 
-        self.get_logger().info(
-            f'Sending Nav2 goal ({pose.pose.position.x:.2f}, {pose.pose.position.y:.2f})')
-
-        send_goal_future = self._action_client.send_goal_async(goal)
-        send_goal_future.add_done_callback(self._goal_response_callback)
-        self.goal_in_progress = True
-        self._last_goal_handle = None
+        self._action_client.send_goal_async(goal_msg).add_done_callback(self._goal_response_callback)
 
     def _goal_response_callback(self, future):
         goal_handle = future.result()
         if not goal_handle.accepted:
-            self.get_logger().info('Nav2 goal rejected')
-            self.goal_in_progress = False
+            self.get_logger().warn("Goal rejected by Nav2")
+            self.state = "IDLE"
             return
-        self.get_logger().info('Nav2 goal accepted')
-        self._last_goal_handle = goal_handle
-        result_future = goal_handle.get_result_async()
-        result_future.add_done_callback(self._result_callback)
+        goal_handle.get_result_async().add_done_callback(self._result_callback)
 
     def _result_callback(self, future):
-        result = future.result().result
-        self.get_logger().info('Nav2 navigation finished')
-        self.goal_in_progress = False
+        self.get_logger().info("Navigation finished.")
+        self.state = "IDLE"
 
-    # ------------------------------------------------------------------
-    # high‑level behaviours
-    # ------------------------------------------------------------------
-    def attack(self, opponent_pose: PoseStamped) -> None:
-        """Face the opponent and then drive towards their last known pose.
-
-        ``last_goal_pose`` is updated so that callers can decide whether a new
-        request should be made (for example only when the opponent has moved).
-        """
-        self.orient_towards(opponent_pose)
-        self._send_nav_goal(opponent_pose)
-        self.last_goal_pose = opponent_pose
-
-    def escape(self, opponent_pose: PoseStamped, safe_pose: PoseStamped) -> None:
-        """Face the opponent then drive to a predefined *safe_pose*.
-
-        ``safe_pose`` can be any PoseStamped (for example a fixed corner of the
-        arena).  ``opponent_pose`` is used only to compute the orientation.
-        """
-        self.orient_towards(opponent_pose)
-        self._send_nav_goal(safe_pose)
-
-
-# Stand‑alone node for demonstration / testing purposes.  It listens on two
-# topics, ``/attack_command`` and ``/escape_command`` which carry
-# :class:`geometry_msgs.msg.PoseStamped`.  When a message arrives the
-# corresponding behaviour is triggered.
+    def _pose_callback(self, msg):
+        self.current_pose = msg.pose
 
 def main(args=None):
     rclpy.init(args=args)
     navigator = Nav2Navigator()
 
-    # subscribers for demo
+    # Subscription wrappers for the demo
     def attack_cb(msg):
         navigator.attack(msg)
 
     def escape_cb(msg):
-        # for escape we expect the goal to be stored in the message's pose
-        # fields.  it is easier for the sender to pack both poses in the
-        # orientation part of the message if necessary, but we keep it simple
-        # here and assume the goal is conveyed separately by setting the
-        # message's frame_id to "safe".
-        #
-        # for the purposes of this node we treat the received message as an
-        # opponent pose and drive to the origin of the map afterwards.
         safe = PoseStamped()
-        safe.header.frame_id = navigator.goal_frame
-        safe.header.stamp = navigator.get_clock().now().to_msg()
+        safe.header.frame_id = navigator.get_parameter('goal_frame').value
         safe.pose.position.x = 0.0
         safe.pose.position.y = 0.0
-        safe.pose.orientation = msg.pose.orientation
         navigator.escape(msg, safe)
 
     navigator.create_subscription(PoseStamped, '/attack_command', attack_cb, 10)
@@ -228,8 +180,5 @@ def main(args=None):
     rclpy.spin(navigator)
     rclpy.shutdown()
 
-
 if __name__ == '__main__':
     main()
-    
-    

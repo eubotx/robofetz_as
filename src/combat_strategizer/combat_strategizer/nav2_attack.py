@@ -1,6 +1,11 @@
 import rclpy
+<<<<<<< HEAD
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, PointStamped
+=======
+from geometry_msgs.msg import PoseStamped, PointStamped
+from enum import Enum
+>>>>>>> e6e366e (Crappy but somehow working nav2 strategizer)
 import math
 import time
 
@@ -13,21 +18,74 @@ from combat_strategizer.conditions import (
 )
 
 
+class State(Enum):
+    ATTACK = 1
+    DEFENCE = 2
+    STANDBY = 3
+
+
+class ProximityCondition:
+    def __init__(self, threshold: float = 0.15, duration: float = 5.0):
+        self.threshold = threshold
+        self.duration = duration
+        self.proximity_start: float | None = None
+
+    def check(self, robot_pose, opponent_pose) -> bool:
+        if robot_pose is None or opponent_pose is None:
+            self.proximity_start = None
+            return False
+
+        dx = opponent_pose.pose.position.x - robot_pose.position.x
+        dy = opponent_pose.pose.position.y - robot_pose.position.y
+        distance = math.sqrt(dx * dx + dy * dy)
+
+        now = time.time()
+
+        if distance <= self.threshold:
+            if self.proximity_start is None:
+                self.proximity_start = now
+            elif now - self.proximity_start >= self.duration:
+                self.proximity_start = None
+                return True
+        else:
+            self.proximity_start = None
+
+        return False
+
+    def reset(self):
+        self.proximity_start = None
+
+
 class Nav2Attack(Nav2Navigator):
     def __init__(self):
         super().__init__()
 
-        self.subscription = self.create_subscription(
+        self.combat_state = State.ATTACK
+
+        self.condition = ProximityCondition(threshold=0.23, duration=2.0)
+
+        self.opponent_subscription = self.create_subscription(
             PoseStamped,
             '/arena_perception_opponent_base_footprint_pose',
-            self.listener_callback,
-            1)
+            self.opponent_callback,
+            10)
 
-        self.defense_sub = self.create_subscription(
+        self.defense_subscription = self.create_subscription(
             PointStamped,
             '/defense_position',
             self.defense_callback,
-            1)
+            10)
+
+        self.opponent_pose: PoseStamped | None = None
+        self.defense_position: PointStamped | None = None
+
+        self.defence_timer_start: float | None = None
+        self.defence_duration: float = 3.0
+
+        self.min_distance_change = 0.1
+        self.last_goal_pose = None
+
+        self.create_timer(0.1, self.state_machine_loop)
 
         self.state = CombatState.ATTACK
         self.opponent_pose = None
@@ -35,166 +93,86 @@ class Nav2Attack(Nav2Navigator):
         self.defense_pose = None
         self.defence_start_time = None
 
-        self.last_update_time = time.time()
-        self.update_interval = 1.0
-
-        self.retreat_conditions = [
-            ProximityCondition(threshold=0.3, duration=2.0),
-        ]
-
-        self.defence_exit_conditions = [
-            NavDoneCondition(),
-            TimeoutCondition(duration=3.0),
-        ]
-
-        self.check_timer = self.create_timer(self.update_interval, self.check_loop)
-        self.status_timer = self.create_timer(1.0, self.log_status)
-
-        self._robot_pose_available = False
-        self._log_counter = 0
-        self._pose_received = False
-        self.get_logger().info('Nav2 Attack Node Started with State Machine!')
-
-    def _pose_callback(self, msg: PoseStamped) -> None:
-        super()._pose_callback(msg)
-        if not self._pose_received:
-            self._pose_received = True
-            self.get_logger().info(
-                f'Robot pose received! Position: ({msg.pose.position.x:.2f}, {msg.pose.position.y:.2f})'
-            )
+    def opponent_callback(self, msg: PoseStamped):
+        self.opponent_pose = msg
+        if self.combat_state == State.ATTACK:
+            self._handle_attack_goal(msg)
 
     def defense_callback(self, msg: PointStamped):
-        self.latest_defense_position = msg
+        self.defense_position = msg
 
-    def log_status(self):
-        self.get_logger().info(f"Current state: {self.state.name}")
-        self._log_counter += 1
-        if self.state == CombatState.ATTACK:
-            if self.current_pose is None:
-                self.get_logger().info(
-                    f'[{self._log_counter}] Robot pose not available - cannot evaluate retreat conditions! '
-                    f'Is /arena_perception_robot_base_footprint_pose publishing?'
-                )
-            else:
-                for condition in self.retreat_conditions:
-                    status = condition.status
-                    self.get_logger().info(
-                        f"[{self._log_counter}][ATTACK] {condition.__class__.__name__}: "
-                        f"dist={status.get('distance', 'N/A'):.3f}m, "
-                        f"accumulated={status.get('time_accumulated', 0):.1f}s / {status.get('duration', 0):.1f}s"
-                    )
+    def _handle_attack_goal(self, msg: PoseStamped):
+        if not self.should_send_new_goal(msg):
+            return
+        self.get_logger().info('Sending attack command')
+        self.attack(msg)
 
-    def listener_callback(self, msg: PoseStamped):
-        self.get_logger().info(f"Opponent pose received: ({msg.pose.position.x:.2f}, {msg.pose.position.y:.2f})")
-        # self.opponent_pose = msg
+    def should_send_new_goal(self, goal_pose: PoseStamped) -> bool:
+        if self.last_goal_pose is None:
+            return True
+        dx = goal_pose.pose.position.x - self.last_goal_pose.pose.position.x
+        dy = goal_pose.pose.position.y - self.last_goal_pose.pose.position.y
+        dist = math.sqrt(dx * dx + dy * dy)
+        return dist >= self.min_distance_change
 
-        if self.state == CombatState.ATTACK:
-            self.get_logger().info('In ATTACK state - evaluating retreat conditions')
-            current_time = time.time()
-            dt = current_time - self.last_update_time
-            self.last_update_time = current_time
-            self.get_logger().debug(f"Time since last update: {dt:.2f}s")
+    def state_machine_loop(self):
+        if self.combat_state == State.ATTACK:
+            self._attack_state()
+        elif self.combat_state == State.DEFENCE:
+            self._defence_state()
+        elif self.combat_state == State.STANDBY:
+            self._standby_state()
 
-            if self.current_pose is None:
-                if not self._robot_pose_available:
-                    self._robot_pose_available = True
-            else:
-                self.get_logger().info(f'Executing attack behavior with opponent pose: ({msg.pose.position.x:.2f}, {msg.pose.position.y:.2f})')
-                self.attack(msg)
-                for condition in self.retreat_conditions:
-                    condition.update(
-                        robot_pose=self.current_pose,
-                        opponent_pose=msg,
-                        dt=dt
-                    )
+    def _attack_state(self):
+        if self.condition.check(self.current_pose, self.opponent_pose):
+            self.get_logger().info('Proximity condition met! Transitioning to DEFENCE')
+            self.condition.reset()
+            self._transition_to_defence()
 
-            triggered_conditions = [c for c in self.retreat_conditions if c.is_triggered()]
-            if triggered_conditions:
-                self.get_logger().info(
-                    f"Retreat conditions triggered: {[c.__class__.__name__ for c in triggered_conditions]}"
-                )
-                self._enter_defence()
+    def _transition_to_defence(self):
+        self.combat_state = State.DEFENCE
+        self.defence_timer_start = None
 
-    def check_loop(self):
-        self.get_logger().debug('Running check loop')
-        if self.state == CombatState.DEFENCE:
-            if self.defence_start_time is None:
-                return
+        if self.defense_position is not None and self.opponent_pose is not None:
+            safe_pose = PoseStamped()
+            safe_pose.header = self.defense_position.header
+            safe_pose.pose.position.x = self.defense_position.point.x
+            safe_pose.pose.position.y = self.defense_position.point.y
+            safe_pose.pose.position.z = self.defense_position.point.z
+            safe_pose.pose.orientation.w = 1.0
+            self.escape(self.opponent_pose, safe_pose)
+            self.get_logger().info('Navigating to defense position')
+        else:
+            self.get_logger().warn('No defense position available, waiting...')
 
-            elapsed = (self.get_clock().now() - self.defence_start_time).nanoseconds / 1e9
-
-            for condition in self.defence_exit_conditions:
-                condition.update(
-                    elapsed=elapsed,
-                    goal_in_progress=self.goal_in_progress
-                )
-                status = condition.status
-                self.get_logger().debug(
-                    f"Exit condition {condition.__class__.__name__}: {status}"
-                )
-
-            triggered_conditions = [c for c in self.defence_exit_conditions if c.is_triggered()]
-            if triggered_conditions:
-                self.get_logger().info(
-                    f"Defence exit conditions triggered: {[c.__class__.__name__ for c in triggered_conditions]}"
-                )
-                self._enter_standby()
-
-    def _enter_defence(self):
-        self.state = CombatState.DEFENCE
-        self.get_logger().info('Entering DEFENCE state')
-
-        if self.latest_defense_position is None:
-            self.get_logger().warn('No defense position available, staying in attack')
-            self.state = CombatState.ATTACK
+    def _defence_state(self):
+        if self.defense_position is None:
             return
 
-        self.defense_pose = PoseStamped()
-        self.defense_pose.header = self.latest_defense_position.header
-        self.defense_pose.pose.position.x = self.latest_defense_position.point.x
-        self.defense_pose.pose.position.y = self.latest_defense_position.point.y
-        self.defense_pose.pose.position.z = self.latest_defense_position.point.z
-        self.defense_pose.pose.orientation.w = 1.0
-
-        self.defence_start_time = self.get_clock().now()
-
-        for condition in self.defence_exit_conditions:
-            condition.reset()
-
-        if self.opponent_pose is not None:
-            self.escape(self.opponent_pose, self.defense_pose)
+        if self.defence_timer_start is None:
+            if self.state == "IDLE":
+                self.defence_timer_start = time.time()
+                self.get_logger().info('Reached defense position, starting 3s timer')
         else:
-            self._send_nav_goal(self.defense_pose)
+            elapsed = time.time() - self.defence_timer_start
+            if elapsed >= self.defence_duration:
+                self.get_logger().info('Defence timer complete, transitioning to STANDBY')
+                self.combat_state = State.STANDBY
 
-    def _enter_standby(self):
-        self.state = CombatState.STANDBY
-        self.get_logger().info('Entering STANDBY state - returning to ATTACK')
-
-        for condition in self.retreat_conditions:
-            condition.reset()
-
-        self.state = CombatState.ATTACK
-        self.get_logger().info('Back to ATTACK state')
+    def _standby_state(self):
+        self.get_logger().info('In STANDBY, returning to ATTACK')
+        self.combat_state = State.ATTACK
+        if self.opponent_pose is not None:
+            self.attack(self.opponent_pose)
 
 
 def main(args=None):
     rclpy.init(args=args)
     
     node = Nav2Attack()
-    
-    # Use MultiThreadedExecutor for better timer handling
-    from rclpy.executors import MultiThreadedExecutor
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
-    
-    try:
-        executor.spin()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
-
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
