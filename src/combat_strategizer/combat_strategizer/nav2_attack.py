@@ -96,6 +96,10 @@ class Nav2Attack(Nav2Navigator):
     def defense_callback(self, msg: PointStamped):
         self.defense_position = msg
 
+    def defense_callback_1(self):
+        # Alternatively the defense position is statically defined as four points, 
+        # according to the position of the opponent robot the farest point is selected as the defense position 
+
     def _handle_attack_goal(self, msg: PoseStamped):
         if not self.should_send_new_goal(msg):
             return
