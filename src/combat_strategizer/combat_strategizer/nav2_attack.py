@@ -65,11 +65,14 @@ class Nav2Attack(Nav2Navigator):
             self.opponent_callback,
             10)
 
-        self.defense_subscription = self.create_subscription(
-            PointStamped,
-            '/defense_position',
-            self.defense_callback,
-            10)
+        # We can either choose between the subscribed defense position of the predefined corners, as an escape goal.
+        # self.defense_subscription = self.create_subscription(
+        #     PointStamped,
+        #     '/defense_position',
+        #     self.defense_callback,
+        #     10)
+        
+        self.create_timer(0.5, self.defense_callback_1)
 
         self.opponent_pose: PoseStamped | None = None
         self.defense_position: PointStamped | None = None
@@ -97,8 +100,35 @@ class Nav2Attack(Nav2Navigator):
         self.defense_position = msg
 
     def defense_callback_1(self):
-        # Alternatively the defense position is statically defined as four points, 
-        # according to the position of the opponent robot the farest point is selected as the defense position 
+        center_x = 0.75
+        center_y = 0.75
+        delta = 0.3
+
+        corners = [
+            (center_x - delta, center_y),
+            (center_x + delta, center_y),
+            (center_x, center_y - delta),
+            (center_x, center_y + delta),
+        ]
+        # self.get_logger().info(f'Calculated corners: {corners}')
+
+        if self.opponent_pose is None:
+            return
+
+        ox = self.opponent_pose.pose.position.x
+        oy = self.opponent_pose.pose.position.y
+
+        farthest_corner = max(
+            corners, key=lambda c: math.sqrt((c[0] - ox) ** 2 + (c[1] - oy) ** 2)
+        )
+        # self.get_logger().info(f'Farthest corner from opponent: {farthest_corner}')
+        msg = PointStamped()
+        msg.header.frame_id = "map"
+        msg.point.x = farthest_corner[0]
+        msg.point.y = farthest_corner[1]
+        msg.point.z = 0.0
+        # self.get_logger().info(f'Updating defense position to farthest corner: ({msg.point.x:.2f}, {msg.point.y:.2f})')
+        self.defense_position = msg
 
     def _handle_attack_goal(self, msg: PoseStamped):
         if not self.should_send_new_goal(msg):
@@ -139,6 +169,7 @@ class Nav2Attack(Nav2Navigator):
             safe_pose.pose.position.y = self.defense_position.point.y
             safe_pose.pose.position.z = self.defense_position.point.z
             safe_pose.pose.orientation.w = 1.0
+            self.get_logger().info(f'Calculated safe pose: ({safe_pose.pose.position.x:.2f}, {safe_pose.pose.position.y:.2f})')
             self.escape(self.opponent_pose, safe_pose)
             self.get_logger().info('Navigating to defense position')
         else:
