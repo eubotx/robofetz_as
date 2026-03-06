@@ -25,6 +25,7 @@ setup(
         'console_scripts': [
             'nav2_attack = combat_strategizer.nav2_attack:main',
             'weapon_control = combat_strategizer.weapon_control:main',
+            'point_to_pose_remap = combat_strategizer.point_to_pose_remap:main',
         ],
     },
 )
