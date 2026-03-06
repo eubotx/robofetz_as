@@ -26,6 +26,7 @@ setup(
             'nav2_attack = combat_strategizer.nav2_attack:main',
             'weapon_control = combat_strategizer.weapon_control:main',
             'point_to_pose_remap = combat_strategizer.point_to_pose_remap:main',
+            'tf_to_pose = combat_strategizer.tf_to_pose:main',
         ],
     },
 )
