@@ -1,67 +1,69 @@
 #!/usr/bin/env python3
-"""
-TF Frame Relay Node
-Relays/republishes transform from source frame to target frame with optional prefix.
-"""
 
 import rclpy
 from rclpy.node import Node
 from tf2_ros import TransformBroadcaster, Buffer, TransformListener
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TransformStamped, PoseStamped # Added PoseStamped
 import sys
 
 class TFFrameRelay(Node):
     def __init__(self):
         super().__init__('tf_frame_relay')
         
-        # Declare parameters
         self.declare_parameter('source_frame', 'robot/base_footprint_sim')
         self.declare_parameter('target_frame', 'arena_perception/robot/base_footprint')
-        self.declare_parameter('rate', 60.0)  # Hz
+        self.declare_parameter('rate', 60.0)
         
-        # Get parameters
         self.source_frame = self.get_parameter('source_frame').value
         self.target_frame = self.get_parameter('target_frame').value
         self.rate = self.get_parameter('rate').value
         
-        # TF2 components
+        # 1. Create the Pose Publisher
+        # This creates a topic like "arena_perception/robot/pose"
+        topic_name = self.target_frame.replace('/', '_') + '_pose'
+        self.pose_pub = self.create_publisher(PoseStamped, topic_name, 10)
+        
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.tf_broadcaster = TransformBroadcaster(self)
         
-        self.get_logger().info(f'Relaying transform from {self.source_frame} to {self.target_frame}')
-        self.get_logger().info(f'Broadcast rate: {self.rate} Hz')
-        
-        # Create timer
+        self.get_logger().info(f'Relaying to topic: {topic_name}')
         self.timer = self.create_timer(1.0/self.rate, self.timer_callback)
         
     def timer_callback(self):
         try:
-            # Look up transform from source frame
-            transform = self.tf_buffer.lookup_transform(
-                'world',  # Reference frame
-                self.source_frame,  # Child frame
+            # Look up transform
+            t = self.tf_buffer.lookup_transform(
+                'world', 
+                self.source_frame, 
                 rclpy.time.Time()
             )
             
-            # Create new transform message with target frame
-            new_transform = TransformStamped()
-            new_transform.header.stamp = self.get_clock().now().to_msg()
-            new_transform.header.frame_id = transform.header.frame_id
-            new_transform.child_frame_id = self.target_frame
-            new_transform.transform = transform.transform
+            # --- KEEP TF BROADCAST (Optional) ---
+            new_tf = TransformStamped()
+            new_tf.header.stamp = self.get_clock().now().to_msg()
+            new_tf.header.frame_id = 'world'
+            new_tf.child_frame_id = self.target_frame
+            new_tf.transform = t.transform
+            self.tf_broadcaster.sendTransform(new_tf)
+
+            # --- NEW: PUBLISH AS POSE TOPIC ---
+            pose_msg = PoseStamped()
+            pose_msg.header = new_tf.header
+            # Convert Transform to Pose
+            pose_msg.pose.position.x = t.transform.translation.x
+            pose_msg.pose.position.y = t.transform.translation.y
+            pose_msg.pose.position.z = t.transform.translation.z
+            pose_msg.pose.orientation = t.transform.rotation
             
-            # Broadcast the new transform
-            self.tf_broadcaster.sendTransform(new_transform)
+            self.pose_pub.publish(pose_msg)
             
         except Exception as e:
-            self.get_logger().debug(f'Could not transform {self.source_frame} to world: {str(e)}', 
-                                   throttle_duration_sec=2.0)
+            pass # Keep logs clean during startup
 
 def main(args=None):
     rclpy.init(args=args)
     node = TFFrameRelay()
-    
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
