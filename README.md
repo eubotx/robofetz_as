@@ -229,6 +229,23 @@ for node in $(ros2 node list); do
 done
 ```
 
+Publish TF frame as PoseStamped:
+
+```bash
+ros2 run combat_strategizer tf_to_pose \
+  --ros-args \
+  -p source_frame:=robot/base_footprint \
+  -p reference_frame:=world \
+  -p pose_topic:=/robot_pose
+```
+
+| Parameter       | Description                  | Default | Required |
+|-----------------|------------------------------|---------|----------|
+| source_frame    | TF frame to publish as pose  | -       | yes      |
+| reference_frame | Reference frame for lookup   | world   | no       |
+| pose_topic      | Output PoseStamped topic     | pose    | no       |
+| rate            | Publishing rate (Hz)         | 60.0    | no       |
+
 ---
 
 # Notes
