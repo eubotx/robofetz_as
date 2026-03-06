@@ -1,0 +1,26 @@
+image_width: 1280
+image_height: 960
+
+camera_name: "fachschafts_cam"
+
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [597.766712, 0.651197, 627.504751, 0.0, 597.399377, 492.799048, 0.0, 0.0, 1.0]
+
+distortion_model: "equidistant"
+
+distortion_coefficients:
+  rows: 1
+  cols: 4
+  data: [-0.013794, -0.035482, 0.064034, -0.043888]
+
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [478.2133696, 0.651197, 627.504751, 0.0, 0.0, 477.9195016, 492.799048, 0.0, 0.0, 0.0, 1.0, 0.0]
