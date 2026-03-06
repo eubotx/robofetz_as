@@ -57,7 +57,7 @@ class Nav2Attack(Nav2Navigator):
 
         self.combat_state = State.ATTACK
 
-        self.condition = ProximityCondition(threshold=0.23, duration=2.0)
+        self.condition = ProximityCondition(threshold=0.23, duration=5.0)
 
         self.opponent_subscription = self.create_subscription(
             PoseStamped,
@@ -78,9 +78,9 @@ class Nav2Attack(Nav2Navigator):
         self.defense_position: PointStamped | None = None
 
         self.defence_timer_start: float | None = None
-        self.defence_duration: float = 3.0
+        self.defence_duration: float = 10.0
 
-        self.min_distance_change = 0.1
+        self.min_distance_change = 0.01
         self.last_goal_pose = None
 
         self.create_timer(0.1, self.state_machine_loop)
@@ -182,7 +182,7 @@ class Nav2Attack(Nav2Navigator):
         if self.defence_timer_start is None:
             if self.state == "IDLE":
                 self.defence_timer_start = time.time()
-                self.get_logger().info('Reached defense position, starting 3s timer')
+                self.get_logger().info(f'Reached defense position, starting {self.defence_duration} s timer')
         else:
             elapsed = time.time() - self.defence_timer_start
             if elapsed >= self.defence_duration:

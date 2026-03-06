@@ -35,6 +35,8 @@ class Nav2Navigator(Node):
         self.target_pose = None
         self.goal_to_send = None # The final destination after orienting
         self.last_goal_pose = None
+        self._current_goal_handle = None
+
 
         # PID state
         self.error_integral = 0.0
@@ -60,6 +62,8 @@ class Nav2Navigator(Node):
     
     def attack(self, opponent_pose: PoseStamped) -> None:
         """Face the opponent and then drive towards them."""
+        self.get_logger().info("Cancel naav2 first...")
+        self._cancel_nav_goal() 
         self.get_logger().info("Orienting first...")
         self.target_pose = opponent_pose
         self.goal_to_send = opponent_pose # After turning, go to opponent
@@ -68,6 +72,8 @@ class Nav2Navigator(Node):
 
     def escape(self, opponent_pose: PoseStamped, safe_pose: PoseStamped) -> None:
         """Face the opponent, then drive to a safe location."""
+        self.get_logger().info("Cancel naav2 first...")
+        self._cancel_nav_goal() 
         self.get_logger().info("State: ESCAPE. Orienting towards threat...")
         self.target_pose = opponent_pose
         self.goal_to_send = safe_pose # After turning, go to safety
@@ -86,8 +92,10 @@ class Nav2Navigator(Node):
 
     def _control_loop(self):
         """Executes one step of PID if in ALIGNING state. Non-blocking."""
+
         if self.state != "ALIGNING" or self.current_pose is None or self.target_pose is None:
             return
+
 
         # 1. Heading Math
         dx = self.target_pose.pose.position.x - self.current_pose.position.x
@@ -107,25 +115,33 @@ class Nav2Navigator(Node):
             self.state = "NAVIGATING"
             self._send_nav_goal(self.goal_to_send)
             return
+        else:  
 
-        # 3. PID calculation
-        now = self.get_clock().now()
-        dt = (now - self.last_time).nanoseconds / 1e9
-        if dt <= 0: dt = 0.05
+            # 3. PID calculation
+            now = self.get_clock().now()
+            dt = (now - self.last_time).nanoseconds / 1e9
+            if dt <= 0: dt = 0.05
 
-        p = self.get_parameter('angular_kp').value * error
-        self.error_integral += error * dt
-        i = self.get_parameter('angular_ki').value * max(min(self.error_integral, 1.0), -1.0)
-        d = self.get_parameter('angular_kd').value * (error - self.last_error) / dt
+            self.error_integral += error * dt
 
-        angular_vel = max(min(p + i + d, self.get_parameter('max_angular').value), -self.get_parameter('max_angular').value)
+            # 2. RICHTIGES ANTI-WINDUP: Den Speicher selbst begrenzen (Clamping)
+            # Wähle ein Limit, das groß genug für die Korrektur, aber klein genug gegen Windup ist.
+            integral_limit = 0.5 
+            self.error_integral = max(min(self.error_integral, integral_limit), -integral_limit)
 
-        cmd = Twist()
-        cmd.angular.z = angular_vel
-        self.cmd_pub.publish(cmd)
+            p = self.get_parameter('angular_kp').value * error
+            i = self.get_parameter('angular_ki').value * self.error_integral
+            d = self.get_parameter('angular_kd').value * (error - self.last_error) / dt
 
-        self.last_error = error
-        self.last_time = now
+            angular_vel = max(min(p + i + d, self.get_parameter('max_angular').value), -self.get_parameter('max_angular').value)
+
+            cmd = Twist()
+            cmd.angular.z = angular_vel
+            self.cmd_pub.publish(cmd)
+            self.get_logger().debug(f"Aligning: error={error:.3f}, P={p:.3f}, I={i:.3f}, D={d:.3f}, cmd={angular_vel:.3f}")
+
+            self.last_error = error
+            self.last_time = now
 
     # ------------------------------------------------------------------
     # Nav2 Goal & Callbacks
@@ -145,19 +161,31 @@ class Nav2Navigator(Node):
         self._action_client.send_goal_async(goal_msg).add_done_callback(self._goal_response_callback)
 
     def _goal_response_callback(self, future):
+        
         goal_handle = future.result()
         if not goal_handle.accepted:
             self.get_logger().warn("Goal rejected by Nav2")
             self.state = "IDLE"
             return
+        self._current_goal_handle = goal_handle
         goal_handle.get_result_async().add_done_callback(self._result_callback)
 
     def _result_callback(self, future):
         self.get_logger().info("Navigation finished.")
         self.state = "IDLE"
+        self._current_goal_handle = None
 
     def _pose_callback(self, msg):
         self.current_pose = msg.pose
+
+    def _cancel_nav_goal(self):
+        if self._current_goal_handle is not None:
+            self.get_logger().info("Cancelling current Nav2 goal")
+            self._current_goal_handle.cancel_goal_async()
+            # Handle wird im _result_callback auf None gesetzt – trotzdem hier 
+            # setzen, um doppeltes Abbrechen zu verhindern, falls es noch nicht fertig ist.
+            self._current_goal_handle = None
+
 
 def main(args=None):
     rclpy.init(args=args)
