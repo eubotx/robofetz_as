@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <sdf version="1.4">
   <model name="calibration_checkerboard">
-  <pose>-0.5 -0.5 0.1 0 0 0</pose>
+  <pose>0.2 -0.3 0.0 0 0 0</pose>
   <static>true</static>
   <link name="calibration_checkerboard">
       <visual name="checker_0_0">

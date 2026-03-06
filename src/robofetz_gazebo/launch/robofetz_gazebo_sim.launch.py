@@ -100,8 +100,8 @@ def generate_launch_description():
         arguments=[
             '-name', robot_name,
             '-topic', '/robot_description',
-            '-x', '0.3', '-y', '0.3', '-z', '0.0',
-            '-R', '0.0', '-P', '0.0', '-Y', '0.0'
+            '-x', '0.3', '-y', '1.2', '-z', '0.0',
+            '-R', '0.0', '-P', '0.0', '-Y', '-0.78'
         ],
         output='screen',
     )
@@ -121,8 +121,8 @@ def generate_launch_description():
         arguments=[
             '-name', opponent_name,
             '-string', opponent_description,
-            '-x', '1.2', '-y', '1.2', '-z', '0.0',
-            '-R', '0.0', '-P', '0.0', '-Y', '3.14'
+            '-x', '1.2', '-y', '0.3', '-z', '0.0',
+            '-R', '0.0', '-P', '0.0', '-Y', '2.36'
         ],
         output='screen',
     )
