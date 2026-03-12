@@ -1,0 +1,96 @@
+# config/opponent_det_pipeline.yaml
+opponent_det_pipeline:
+  # Global settings
+  global:
+    target_frame: "world"
+    camera_frame: "arena_camera_optical"
+    robot_frame: "robot_base"
+    z_plane: 0.0
+    update_rate: 30.0  # Hz
+    
+  # ===== DETECTION SOURCES - DEFINED DYNAMICALLY =====
+  # Each source has a name, type, and topics
+  detection_sources:
+    mog2:
+      node_name: "opponent_det_MOG2single"
+      type: "mog2"
+      topic_2d: "/detections_2d/mog2"
+      topic_3d: "/detections_3d/mog2_array"
+      topic_viz: "/debug/mog2_point"
+      enabled: true
+      # Source-specific parameters
+      min_contour_area: 300
+      max_contour_area: 10000
+      background_history: 500
+      var_threshold: 16
+      
+    color:
+      node_name: "opponent_det_ColorSingle"
+      type: "color"
+      topic_2d: "/detections_2d/color"
+      topic_3d: "/detections_3d/color_array"
+      topic_viz: "/debug/color_point"
+      enabled: true
+      # Source-specific parameters
+      min_contour_area: 200
+      max_contour_area: 8000
+      hue_min: 0
+      hue_max: 179
+      sat_min: 50
+      sat_max: 255
+      val_min: 50
+      val_max: 255
+    
+    # Add more sources here in the future without changing code!
+    # depth:
+    #   node_name: "opponent_det_depth"
+    #   type: "depth"
+    #   topic_3d: "/detections_3d/depth_array"
+    #   enabled: true
+  
+  # 2D to 3D Converter parameters
+  converter:
+    enabled: true
+    node_name: "detection_2d_to_3d_node"
+    confidence_threshold: 0.5
+    tf_timeout_sec: 0.1
+    publish_visualization: true
+    
+  # Kalman Filter parameters
+  kalman_filter:
+    enabled: true
+    node_name: "detection_kalman_filter"
+    output_topic: "/fused_tracks"
+    output_poses: "/filtered_poses"
+    opponent_frame: "opponent_0"  # Added for clarity
+    
+    # ===== WHICH SOURCES TO USE - REFERENCED BY NAME =====
+    used_sources:
+      - "mog2"      # Reference by source name, not node name
+      - "color"     # Reference by source name, not node name
+    
+    # ===== INPUT TOPICS AUTOMATICALLY DERIVED =====
+    # No need to specify input_topics here - they come from detection_sources
+    
+    # Process noise covariance (Q) - UPDATED FOR BETTER VELOCITY ESTIMATION
+    process_noise:
+      position: 0.5      # Increased from 0.01 to allow position uncertainty
+      velocity: 2.0      # Increased from 0.1 to allow velocity to change faster
+    
+    # Measurement noise covariance (R) - keyed by source name
+    measurement_noise:
+      default: 0.1       # Increased from 0.05 to trust measurements slightly less
+      mog2: 0.08         # MOG2 is more reliable
+      color: 0.15        # Color detection might be noisier
+    
+    # Initial state covariance (P) - UPDATED FOR BETTER VELOCITY ESTIMATION
+    initial_covariance:
+      position: 0.1       # Keep position initial uncertainty small
+      velocity: 5.0       # INCREASED from 1.0 to allow velocity to be estimated from first few measurements
+    
+    # Association parameters
+    association:
+      max_gate_distance: 0.5   # Keep tight for single opponent
+      max_missed_detections: 10
+      min_detections_to_initialize: 1
+      max_track_age: 2.0
