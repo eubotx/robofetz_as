@@ -63,7 +63,7 @@ find_camera_in_world_service:
     
     # Rates
     calibration_attempt_rate: 2.0
-    publish_rate: 60.0
+    publish_rate: 30.0
     transform_timeout: 0.1
     median_filter_window: 10  #1 is diabled filtering
 
@@ -76,7 +76,7 @@ robot_detection_node:
     detection_base_frame: "arena_perception/robot/base_footprint"
     visible_marker_topic: "arena_perception/robot/visible_marker"
     robot_pose_topic: "arena_perception/robot/pose"
-    update_rate: 60.0
+    update_rate: 30.0
     transform_timeout: 0.2
     
     # Simple separate lists
