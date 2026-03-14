@@ -17,7 +17,7 @@ from .param_loader import ParamLoader
 
 class TrackedObject:
 
-    def __init__(self, position, time):
+    def __init__(self, position, time, kf_params):
 
         self.last_prediction_time = time
         self.last_update_time = time
@@ -45,15 +45,20 @@ class TrackedObject:
             [0,0,1,0,0,0]
         ])
 
+        # Initialize covariance from parameters
+        pos_cov = kf_params.get('initial_covariance', {}).get('position', 0.2)
+        vel_cov = kf_params.get('initial_covariance', {}).get('velocity', 50.0)
+        
         self.kf.P = np.eye(6)
+        self.kf.P[0:3,0:3] *= pos_cov
+        self.kf.P[3:6,3:6] *= vel_cov
 
-        self.kf.P[0:3,0:3] *= 0.2
-        self.kf.P[3:6,3:6] *= 50.0
-
+        # Default measurement noise (will be updated per measurement)
         self.kf.R = np.eye(3) * 0.05
 
-        self.pos_noise = 0.05
-        self.vel_noise = 0.5
+        # Process noise parameters
+        self.pos_noise = kf_params.get('process_noise', {}).get('position', 0.05)
+        self.vel_noise = kf_params.get('process_noise', {}).get('velocity', 0.5)
 
 
     def predict(self, now):
@@ -74,6 +79,7 @@ class TrackedObject:
             [0,0,0,0,0,1]
         ])
 
+        # Process noise scales with dt
         self.kf.Q = np.diag([
             self.pos_noise * dt,
             self.pos_noise * dt,
@@ -108,6 +114,11 @@ class TrackedObject:
         vel = self.kf.x[3:6].flatten()
 
         return pos, vel
+    
+    def get_velocity_variance(self):
+        """Get the variance of velocity estimates from covariance matrix"""
+        # Return the diagonal elements for x and y velocity
+        return self.kf.P[3,3], self.kf.P[4,4]
 
 
 class SingleOpponentKalmanFilter(Node):
@@ -137,15 +148,40 @@ class SingleOpponentKalmanFilter(Node):
 
         self.measurement_noise = self.kf_params.get("measurement_noise", {})
 
-        self.max_gate = 1.5
-        self.max_missed = 15
+        # Association parameters
+        assoc_params = self.kf_params.get("association", {})
+        self.max_gate = assoc_params.get("max_gate_distance", 1.5)
+        self.max_missed = assoc_params.get("max_missed_detections", 15)
+
+        # Orientation parameters
+        orientation_params = self.kf_params.get("orientation", {})
+        self.vel_threshold_low = orientation_params.get("vel_threshold_low", 0.02)
+        self.vel_threshold_high = orientation_params.get("vel_threshold_high", 0.08)
+        self.orientation_smoothing_factor = orientation_params.get("smoothing_factor", 0.5)  # Increased for faster response
+        self.min_confidence_to_update = orientation_params.get("min_confidence_to_update", 0.1)  # Lowered to update more easily
+        
+        default_orient = orientation_params.get("default_orientation", [0.0, 0.0, 0.0, 1.0])
+        self.last_valid_orientation = tuple(default_orient)
+        self.current_orientation = tuple(default_orient)
+        
+        # For debugging
+        self.last_confidence = 0.0
+
+        # Update rate
+        update_rate = self.kf_params.get("update_rate", 20.0)
+        timer_period = 1.0 / update_rate
 
         self.track = None
 
         self.lock = threading.Lock()
 
-        self.target_frame = "world"
-        self.child_frame = "opponent_0"
+        self.target_frame = self.param_loader.get_param(
+            'opponent_det_pipeline',
+            'global.target_frame',
+            default="world"
+        )
+        
+        self.child_frame = self.kf_params.get("opponent_frame", "opponent_0")
 
         self.tf_broadcaster = TransformBroadcaster(self)
 
@@ -154,11 +190,13 @@ class SingleOpponentKalmanFilter(Node):
         for src in self.used_sources:
 
             if src not in self.detection_sources:
+                self.get_logger().warn(f"Source {src} not found in detection_sources")
                 continue
 
             topic = self.detection_sources[src].get("topic_3d")
 
             if not topic:
+                self.get_logger().warn(f"No topic_3d for source {src}")
                 continue
 
             def make_cb(name):
@@ -175,42 +213,86 @@ class SingleOpponentKalmanFilter(Node):
 
             self.get_logger().info(f"Subscribed to {topic}")
 
-        self.timer = self.create_timer(0.05, self.timer_callback)
+        self.timer = self.create_timer(timer_period, self.timer_callback)
 
-        self.get_logger().info("Kalman filter node started")
+        self.get_logger().info("Kalman filter node started with orientation smoothing")
 
 
     def velocity_to_quaternion(self, vel):
-
+        """
+        Convert velocity vector to quaternion with confidence-based smoothing
+        Simplified for better responsiveness
+        """
         vx, vy, vz = vel
-
+        
+        # Calculate speed in XY plane
         speed = np.sqrt(vx*vx + vy*vy)
-
-        if speed < 0.01:
-            return (0.0,0.0,0.0,1.0)
-
-        yaw = np.arctan2(vy, vx)
-
-        qz = float(np.sin(yaw/2.0))
-        qw = float(np.cos(yaw/2.0))
-
-        return (0.0,0.0,qz,qw)
+        
+        # If speed is very low, just return last valid orientation
+        if speed < self.vel_threshold_low:
+            return self.last_valid_orientation
+        
+        # Calculate target yaw from velocity
+        target_yaw = np.arctan2(vy, vx)
+        target_qz = float(np.sin(target_yaw/2.0))
+        target_qw = float(np.cos(target_yaw/2.0))
+        
+        # Calculate confidence based on speed
+        if speed >= self.vel_threshold_high:
+            # High confidence - use target directly with smoothing
+            confidence = 1.0
+        else:
+            # Linear confidence between thresholds
+            confidence = (speed - self.vel_threshold_low) / (self.vel_threshold_high - self.vel_threshold_low)
+            confidence = max(0.0, min(1.0, confidence))
+        
+        self.last_confidence = confidence
+        
+        # Apply smoothing based on confidence
+        if confidence >= 0.99:
+            # Very confident - use target directly
+            self.current_orientation = (0.0, 0.0, target_qz, target_qw)
+        else:
+            # Blend with last valid orientation
+            last_qz, last_qw = self.last_valid_orientation[2], self.last_valid_orientation[3]
+            
+            # Adaptive smoothing: higher confidence = faster update
+            smooth_factor = self.orientation_smoothing_factor * (1.0 - confidence * 0.5)
+            
+            blended_qz = last_qz * (1 - smooth_factor) + target_qz * smooth_factor
+            blended_qw = last_qw * (1 - smooth_factor) + target_qw * smooth_factor
+            
+            # Normalize
+            norm = np.sqrt(blended_qz**2 + blended_qw**2)
+            if norm > 1e-6:
+                blended_qz /= norm
+                blended_qw /= norm
+            else:
+                blended_qz, blended_qw = 0.0, 1.0
+            
+            self.current_orientation = (0.0, 0.0, blended_qz, blended_qw)
+        
+        # Update last valid orientation if we have reasonable confidence
+        if confidence > self.min_confidence_to_update:
+            self.last_valid_orientation = self.current_orientation
+        
+        return self.current_orientation
 
 
     def extract_position(self, detection):
 
         try:
-
             c = detection.bbox.center
 
-            if hasattr(c,"pose"):
+            if hasattr(c, "pose"):
                 p = c.pose.position
             else:
                 p = c.position
 
-            return np.array([p.x,p.y,p.z])
+            return np.array([p.x, p.y, p.z])
 
-        except:
+        except Exception as e:
+            self.get_logger().debug(f"Failed to extract position: {e}")
             return None
 
 
@@ -224,7 +306,7 @@ class SingleOpponentKalmanFilter(Node):
         with self.lock:
 
             best = None
-            best_dist = 1e9
+            best_dist = float('inf')
 
             for det in msg.detections:
 
@@ -235,38 +317,34 @@ class SingleOpponentKalmanFilter(Node):
 
                 if self.track:
 
-                    pos,_ = self.track.state()
+                    pos, _ = self.track.state()
 
-                    dist = np.linalg.norm(m-pos)
+                    dist = np.linalg.norm(m - pos)
 
                     if dist < self.max_gate and dist < best_dist:
-
                         best_dist = dist
                         best = m
 
                 else:
-
+                    # No track yet, take first valid detection
                     best = m
                     break
-
 
             if best is None:
                 return
 
+            # Get measurement noise for this source
             noise = self.measurement_noise.get(
                 source,
-                self.measurement_noise.get("default",0.05)
+                self.measurement_noise.get("default", 0.05)
             )
 
             if self.track:
-
                 self.track.update(best, now, noise)
-
+                self.get_logger().debug(f"Updated track with {source} measurement")
             else:
-
-                self.track = TrackedObject(best, now)
-
-                self.get_logger().info("Created new track")
+                self.track = TrackedObject(best, now, self.kf_params)
+                self.get_logger().info(f"Created new track from {source} detection")
 
 
     def timer_callback(self):
@@ -278,12 +356,25 @@ class SingleOpponentKalmanFilter(Node):
             if not self.track:
                 return
 
+            # Check if track is too old
+            time_since_update = (now - self.track.last_update_time).nanoseconds / 1e9
+            if time_since_update > self.max_missed * 0.1:  # Rough conversion to seconds
+                self.get_logger().info("Track lost, removing")
+                self.track = None
+                # Reset orientation to default when track is lost
+                default_orient = self.kf_params.get("orientation", {}).get("default_orientation", [0.0, 0.0, 0.0, 1.0])
+                self.last_valid_orientation = tuple(default_orient)
+                self.current_orientation = tuple(default_orient)
+                return
+
             self.track.predict(now)
 
-            pos,vel = self.track.state()
+            pos, vel = self.track.state()
 
-            qx,qy,qz,qw = self.velocity_to_quaternion(vel)
+            # Get orientation from velocity
+            qx, qy, qz, qw = self.velocity_to_quaternion(vel)
 
+            # Create and publish transform
             t = TransformStamped()
 
             t.header.stamp = now.to_msg()
@@ -300,6 +391,16 @@ class SingleOpponentKalmanFilter(Node):
             t.transform.rotation.w = float(qw)
 
             self.tf_broadcaster.sendTransform(t)
+            
+            # Log occasionally for debugging (every 20 iterations)
+            if hasattr(self, '_debug_counter'):
+                self._debug_counter += 1
+            else:
+                self._debug_counter = 0
+                
+            if self._debug_counter % 20 == 0:
+                speed = np.sqrt(vel[0]**2 + vel[1]**2)
+                self.get_logger().info(f"Speed: {speed:.3f}, Confidence: {self.last_confidence:.2f}, Yaw: {np.arctan2(vel[1], vel[0]):.2f} rad")
 
 
 def main(args=None):

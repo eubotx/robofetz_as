@@ -11,7 +11,6 @@ from vision_msgs.msg import Detection2DArray, Detection2D, ObjectHypothesisWithP
 from tf2_ros import Buffer, TransformListener
 from tf2_geometry_msgs import do_transform_point
 import threading
-from collections import OrderedDict
 
 
 class OpponentDetColorSingle(Node):
@@ -19,45 +18,94 @@ class OpponentDetColorSingle(Node):
     Opponent detector using color-based tracking.
     Detects a single opponent with persistent ID (opponent_0 format).
     Supports both parameter-based color selection and interactive clicking.
+    Parameters are loaded from the pipeline config file.
     """
 
     def __init__(self):
         super().__init__('opponent_det_ColorSingle')
 
-        # =================== PARAMETERS ===================
+        # =================== PARAMETERS FROM CONFIG ===================
         self.declare_parameters(
             namespace='',
             parameters=[
+                # Global settings
+                ('opponent_det_pipeline.global.camera_frame', 'arena_camera_optical'),
+                ('opponent_det_pipeline.global.robot_frame', 'robot_base'),
+                
+                # Color detector specific parameters
+                ('opponent_det_pipeline.detection_sources.color.enabled', True),
+                ('opponent_det_pipeline.detection_sources.color.input_topic', '/arena_camera/image_rect_masked'),
+                ('opponent_det_pipeline.detection_sources.color.topic_2d', '/detections_2d/color'),
+                ('opponent_det_pipeline.detection_sources.color.topic_viz', '/debug/color_point'),
+                ('opponent_det_pipeline.detection_sources.color.use_masked_image', True),
+                
                 # Color ranges (HSV format)
-                ('hue_min', 0),
-                ('hue_max', 179),
-                ('sat_min', 50),
-                ('sat_max', 255),
-                ('val_min', 50),
-                ('val_max', 255),
+                ('opponent_det_pipeline.detection_sources.color.hue_min', 0),
+                ('opponent_det_pipeline.detection_sources.color.hue_max', 179),
+                ('opponent_det_pipeline.detection_sources.color.sat_min', 50),
+                ('opponent_det_pipeline.detection_sources.color.sat_max', 255),
+                ('opponent_det_pipeline.detection_sources.color.val_min', 50),
+                ('opponent_det_pipeline.detection_sources.color.val_max', 255),
                 
                 # Detection parameters
-                ('min_contour_area', 200),
-                ('max_contour_area', 8000),
-                ('ignore_radius_px', 60),
-                ('shadow_expansion_factor', 1.0),
+                ('opponent_det_pipeline.detection_sources.color.min_contour_area', 200),
+                ('opponent_det_pipeline.detection_sources.color.max_contour_area', 8000),
+                ('opponent_det_pipeline.detection_sources.color.ignore_radius_px', 60),
+                ('opponent_det_pipeline.detection_sources.color.shadow_expansion_factor', 1.0),
                 
                 # Color selection mode
-                ('interactive_selection', True),  # True = click to select, False = use parameters
-                ('selection_window_name', 'Color Selector - Click on opponent'),
+                ('opponent_det_pipeline.detection_sources.color.interactive_selection', False),
+                ('opponent_det_pipeline.detection_sources.color.selection_window_name', 'Color Selector - Click on opponent'),
                 
                 # Tracking parameters
-                ('stationary_timeout', 2.0),
-                ('match_distance', 100),
+                ('opponent_det_pipeline.detection_sources.color.stationary_timeout', 2.0),
+                ('opponent_det_pipeline.detection_sources.color.match_distance', 100),
                 
                 # Debug
-                ('debug', True),
-                
-                # Frames
-                ('robot_base_frame', 'robot_base'),
-                ('camera_optical_frame', 'arena_camera_optical'),
+                ('opponent_det_pipeline.detection_sources.color.debug', True),
             ]
         )
+        
+        # Check if this source is enabled
+        self.enabled = self.get_parameter('opponent_det_pipeline.detection_sources.color.enabled').value
+        if not self.enabled:
+            self.get_logger().info("Color detector is disabled in config, node will not process images")
+            return
+        
+        # Get global frames
+        self.camera_frame = self.get_parameter('opponent_det_pipeline.global.camera_frame').value
+        self.robot_frame = self.get_parameter('opponent_det_pipeline.global.robot_frame').value
+        
+        # Get topics
+        self.input_topic = self.get_parameter('opponent_det_pipeline.detection_sources.color.input_topic').value
+        self.topic_2d = self.get_parameter('opponent_det_pipeline.detection_sources.color.topic_2d').value
+        self.topic_viz = self.get_parameter('opponent_det_pipeline.detection_sources.color.topic_viz').value
+        self.use_masked = self.get_parameter('opponent_det_pipeline.detection_sources.color.use_masked_image').value
+        
+        # Get color ranges
+        self.hue_min = self.get_parameter('opponent_det_pipeline.detection_sources.color.hue_min').value
+        self.hue_max = self.get_parameter('opponent_det_pipeline.detection_sources.color.hue_max').value
+        self.sat_min = self.get_parameter('opponent_det_pipeline.detection_sources.color.sat_min').value
+        self.sat_max = self.get_parameter('opponent_det_pipeline.detection_sources.color.sat_max').value
+        self.val_min = self.get_parameter('opponent_det_pipeline.detection_sources.color.val_min').value
+        self.val_max = self.get_parameter('opponent_det_pipeline.detection_sources.color.val_max').value
+        
+        # Get detection parameters
+        self.min_contour_area = self.get_parameter('opponent_det_pipeline.detection_sources.color.min_contour_area').value
+        self.max_contour_area = self.get_parameter('opponent_det_pipeline.detection_sources.color.max_contour_area').value
+        self.ignore_radius_px = self.get_parameter('opponent_det_pipeline.detection_sources.color.ignore_radius_px').value
+        self.shadow_expansion_factor = self.get_parameter('opponent_det_pipeline.detection_sources.color.shadow_expansion_factor').value
+        
+        # Get selection mode parameters
+        self.interactive_mode = self.get_parameter('opponent_det_pipeline.detection_sources.color.interactive_selection').value
+        self.selection_window_name = self.get_parameter('opponent_det_pipeline.detection_sources.color.selection_window_name').value
+        
+        # Get tracking parameters
+        self.stationary_timeout = self.get_parameter('opponent_det_pipeline.detection_sources.color.stationary_timeout').value
+        self.match_distance = self.get_parameter('opponent_det_pipeline.detection_sources.color.match_distance').value
+        
+        # Get debug parameter
+        self.debug = self.get_parameter('opponent_det_pipeline.detection_sources.color.debug').value
 
         # =================== INIT ===================
         self.bridge = CvBridge()
@@ -65,23 +113,13 @@ class OpponentDetColorSingle(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         # Color range (will be updated by interactive selection if enabled)
-        self.lower_color = np.array([
-            self.get_parameter('hue_min').value,
-            self.get_parameter('sat_min').value,
-            self.get_parameter('val_min').value
-        ])
-        self.upper_color = np.array([
-            self.get_parameter('hue_max').value,
-            self.get_parameter('sat_max').value,
-            self.get_parameter('val_max').value
-        ])
+        self.lower_color = np.array([self.hue_min, self.sat_min, self.val_min])
+        self.upper_color = np.array([self.hue_max, self.sat_max, self.val_max])
         
         # Interactive selection variables
-        self.interactive_mode = self.get_parameter('interactive_selection').value
         self.selection_complete = not self.interactive_mode  # Skip if not interactive
         self.selection_points = []  # Store clicked points
         self.selection_frame = None  # Current frame for selection
-        self.selection_window_name = self.get_parameter('selection_window_name').value
         
         # Camera variables
         self.camera_matrix = None
@@ -104,7 +142,7 @@ class OpponentDetColorSingle(Node):
         # =================== COMMS ===================
         self.image_sub = self.create_subscription(
             Image, 
-            '/arena_camera/image_rect', 
+            self.input_topic, 
             self.image_callback, 
             10
         )
@@ -125,13 +163,13 @@ class OpponentDetColorSingle(Node):
         
         self.detections_pub = self.create_publisher(
             Detection2DArray, 
-            '/detections_2d', 
+            self.topic_2d, 
             10
         )
         
         self.debug_publisher = self.create_publisher(
             Image, 
-            '/debug/color_detection_image', 
+            self.topic_viz, 
             10
         )
 
@@ -139,6 +177,9 @@ class OpponentDetColorSingle(Node):
         self.cleanup_timer = self.create_timer(1.0, self.cleanup_stale_data)
 
         self.get_logger().info("OpponentDetColorSingle initialized")
+        self.get_logger().info(f"Input topic: {self.input_topic}, Output topic: {self.topic_2d}")
+        self.get_logger().info(f"Using masked image: {self.use_masked}")
+        
         if self.interactive_mode:
             self.get_logger().info("Interactive mode: Click on opponent in video window to select color")
         else:
@@ -206,7 +247,7 @@ class OpponentDetColorSingle(Node):
     def robot_pose_callback(self, msg):
         try:
             transform = self.tf_buffer.lookup_transform(
-                self.get_parameter('camera_optical_frame').value,
+                self.camera_frame,
                 'world',
                 rclpy.time.Time()
             )
@@ -248,8 +289,7 @@ class OpponentDetColorSingle(Node):
             
         if robot_pos is not None:
             robot_mask = np.zeros(mask.shape, dtype=np.uint8)
-            radius = int(self.get_parameter('ignore_radius_px').value * 
-                        self.get_parameter('shadow_expansion_factor').value)
+            radius = int(self.ignore_radius_px * self.shadow_expansion_factor)
             cv2.circle(robot_mask, robot_pos, radius, 255, -1)
             mask = cv2.bitwise_and(mask, mask, mask=cv2.bitwise_not(robot_mask))
         
@@ -260,9 +300,13 @@ class OpponentDetColorSingle(Node):
 
     def image_callback(self, msg):
         """Process image and publish detections"""
+        # Skip if disabled
+        if not self.enabled:
+            return
+            
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-            self.camera_frame_id = 'arena_camera_optical'
+            self.camera_frame_id = msg.header.frame_id
         except Exception as e:
             self.get_logger().error(f"Image error: {e}")
             return
@@ -306,13 +350,11 @@ class OpponentDetColorSingle(Node):
         # Find best contour (largest area within limits)
         best_contour = None
         max_area = 0
-        min_area = self.get_parameter('min_contour_area').value
-        max_area_limit = self.get_parameter('max_contour_area').value
         current_position = None
         
         for cnt in contours:
             area = cv2.contourArea(cnt)
-            if min_area < area < max_area_limit:
+            if self.min_contour_area < area < self.max_contour_area:
                 if area > max_area:
                     max_area = area
                     best_contour = cnt
@@ -366,7 +408,7 @@ class OpponentDetColorSingle(Node):
         self.detections_pub.publish(detection_array)
 
         # Debug
-        if self.get_parameter('debug').value:
+        if self.debug:
             self.publish_debug(debug_frame, best_contour, pixel_pos, robot_pos, mask)
 
     def publish_debug(self, frame, contour=None, pixel_pos=None, robot_pos=None, mask=None):
@@ -375,13 +417,12 @@ class OpponentDetColorSingle(Node):
         # Draw color range info if interactive mode is done
         if self.interactive_mode and self.selection_complete:
             color_text = f"Color: H({self.lower_color[0]}-{self.upper_color[0]})"
-            cv2.putText(debug, color_text, (10, 90), 
+            cv2.putText(debug, color_text, (10, 120), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
         
         # Draw robot's own position
         if robot_pos is not None:
-            radius = int(self.get_parameter('ignore_radius_px').value * 
-                        self.get_parameter('shadow_expansion_factor').value)
+            radius = int(self.ignore_radius_px * self.shadow_expansion_factor)
             cv2.circle(debug, robot_pos, radius, (0, 255, 0), 2)
             cv2.putText(debug, "SELF", (robot_pos[0] - 30, robot_pos[1] - 10), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
@@ -400,27 +441,33 @@ class OpponentDetColorSingle(Node):
             cv2.rectangle(debug, (x, y), (x+w, y+h), (0, 255, 0), 2)
             cv2.circle(debug, pixel_pos, 5, (0, 0, 255), -1)
             
-            cv2.putText(debug, f"opponent_0 (moving)", (x, y - 5), 
+            mask_text = " (masked)" if self.use_masked else ""
+            cv2.putText(debug, f"opponent_0{mask_text}", (x, y - 5), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         
         # Draw stationary opponent
         elif self.stationary and self.last_position is not None:
             current_time = self.get_clock().now()
-            stationary_timeout = self.get_parameter('stationary_timeout').value
             
             if self.last_seen is not None:
                 time_since_seen = (current_time - self.last_seen).nanoseconds / 1e9
-                if time_since_seen < stationary_timeout:
+                if time_since_seen < self.stationary_timeout:
                     cx, cy = self.last_position
                     color = (128, 128, 128)  # Gray for stationary
                     cv2.circle(debug, (int(cx), int(cy)), 10, color, 2)
-                    cv2.putText(debug, f"opponent_0 (stationary)", 
+                    mask_text = " (masked)" if self.use_masked else ""
+                    cv2.putText(debug, f"opponent_0 (stationary){mask_text}", 
                                (int(cx) - 40, int(cy) - 15), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
         # Add header text
         cv2.putText(debug, "opponent_det_ColorSingle", (10, 30), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        
+        # Show if using masked images
+        if self.use_masked:
+            cv2.putText(debug, "Using ROI Masked Images", (10, 90),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         
         if contour is None:
             if self.stationary and self.last_position is not None:
@@ -446,25 +493,33 @@ class OpponentDetColorSingle(Node):
                 if (now - self.own_robot_last_update).nanoseconds > 1.0e9:
                     self.own_robot_position_px = None
         
-        stationary_timeout = self.get_parameter('stationary_timeout').value
         if self.stationary and self.last_seen is not None:
             time_since_seen = (now - self.last_seen).nanoseconds / 1e9
-            if time_since_seen > stationary_timeout * 2:
+            if time_since_seen > self.stationary_timeout * 2:
                 self.last_position = None
                 self.last_seen = None
                 self.stationary = False
+                self.get_logger().info("Removed very old stationary opponent")
+
 
 def main(args=None):
     rclpy.init(args=args)
     node = OpponentDetColorSingle()
-    try: 
-        rclpy.spin(node)
-    except KeyboardInterrupt: 
-        pass
-    finally:
-        cv2.destroyAllWindows()
+    
+    # Only spin if enabled
+    if node.enabled:
+        try: 
+            rclpy.spin(node)
+        except KeyboardInterrupt: 
+            pass
+        finally:
+            cv2.destroyAllWindows()
+            node.destroy_node()
+            rclpy.shutdown()
+    else:
         node.destroy_node()
         rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()

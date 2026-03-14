@@ -53,6 +53,7 @@ setup(
             'detection_transformation_2D_3D_node = arena_perception.detection_transformation_2D_3D_node:main',
             'static_tf_test = arena_perception.static_tf_test:main',
             'minimal_tf_test = arena_perception.minimal_tf_test:main',
+            'roi_masking_node = arena_perception.roi_masking_node:main'
         ],
     },
 )
