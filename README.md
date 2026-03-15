@@ -118,6 +118,7 @@ ros2 launch robot_bringup robofetz_as.launch.py use_sim:=true
 | rviz_config               | RViz config file                 | config.rviz                  | any .rviz file                                                | Must exist in robot_bringup/config/                                       |
 | arena_perception_config   | Arena perception configuration   | package default              | path to YAML file                                             | Must be valid YAML                                                        |
 | robot_localization_config | Robot localization configuration | package default              | path to YAML file                                             | Must be valid YAML                                                        |
+| strategizer_type                   | Choose the strategizer         | simple                         | simple / nav2 (tbd)                                                  |                                                    | Enables multiple strategies for attack
 
 ---
 
@@ -157,7 +158,7 @@ use_sim:=false
 
 # Create Map
 
-To create a custom map you can adjust the parameters in `src/robot_navigation/map/my_map.yaml` and execute:
+To create a custom map for the nav2 implementation you can adjust the parameters in `src/robot_navigation/map/my_map.yaml` and execute:
 
 ```bash
 ros2 run robot_navigation create_map

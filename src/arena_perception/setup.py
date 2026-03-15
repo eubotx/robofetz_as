@@ -55,6 +55,8 @@ setup(
             'opponent_tracker_node = arena_perception.opponent_tracker_node:main',
             'detection_2d_to_3d_node = arena_perception.detection_2d_to_3d_node:main',
             'frame_diff_detector = arena_perception.frame_diff_detector:main',
+            'point_to_pose_remap = arena_perception.point_to_pose_remap:main',
+            'tf_to_pose = arena_perception.tf_to_pose:main',
         ],
     },
 )

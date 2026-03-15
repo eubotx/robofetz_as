@@ -143,7 +143,36 @@ def generate_launch_description():
             ('detections_3d_viz_poses', '/detected_opponent/viz_poses'),
         ]
     )
-    
+
+    # =================== NODE 3: POINT TO POSE REMAPPER ===================
+    # This is node is essential to convert the PointStamped detections to PoseStamped for easier use in the combat strategizer nodes.
+    remapper_node = Node(
+        package=pkg,
+        executable='point_to_pose_remap', # Make sure this matches your setup.py entry point
+        name='point_to_pose_remap',
+        output='screen',
+        parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}]
+    )
+
+
+    # =================== NODE 4: TF TO POSE (New) ===================
+    # TODO: Naming should be improved!
+    tf_to_pose_node = Node(
+        package=pkg,
+        executable='tf_to_pose',
+        name='tf_to_pose_robot',
+        output='screen',
+        parameters=[{
+            'source_frame': 'robot/base_footprint',
+            'reference_frame': 'world',
+            'pose_topic': '/arena_perception_robot_base_footprint_pose',
+            'use_sim_time': LaunchConfiguration('use_sim_time'),
+            'rate': 60.0
+        }]
+    )
+
+
+
     # =================== RETURN ===================
     return LaunchDescription([
         # Declare all launch arguments
@@ -164,4 +193,6 @@ def generate_launch_description():
         # Launch both nodes
         detector_node,
         converter_node,
+        remapper_node,
+        tf_to_pose_node,
     ])

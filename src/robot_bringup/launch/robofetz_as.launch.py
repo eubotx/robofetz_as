@@ -18,7 +18,7 @@ def generate_launch_description():
     robot_description_pkg = 'robot_description'
     gazebo_pkg = 'robofetz_gazebo'
     robot_bringup_pkg = 'robot_bringup'  # Assuming you have a robot_bringup package
-    
+    combat_strategizer_pkg = 'combat_strategizer'
     # ============================================
     # LAUNCH ARGUMENTS
     # ============================================
@@ -93,7 +93,13 @@ def generate_launch_description():
         default_value=default_robot_localization_config,
         description='Path to robot localization config file'
     )
-    
+
+    strategizer_type_arg = DeclareLaunchArgument(
+        'strategizer_type',
+        default_value='simple',
+        description='Type of combat strategizer to use (simple, nav2)'
+    )
+
     # Get config files from launch arguments
     use_sim = LaunchConfiguration('use_sim')
     use_fake_perception = LaunchConfiguration('use_fake_perception')
@@ -125,7 +131,7 @@ def generate_launch_description():
     ld.add_action(rviz_config_arg)
     ld.add_action(arena_perception_config_arg)
     ld.add_action(robot_localization_config_arg)
-    
+    ld.add_action(strategizer_type_arg)
     
     # ============================================
     # 0. ROBOT STATE PUBLISHER
@@ -290,6 +296,32 @@ def generate_launch_description():
     ld.add_action(TimerAction(
         period=rviz_delay,
         actions=[rviz_node]
+    ))
+
+    # ============================================
+    # 5. COMBAT STRATEGIZER
+    # ============================================
+    combat_strategizer_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare(combat_strategizer_pkg),
+                'launch',
+                'combat.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'strategizer_type': LaunchConfiguration('strategizer_type'),
+            'use_sim_time': use_sim
+        }.items()
+    )
+    # Add RViz2 with a delay to ensure all other systems are up
+    combat_delay = PythonExpression([
+        '20.0 if "', use_sim, '" == "true" else 15.0'
+    ])
+    
+    ld.add_action(TimerAction(
+        period=combat_delay,
+        actions=[combat_strategizer_launch]
     ))
 
     return ld
