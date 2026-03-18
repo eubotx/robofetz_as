@@ -1,14 +1,12 @@
 simple_navigator:
   ros__parameters:
-    # Existing parameters
     linear_kp: 0.5
     angular_kp: 1.0
-    max_linear: 0.2    # m/s
-    max_angular: 4.0   # rad/s
-    position_tolerance: 0.05  # meters
-    orientation_tolerance: 0.2  # radians
-    goal_frame: "map"  # Frame ID for goal poses
-    
-    # New PI control parameters
-    angular_ki: 0.05   # Integral gain for angular control
-    integral_windup_limit: 1.0  # Maximum value for integral term (anti-windup)
+    angular_ki: 0.05
+    angular_kd: 0.1
+    max_linear: 0.2
+    max_angular: 4.0
+    position_tolerance: 0.05
+    orientation_tolerance: 0.2
+    goal_frame: "map"
+    integral_windup_limit: 1.0

@@ -34,9 +34,9 @@ def generate_launch_description():
         executable='simple_navigator',
         name='simple_navigator',
         output='screen',
-        condition=is_simple_mode, # <--- Apply condition here
+        condition=is_simple_mode,
         parameters=[
-            os.path.join(get_package_share_directory('robot_navigation'), 'config', 'params.yaml'),
+            os.path.join(get_package_share_directory('robot_navigation'), 'config', 'simple_navigator_config.yaml'),
             {'log_level': 'warn'}
         ]
     )
