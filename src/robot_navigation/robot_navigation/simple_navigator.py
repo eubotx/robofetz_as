@@ -16,19 +16,19 @@ class BattleBotNavigator(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('linear_kp', 2.0),
+                ('linear_kp', 5.0),
                 ('angular_kp', 3.0),
                 ('angular_ki', 0.5),
                 ('angular_kd', 0.1),
-                ('max_linear', 1.0),
+                ('max_linear', 5.0),
                 ('max_angular', 3.5),
                 ('position_tolerance', 0.1),
                 ('orientation_tolerance', 0.3),
                 ('goal_frame', 'map'),
                 ('integral_windup_limit', 2.0),
-                ('min_speed', 0.1),
+                ('min_speed', 0.5),
                 ('angle_threshold_for_driving', 0.5),
-                ('distance_to_slow_down', 0.5),
+                ('distance_to_slow_down', 0.1),
             ]
         )
 
@@ -56,6 +56,7 @@ class BattleBotNavigator(Node):
         self.last_time = self.get_clock().now()
 
         self.escape_mode = False
+        self.escape_phase = 'orient'
         self.escape_opponent_pose = None
         self.escape_safe_pose = None
         self.escape_yaw_integral = 0.0
@@ -114,6 +115,7 @@ class BattleBotNavigator(Node):
     def escape_safe_callback(self, msg):
         self.escape_safe_pose = msg.pose
         self.escape_mode = True
+        self.escape_phase = 'orient'
         self.goal_pose = None
         self.escape_yaw_integral = 0.0
         self.escape_last_yaw_error = 0.0
@@ -171,12 +173,15 @@ class BattleBotNavigator(Node):
                 angular_cmd = (self.angular_kp * yaw_error +
                                self.angular_ki * self.yaw_integral)
 
-                angle_factor = max(0.3, 1.0 - abs(yaw_error) / math.pi)
+                angle_factor = max(0.6, 1.0 - abs(yaw_error) / math.pi)
 
-                if distance < self.slow_distance:
-                    linear_cmd = self.linear_kp * distance * 0.5
-                else:
-                    linear_cmd = self.linear_kp * self.max_linear
+                # if distance < self.slow_distance:
+                #     linear_cmd = self.linear_kp * distance * 0.5
+                # else:
+                #     linear_cmd = self.linear_kp * self.max_linear
+                linear_cmd = self.linear_kp * self.max_linear
+
+                self.get_logger().info(f'Linear cmd before angle factor: {linear_cmd:.2f}, Angle factor: {angle_factor:.2f}')
 
                 linear_cmd *= angle_factor
 
@@ -194,6 +199,8 @@ class BattleBotNavigator(Node):
             else:
                 cmd.angular.z = 0.0
                 self.get_logger().info('Target reached!')
+
+            self.get_logger().info(f'Publishing cmd: Linear={cmd.linear.x:.2f}, Angular={cmd.angular.z:.2f}')
 
             self.cmd_pub.publish(cmd)
 
@@ -216,26 +223,11 @@ class BattleBotNavigator(Node):
 
         if distance < self.position_tolerance:
             self.escape_mode = False
+            self.escape_phase = 'orient'
             cmd = Twist()
-            cmd.linear.x = 0
-            cmd.linear.y = 0
-            cmd.angular = 0
             self.cmd_pub.publish(cmd)
-            self.get_logger().info('Escape complete! Robot is facing opponent.')
+            self.get_logger().info('Escape complete!')
             return
-
-        if self.escape_opponent_pose is None:
-            self.get_logger().warn(
-                'No opponent pose for escape orientation',
-                throttle_duration_sec=1.0
-            )
-            return
-
-        dx_opp = self.escape_opponent_pose.position.x - self.current_pose.position.x
-        dy_opp = self.escape_opponent_pose.position.y - self.current_pose.position.y
-        desired_yaw = math.atan2(dy_opp, dx_opp)
-        current_yaw = self.quaternion_to_yaw(self.current_pose.orientation)
-        yaw_error = self.normalize_angle(desired_yaw - current_yaw)
 
         now = self.get_clock().now()
         dt = (now - self.escape_last_time).nanoseconds * 1e-9
@@ -243,41 +235,91 @@ class BattleBotNavigator(Node):
             dt = 0.1
         self.escape_last_time = now
 
-        self.escape_yaw_integral += yaw_error * dt
-        self.escape_yaw_integral = max(
-            min(self.escape_yaw_integral, self.integral_windup_limit),
-            -self.integral_windup_limit
-        )
-        angular_derivative = (yaw_error - self.escape_last_yaw_error) / dt if dt > 0 else 0.0
+        if self.escape_phase == 'orient':
+            if self.escape_opponent_pose is None:
+                self.get_logger().warn(
+                    'No opponent pose for escape orientation',
+                    throttle_duration_sec=1.0
+                )
+                return
 
-        angular_cmd = (self.angular_kp * yaw_error +
-                       self.angular_ki * self.escape_yaw_integral +
-                       self.angular_kd * angular_derivative)
+            dx_opp = self.escape_opponent_pose.position.x - self.current_pose.position.x
+            dy_opp = self.escape_opponent_pose.position.y - self.current_pose.position.y
+            desired_yaw = math.atan2(dy_opp, dx_opp)
+            current_yaw = self.quaternion_to_yaw(self.current_pose.orientation)
+            yaw_error = self.normalize_angle(desired_yaw - current_yaw)
 
-        self.escape_last_yaw_error = yaw_error
+            self.escape_yaw_integral += yaw_error * dt
+            self.escape_yaw_integral = max(
+                min(self.escape_yaw_integral, self.integral_windup_limit),
+                -self.integral_windup_limit
+            )
+            angular_derivative = (yaw_error - self.escape_last_yaw_error) / dt if dt > 0 else 0.0
 
-        angle_factor = max(0.3, 1.0 - abs(yaw_error) / math.pi)
+            angular_cmd = (self.angular_kp * yaw_error +
+                           self.angular_ki * self.escape_yaw_integral +
+                           self.angular_kd * angular_derivative)
 
-        if distance < self.slow_distance:
-            linear_cmd = self.linear_kp * distance * 0.5
+            self.escape_last_yaw_error = yaw_error
+
+            cmd = Twist()
+            cmd.angular.z = max(min(angular_cmd, self.max_angular), -self.max_angular)
+            self.cmd_pub.publish(cmd)
+
+            if self.get_clock().now().nanoseconds % 1000000000 < 30000000:
+                self.get_logger().info(
+                    f'ESCAPE ORIENT: Yaw err={math.degrees(yaw_error):.1f}°, '
+                    f'Cmd: A={cmd.angular.z:.2f}'
+                )
+
+            if abs(yaw_error) < self.orientation_tolerance:
+                self.escape_phase = 'drive'
+                self.escape_yaw_integral = 0.0
+                self.escape_last_yaw_error = 0.0
+                self.get_logger().info('Escape ORIENT complete, switching to DRIVE')
+
         else:
+            angle_to_escape = math.atan2(dy_escape, dx_escape)
+            desired_yaw = angle_to_escape + math.pi
+            current_yaw = self.quaternion_to_yaw(self.current_pose.orientation)
+            yaw_error = self.normalize_angle(desired_yaw - current_yaw)
+
+            self.escape_yaw_integral += yaw_error * dt
+            self.escape_yaw_integral = max(
+                min(self.escape_yaw_integral, self.integral_windup_limit),
+                -self.integral_windup_limit
+            )
+            angular_derivative = (yaw_error - self.escape_last_yaw_error) / dt if dt > 0 else 0.0
+
+            angular_cmd = (self.angular_kp * yaw_error +
+                           self.angular_ki * self.escape_yaw_integral +
+                           self.angular_kd * angular_derivative)
+
+            self.escape_last_yaw_error = yaw_error
+
+            angle_factor = max(0.3, 1.0 - abs(yaw_error) / math.pi)
+
+            # if distance < self.slow_distance:
+            #     linear_cmd = self.linear_kp * distance * 0.5
+            # else:
+            #     linear_cmd = self.linear_kp * self.max_linear
             linear_cmd = self.linear_kp * self.max_linear
 
-        linear_cmd *= angle_factor
+            linear_cmd *= angle_factor
 
-        if distance > self.slow_distance * 2 and linear_cmd < self.min_speed:
-            linear_cmd = self.min_speed
-        
-        cmd = Twist()
-        cmd.linear.x = max(-linear_cmd, -self.max_linear)
-        cmd.angular.z = max(min(angular_cmd, self.max_angular), -self.max_angular)
-        self.cmd_pub.publish(cmd)
+            if distance > self.slow_distance * 2 and linear_cmd < self.min_speed:
+                linear_cmd = self.min_speed
 
-        if self.get_clock().now().nanoseconds % 1000000000 < 30000000:
-            self.get_logger().info(
-                f'ESCAPE: Dist={distance:.2f}, Yaw err={math.degrees(yaw_error):.1f}°, '
-                f'Cmd: L={cmd.linear.x:.2f} (REV), A={cmd.angular.z:.2f}'
-            )
+            cmd = Twist()
+            cmd.linear.x = max(min(-linear_cmd, -self.min_speed), -self.max_linear)
+            cmd.angular.z = max(min(angular_cmd, self.max_angular), -self.max_angular)
+            self.cmd_pub.publish(cmd)
+
+            if self.get_clock().now().nanoseconds % 1000000000 < 30000000:
+                self.get_logger().info(
+                    f'ESCAPE DRIVE: Dist={distance:.2f}, Yaw err={math.degrees(yaw_error):.1f}°, '
+                    f'Cmd: L={cmd.linear.x:.2f} (REV), A={cmd.angular.z:.2f}'
+                )
 
     @staticmethod
     def quaternion_to_yaw(q):
