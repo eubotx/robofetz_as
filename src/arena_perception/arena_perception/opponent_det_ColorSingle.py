@@ -54,7 +54,7 @@ class OpponentDetColorSingle(Node):
                 ('opponent_det_pipeline.detection_sources.color.shadow_expansion_factor', 1.0),
                 
                 # Color selection mode
-                ('opponent_det_pipeline.detection_sources.color.interactive_selection', False),
+                ('opponent_det_pipeline.detection_sources.color.interactive_selection', True),
                 ('opponent_det_pipeline.detection_sources.color.selection_window_name', 'Color Selector - Click on opponent'),
                 
                 # Tracking parameters
