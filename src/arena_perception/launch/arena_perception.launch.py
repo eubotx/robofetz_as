@@ -160,6 +160,19 @@ def generate_launch_description():
         output='screen'
     )
 
+    robot_tf_to_pose = Node(
+        package='combat_strategizer',
+        executable='tf_to_pose',
+        name='robot_tf_to_pose',
+        parameters=[{
+            'source_frame': 'robot/base_footprint',
+            'reference_frame': 'world',
+            'pose_topic': '/robot/pose',
+            'use_sim_time': use_sim_time
+        }],
+        output='screen'
+    )
+
     ld.add_action(TimerAction(
         period=1.0,  # Slightly offset to avoid congestion
         actions=[apriltag_detection_diy]
@@ -179,5 +192,10 @@ def generate_launch_description():
         period=5.0,
         actions=[robot_detection]
     ))
+
+    ld.add_action(TimerAction(
+        period=6.0,
+        actions=[robot_tf_to_pose]
+    ))    
 
     return ld
