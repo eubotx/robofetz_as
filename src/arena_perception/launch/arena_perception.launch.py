@@ -52,6 +52,21 @@ def generate_launch_description():
     ld.add_action(run_rectification_arg)
     ld.add_action(arena_perception_config_arg)
     
+    # Image format converter - converts YUYV to RGB8 for proper rectification
+    # image_format_converter = Node(
+    #     package='arena_perception',
+    #     executable='image_format_converter',
+    #     name='image_format_converter',
+    #     namespace='arena_camera',
+    #     parameters=[{
+    #         'use_sim_time': use_sim_time,
+    #         'input_topic': 'image',
+    #         'output_topic': 'image_rgb',
+    #         'output_encoding': 'rgb8'
+    #     }],
+    #     output='screen',
+    # )
+    
     # Camera rectification node - only runs if run_rectification is true
     camera_rectification = Node(
         package='image_proc',
@@ -67,6 +82,7 @@ def generate_launch_description():
         ],
     )
     
+    # ld.add_action(image_format_converter)
     ld.add_action(camera_rectification)
 
     # IMAGE REMAPPING NODE (for pinhole camera case) - only runs when run_rectifaction is false
