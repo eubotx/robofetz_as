@@ -77,10 +77,14 @@ def generate_launch_description():
         }.items()
     )
 
-    vel_republisher_cmd = Node(
-        package='robot_navigation',
-        executable='cmd_vel_relay',
-        name='vel_republisher',
+    cmd_vel_relay = Node(
+        package='topic_tools',
+        executable='relay',
+        name='relay_vel_republisher_cmd',
+        parameters=[{
+            'use_sim_time': use_sim_time
+        }],
+        arguments=['cmd_vel_smoothed', 'cmd_vel'],
         output='screen'
     )
 
@@ -92,5 +96,5 @@ def generate_launch_description():
         map_server_cmd,
         map_lifecycle_manager_cmd,
         nav2_launch,
-        vel_republisher_cmd
+        cmd_vel_relay,
     ])
