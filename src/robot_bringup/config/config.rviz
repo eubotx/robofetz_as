@@ -108,6 +108,30 @@ Visualization Manager:
       Show Axes: true
       Show Names: false
       Tree:
+        map:
+          odom:
+            robot/base_footprint:
+              robot/body_link:
+                robot/bottom_apriltag_link:
+                  robot/bottom_apriltag_optical:
+                    {}
+                robot/front_left_support_link:
+                  robot/front_left_support_bottom_caster_link:
+                    {}
+                  robot/front_left_support_top_caster_link:
+                    {}
+                robot/front_right_support_link:
+                  robot/front_right_support_bottom_caster_link:
+                    {}
+                  robot/front_right_support_top_caster_link:
+                    {}
+                robot/left_wheel_link:
+                  {}
+                robot/right_wheel_link:
+                  {}
+                robot/top_apriltag_link:
+                  robot/top_apriltag_optical:
+                    {}
         world:
           arena_camera_optical:
             arena_perception/robot/base_footprint:
@@ -118,30 +142,6 @@ Visualization Manager:
               {}
           arena_tag_calibrated:
             {}
-          map:
-            odom:
-              robot/base_footprint:
-                robot/body_link:
-                  robot/bottom_apriltag_link:
-                    robot/bottom_apriltag_optical:
-                      {}
-                  robot/front_left_support_link:
-                    robot/front_left_support_bottom_caster_link:
-                      {}
-                    robot/front_left_support_top_caster_link:
-                      {}
-                  robot/front_right_support_link:
-                    robot/front_right_support_bottom_caster_link:
-                      {}
-                    robot/front_right_support_top_caster_link:
-                      {}
-                  robot/left_wheel_link:
-                    {}
-                  robot/right_wheel_link:
-                    {}
-                  robot/top_apriltag_link:
-                    robot/top_apriltag_optical:
-                      {}
           opponent/base_footprint_sim:
             {}
           robot/base_footprint_sim:
@@ -405,7 +405,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 1.897409439086914
+      Distance: 5.045219421386719
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -420,10 +420,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7903977632522583
+      Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.0604043006896973
+      Yaw: 3.0104057788848877
     Saved: ~
 Window Geometry:
   Camera:

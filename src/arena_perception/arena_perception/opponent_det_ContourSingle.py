@@ -14,7 +14,7 @@ import threading
 from scipy.spatial.transform import Rotation
 
 
-class OpponentTrackerNode(Node):
+class OpponentDetContourSingle(Node):
     """
     Standalone opponent tracker using CSRT/KCF tracking.
     Can be initialized with mouse ROI selection.
@@ -22,7 +22,7 @@ class OpponentTrackerNode(Node):
     """
 
     def __init__(self):
-        super().__init__('opponent_tracker')
+        super().__init__('opponent_det_ContourSingle')
 
         # =================== PARAMETERS ===================
         self.declare_parameters(
@@ -32,13 +32,14 @@ class OpponentTrackerNode(Node):
                 ('debug', True),
                 ('robot_base_frame', 'robot_base'),
                 ('camera_optical_frame', 'arena_camera_optical'),
-                ('ignore_radius_px', 100),
+                ('ignore_radius_px', 60),
                 ('use_polygon_mask', False),
                 ('mask_expansion', 1.1),
                 ('robot_model_scale', 0.13),
                 ('roi_padding', 20),
                 ('enable_mouse_selection', True),
                 ('max_tracker_size', 300),  # Max size before reinitialization
+                ('stationary_timeout', 2.0),  # How long to keep ID without detection
             ]
         )
 
@@ -58,7 +59,7 @@ class OpponentTrackerNode(Node):
         self.camera_matrix_inv = None
         self.image_width = 0
         self.image_height = 0
-        self.camera_frame_id = ""
+        self.camera_frame_id = "arena_camera_optical"  # Set default frame
         
         # Self-filtering variables
         self.own_robot_position_px = None
@@ -67,13 +68,15 @@ class OpponentTrackerNode(Node):
         self.own_robot_base_radius_px = self.get_parameter('ignore_radius_px').value
         self.lock = threading.Lock()
         
-        # Tracking variables
+        # Tracking variables for persistent ID (always use opponent_0)
         self.opponent_id = 0  # Fixed ID for single opponent
         self.tracker = None  # OpenCV tracker instance
         self.tracker_box = None  # Current tracking box (x, y, w, h)
         self.tracking_active = False
         self.last_position = None  # Last known position (cx, cy)
         self.last_box = None  # Last known bounding box
+        self.last_seen = None  # Last time opponent was detected
+        self.stationary = False  # Whether opponent is currently stationary
         
         # Mouse selection variables
         self.selecting_roi = False
@@ -130,7 +133,7 @@ class OpponentTrackerNode(Node):
             cv2.setMouseCallback('Opponent Tracker', self.mouse_callback)
 
         self.get_logger().info(
-            f"OpponentTracker initialized with {self.get_parameter('tracker_type').value} - "
+            f"OpponentDetContourSingle initialized with {self.get_parameter('tracker_type').value} - "
             "Select ROI with mouse to start tracking"
         )
 
@@ -207,7 +210,13 @@ class OpponentTrackerNode(Node):
         self.tracker = self.create_tracker()
         self.tracking_active = True
         self.tracker_failures = 0
-        self.get_logger().info(f"Tracking started with ROI: {bbox}")
+        
+        # Initialize tracker with current frame
+        if hasattr(self, 'last_frame') and self.last_frame is not None:
+            self.tracker.init(self.last_frame, tuple(bbox))
+            self.get_logger().info(f"Tracking started with ROI: {bbox}")
+        else:
+            self.get_logger().warn("No frame available for tracker initialization")
 
     def reset_tracking(self):
         """Reset tracking completely."""
@@ -216,6 +225,8 @@ class OpponentTrackerNode(Node):
         self.tracker_box = None
         self.last_position = None
         self.last_box = None
+        self.last_seen = None
+        self.stationary = False
         self.tracker_failures = 0
 
     def camera_info_callback(self, msg):
@@ -300,6 +311,7 @@ class OpponentTrackerNode(Node):
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
             self.camera_frame_id = msg.header.frame_id
             self.image_height, self.image_width = cv_image.shape[:2]
+            self.last_frame = cv_image.copy()  # Store for tracker initialization
         except Exception as e:
             self.get_logger().error(f"Image error: {e}")
             return
@@ -320,6 +332,12 @@ class OpponentTrackerNode(Node):
         # === Tracking ===
         pixel_pos = None
         current_bbox = None
+        current_position = None
+
+        # Initialize tracker if we have a tracker but no frame was set
+        if self.tracking_active and self.tracker is not None and not hasattr(self.tracker, 'initialized'):
+            self.tracker.init(cv_image, tuple(self.tracker_box))
+            self.get_logger().info("Tracker initialized with current frame")
 
         if self.tracking_active and self.tracker is not None:
             # Update tracker
@@ -339,14 +357,17 @@ class OpponentTrackerNode(Node):
                         self.reset_tracking()
                 else:
                     # Calculate center
-                    cx = x + w/2
-                    cy = y + h/2
+                    cx = float(x + w/2.0)
+                    cy = float(y + h/2.0)
                     pixel_pos = (int(cx), int(cy))
+                    current_position = (cx, cy)
                     
                     # Store for output
                     current_bbox = (x, y, w, h)
                     self.last_position = (cx, cy)
                     self.last_box = current_bbox
+                    self.last_seen = self.get_clock().now()
+                    self.stationary = False
                     
                     # Reset failure counter on success
                     self.tracker_failures = 0
@@ -358,23 +379,31 @@ class OpponentTrackerNode(Node):
                 if self.tracker_failures >= self.max_failures:
                     self.get_logger().warn("Too many tracker failures, resetting")
                     self.reset_tracking()
+                else:
+                    # Mark as stationary if we have a last position
+                    if self.last_position is not None:
+                        self.stationary = True
 
-        # Create detection array (same format as first node)
+        # If tracking is inactive but we have a last position, mark as stationary
+        if not self.tracking_active and self.last_position is not None:
+            self.stationary = True
+
+        # Create detection array (same format as working node)
         detection_array = Detection2DArray()
         detection_array.header.stamp = self.get_clock().now().to_msg()
         detection_array.header.frame_id = self.camera_frame_id
 
-        if pixel_pos is not None and current_bbox is not None:
-            # Create Detection2D
+        if current_position is not None and current_bbox is not None:
+            # Create Detection2D (same format as working node)
             detection = Detection2D()
             detection.header = detection_array.header
             
-            # Set bounding box center
-            detection.bbox.center.position.x = float(pixel_pos[0])
-            detection.bbox.center.position.y = float(pixel_pos[1])
+            # Set bounding box center (as floats, not ints)
+            detection.bbox.center.position.x = current_position[0]
+            detection.bbox.center.position.y = current_position[1]
             detection.bbox.center.theta = 0.0
-            detection.bbox.size_x = float(current_bbox[2])
-            detection.bbox.size_y = float(current_bbox[3])
+            detection.bbox.size_x = float(current_bbox[2])  # width
+            detection.bbox.size_y = float(current_bbox[3])  # height
             
             # Create ObjectHypothesisWithPose with consistent ID
             hypothesis = ObjectHypothesisWithPose()
@@ -383,6 +412,31 @@ class OpponentTrackerNode(Node):
             
             detection.results = [hypothesis]
             detection_array.detections.append(detection)
+            
+        # Also publish stationary opponent if within timeout
+        elif self.stationary and self.last_position is not None:
+            current_time = self.get_clock().now()
+            stationary_timeout = self.get_parameter('stationary_timeout').value
+            
+            if self.last_seen is not None:
+                time_since_seen = (current_time - self.last_seen).nanoseconds / 1e9
+                if time_since_seen < stationary_timeout and self.last_box is not None:
+                    # Publish last known position with lower confidence
+                    detection = Detection2D()
+                    detection.header = detection_array.header
+                    
+                    detection.bbox.center.position.x = self.last_position[0]
+                    detection.bbox.center.position.y = self.last_position[1]
+                    detection.bbox.center.theta = 0.0
+                    detection.bbox.size_x = float(self.last_box[2])
+                    detection.bbox.size_y = float(self.last_box[3])
+                    
+                    hypothesis = ObjectHypothesisWithPose()
+                    hypothesis.hypothesis.class_id = f"opponent_{self.opponent_id}"
+                    hypothesis.hypothesis.score = 0.5  # Lower confidence for stationary
+                    
+                    detection.results = [hypothesis]
+                    detection_array.detections.append(detection)
 
         # Publish
         self.detections_pub.publish(detection_array)
@@ -419,6 +473,10 @@ class OpponentTrackerNode(Node):
         # Draw tracker info
         tracker_type = self.get_parameter('tracker_type').value
         
+        # Add node name to debug
+        cv2.putText(debug, "opponent_det_ContourSingle", (10, 180), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        
         if self.tracking_active:
             # Draw current tracking box
             if self.tracker_box is not None:
@@ -427,11 +485,42 @@ class OpponentTrackerNode(Node):
                 cv2.putText(debug, f"TRACKING ({tracker_type})", (x, y-5), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
             
-            # Draw center point
+            # Draw center point for active tracking
             if pixel_pos is not None:
                 cv2.circle(debug, pixel_pos, 5, (0, 0, 255), -1)
-                cv2.putText(debug, f"opponent_0", (pixel_pos[0] - 30, pixel_pos[1] - 15), 
+                cv2.putText(debug, f"opponent_0 (moving)", (pixel_pos[0] - 30, pixel_pos[1] - 15), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        
+        # Draw stationary opponent if applicable
+        elif self.stationary and self.last_position is not None and self.last_box is not None:
+            current_time = self.get_clock().now()
+            stationary_timeout = self.get_parameter('stationary_timeout').value
+            
+            if self.last_seen is not None:
+                time_since_seen = (current_time - self.last_seen).nanoseconds / 1e9
+                if time_since_seen < stationary_timeout:
+                    cx, cy = self.last_position
+                    x, y, w, h = self.last_box
+                    
+                    # Gray for stationary
+                    color = (128, 128, 128)
+                    
+                    # Draw bounding box (dashed effect)
+                    for i in range(0, w, 10):
+                        if i + 5 < w:
+                            cv2.line(debug, (x + i, y), (x + i + 5, y), color, 2)
+                            cv2.line(debug, (x + i, y + h), (x + i + 5, y + h), color, 2)
+                    
+                    for i in range(0, h, 10):
+                        if i + 5 < h:
+                            cv2.line(debug, (x, y + i), (x, y + i + 5), color, 2)
+                            cv2.line(debug, (x + w, y + i), (x + w, y + i + 5), color, 2)
+                    
+                    # Draw center
+                    cv2.circle(debug, (int(cx), int(cy)), 5, color, 2)
+                    cv2.putText(debug, f"opponent_0 (stationary)", 
+                               (int(cx) - 40, int(cy) - 15), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
         # Draw temporary ROI during selection
         if self.selecting_roi and self.temp_roi is not None:
@@ -440,8 +529,8 @@ class OpponentTrackerNode(Node):
             cv2.putText(debug, "SELECTING...", (x, y-5), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
 
-        # Draw last known position if not tracking
-        if not self.tracking_active and self.last_position is not None:
+        # Draw last known position if not tracking and no stationary
+        if not self.tracking_active and not self.stationary and self.last_position is not None:
             cx, cy = self.last_position
             cv2.circle(debug, (int(cx), int(cy)), 10, (128, 128, 128), 2)
             cv2.putText(debug, f"opponent_0 (last known)", 
@@ -488,11 +577,22 @@ class OpponentTrackerNode(Node):
                 if (now - self.own_robot_last_update).nanoseconds > 1.0e9:
                     self.own_robot_position_px = None
                     self.own_robot_polygon_px = None
+        
+        # Clean up very old stationary opponent
+        stationary_timeout = self.get_parameter('stationary_timeout').value
+        if self.stationary and self.last_seen is not None:
+            time_since_seen = (now - self.last_seen).nanoseconds / 1e9
+            if time_since_seen > stationary_timeout * 2:  # Double timeout for cleanup
+                self.last_position = None
+                self.last_box = None
+                self.last_seen = None
+                self.stationary = False
+                self.get_logger().info("Removed very old stationary opponent")
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = OpponentTrackerNode()
+    node = OpponentDetContourSingle()
     
     try: 
         rclpy.spin(node)

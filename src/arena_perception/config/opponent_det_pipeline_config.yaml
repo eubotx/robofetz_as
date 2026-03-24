@@ -1,0 +1,135 @@
+# config/opponent_det_pipeline.yaml
+opponent_det_pipeline:
+  # Global settings
+  global:
+    target_frame: "world"                 # The reference frame for all transforms
+    camera_frame: "arena_camera_optical"  # Frame where camera data arrives
+    robot_frame: "robot_base"             # Robot's base frame for relative positioning
+    z_plane: 0.0                          # Ground plane height (if known)
+    update_rate: 30.0                     # Overall pipeline update rate in Hz
+    
+  # ===== ROI MASKING NODE PARAMETERS =====
+  roi_masking:
+    enabled: true
+    node_name: "roi_masking_node"
+    input_topic: "/arena_camera/image_rect"
+    output_topic: "/arena_camera/image_rect_masked"
+    debug_topic_mask: "/debug/roi_mask"
+    debug_topic_overlay: "/debug/roi_overlay"
+    
+    # ROI definition in world coordinates (with border)
+    roi:
+      min_x: 0.0
+      max_x: 1.5
+      min_y: 0.0
+      max_y: 1.5
+      min_z: 0.0
+      max_z: 0.0
+      border_meters: 0.1  # Small border around ROI
+    
+    mask_color: 0  # 0 = black (masked out), 255 = white (keep)
+    debug: true
+  
+  # ===== DETECTION SOURCES - DEFINED DYNAMICALLY =====
+  detection_sources:
+    mog2:
+      node_name: "opponent_det_MOG2single"
+      type: "mog2"
+      input_topic: "/arena_camera/image_rect_masked"  # Use masked image by default
+      topic_2d: "/detections_2d/mog2"
+      topic_3d: "/detections_3d/mog2_array"
+      topic_viz: "/debug/mog2_point"
+      enabled: true
+      use_masked_image: true  # Toggle to use masked vs raw images
+      min_contour_area: 300
+      max_contour_area: 10000
+      background_history: 500
+      var_threshold: 16
+      ignore_radius_px: 100
+      shadow_expansion_factor: 1.2
+      stationary_timeout: 2.0
+      match_distance: 100
+      debug: true
+      
+    color:
+      node_name: "opponent_det_ColorSingle"
+      type: "color"
+      input_topic: "/arena_camera/image_rect_masked"
+      topic_2d: "/detections_2d/color"
+      topic_viz: "/debug/color_point"
+      enabled: true
+      use_masked_image: true
+      min_contour_area: 200
+      max_contour_area: 8000
+      hue_min: 0
+      hue_max: 179
+      sat_min: 50
+      sat_max: 255
+      val_min: 50
+      val_max: 255
+      ignore_radius_px: 100
+      shadow_expansion_factor: 1.2
+      interactive_selection: true
+      selection_window_name: "Color Selector - Click on opponent"
+      stationary_timeout: 2.0
+      match_distance: 100
+      debug: true
+    
+  # 2D to 3D Converter parameters
+  converter:
+    enabled: true
+    node_name: "detection_2d_to_3d_node"
+    confidence_threshold: 0.5
+    tf_timeout_sec: 0.1
+    publish_visualization: true
+    
+  # Kalman Filter parameters
+  kalman_filter:
+    enabled: true
+    node_name: "detection_kalman_filter"
+    output_topic: "/fused_tracks"
+    output_poses: "/filtered_poses"
+    opponent_frame: "opponent_0"
+    update_rate: 20.0  # Hz (50ms)
+    
+    # ===== WHICH SOURCES TO USE - REFERENCED BY NAME =====
+    used_sources:
+      - "mog2"
+      - "color"
+    
+    # Process noise covariance (Q)
+    process_noise:
+      position: 0.05      # Position noise per second
+      velocity: 0.5       # Velocity noise per second
+    
+    # Measurement noise covariance (R) - keyed by source name
+    measurement_noise:
+      default: 0.05
+      mog2: 0.04
+      color: 0.08
+    
+    # Initial state covariance (P)
+    initial_covariance:
+      position: 0.2       # Initial position uncertainty
+      velocity: 50.0      # Initial velocity uncertainty
+    
+    # Association parameters
+    association:
+      max_gate_distance: 1.5
+      max_missed_detections: 15
+      min_detections_to_initialize: 1
+    
+    # ===== ORIENTATION PARAMETERS =====
+    orientation:
+      # Velocity thresholds for orientation confidence (m/s)
+      vel_threshold_low: 0.008     # Very low threshold - almost any movement counts
+      vel_threshold_high: 0.05    # Lower threshold for full confidence
+      
+      # Smoothing factor (0.0-1.0) - Higher = faster response
+      smoothing_factor: 0.6       # Good balance between smooth and responsive
+      
+      # Minimum confidence to update last valid orientation
+      min_confidence_to_update: 0.05   # Update even with low confidence
+      
+      # Default orientation (quaternion xyzw)
+      default_orientation: [0.0, 0.0, 0.0, 1.0]
