@@ -7,7 +7,7 @@ bt_navigator:
     bt_loop_duration: 10
     default_server_timeout: 20
 
-    default_nav_to_pose_bt_xml: "/home/jakob/robofetz_as/src/robot_navigation/config/bt_navigator.xml"
+    default_nav_to_pose_bt_xml: $(find-pkg-share robot_navigation)/config/bt_navigator.xml
     default_nav_through_poses_bt_xml: "/opt/ros/jazzy/share/nav2_bt_navigator/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"
 
 
@@ -62,20 +62,20 @@ controller_server:
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: True
-      min_vel_x: -0.5
+      min_vel_x: -1.0
       min_vel_y: 0.0
-      max_vel_x: 0.5
+      max_vel_x: 1.0
       max_vel_y: 0.0
       min_vel_theta: -1.0
       max_vel_theta: 1.0
       min_speed_xy: 0.0
-      max_speed_xy: 0.26
+      max_speed_xy: 2.0
       min_speed_theta: 0.0
       # Add high acceleration limits to ensure the robot can accelerate
-      acc_lim_x: 1.0
+      acc_lim_x: 3.0
       acc_lim_y: 0.0
       acc_lim_theta: 3.2
-      decel_lim_x: -1.0
+      decel_lim_x: -3.0
       decel_lim_y: 0.0
       decel_lim_theta: -3.2
       vx_samples: 20
@@ -84,9 +84,9 @@ controller_server:
       sim_time: 1.5
       linear_granularity: 0.05
       angular_granularity: 0.025
-      transform_tolerance: 0.02
-      xy_goal_tolerance: 0.01
-      trans_stopped_velocity: 0.25
+      transform_tolerance: 0.08
+      xy_goal_tolerance: 0.08
+      trans_stopped_velocity: 0.05
       short_circuit_trajectory_evaluation: True
       stateful: True
       critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
@@ -109,8 +109,8 @@ local_costmap:
       global_frame: map
       robot_base_frame: robot/base_footprint
       rolling_window: true
-      width: 1
-      height: 1
+      width: 3
+      height: 3
       resolution: 0.02
       robot_radius: 0.08
       plugins: ["static_layer", "inflation_layer"]
@@ -118,7 +118,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.25
+        inflation_radius: 0.18
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: true
@@ -238,10 +238,10 @@ collision_monitor: # configured but not used!
       enabled: True
     PolygonSlow:
       type: "polygon"
-      points: "[[1.0, 1.0], [1.0, -1.0], [-0.5, -1.0], [-0.5, 1.0]]"
+      points: "[[0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1]]"
       action_type: "slowdown"
       min_points: 4  # max_points: 3 for Humble
-      slowdown_ratio: 0.3
+      slowdown_ratio: 0.5
       visualize: True
       polygon_pub_topic: "polygon_slowdown"
       enabled: True

@@ -1,28 +1,28 @@
-#fachschafts cam color
+#tiago cam mono
 
-image_width: 800
+image_width: 960
 image_height: 600
 
-camera_name: "fachschafts_cam"
+camera_name: "GlobalShutterCamera_GlobalS___SB__PCI0_XHC__RHUB_HS03_3_1_0_32e4_0144_800x600)"
 
 camera_matrix:
   rows: 3
   cols: 3
-  data: [376.39937, 0.30534, 398.52653, 0.0, 376.17312, 279.27781, 0.0, 0.0, 1.0]
+  data: [1199.935732, 0.000000, 458.763716, 0.000000, 1208.369808, 303.266506, 0.000000, 0.000000, 1.000000]
 
 distortion_model: "equidistant"
 
 distortion_coefficients:
   rows: 1
   cols: 4
-  data: [-0.019444, -0.002854, -0.002234, 0.002648]
+  data: [-1.687602, 2.040294, 0.010488, 0.008749]
 
 rectification_matrix:
   rows: 3
   cols: 3
-  data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+  data: [1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000]
 
 projection_matrix:
   rows: 3
   cols: 4
-  data: [268.85669, 0.30534, 398.52653, 0.0, 0.0, 268.69509, 279.27781, 0.0, 0.0, 0.0, 1.0, 0.0]
+  data: [1199.935732, 0.000000, 458.763716, 0.000000, 0.000000, 1208.369808, 303.266506, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]

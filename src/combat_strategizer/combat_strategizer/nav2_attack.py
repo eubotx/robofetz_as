@@ -1,98 +1,208 @@
 import rclpy
-from rclpy.node import Node
-from rclpy.action import ActionClient
-from geometry_msgs.msg import PoseStamped
-from nav2_msgs.action import NavigateToPose
+from geometry_msgs.msg import PoseStamped, PointStamped
+from enum import Enum
 import math
+import time
 
-class Nav2Attack(Node):
-    def __init__(self):
-        super().__init__('nav2_attack')
+from robot_navigation.nav2_navigator import Nav2Navigator
+from combat_strategizer.states import CombatState
+from combat_strategizer.conditions import (
+    ProximityCondition,
+    NavDoneCondition,
+    TimeoutCondition,
+)
 
-        # Create a subscriber to the /opponent/pose_sim topic
-        self.subscription = self.create_subscription(
-            PoseStamped,
-            '/opponent/pose_sim',
-            self.listener_callback,
-            10)
 
-        # Create an action client for NavigateToPose
-        self._action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
-        
-        self.last_goal_pose = None
-        self.goal_in_progress = False
-        self.min_distance_change = 0.1  # Only update goal if target moved 0.5m
-        
-        self.get_logger().info('Nav2 Attack Node Started!')
+class State(Enum):
+    ATTACK = 1
+    DEFENCE = 2
+    STANDBY = 3
 
-    def listener_callback(self, msg):
-        # Check if we should send a new goal
-        if self.should_send_new_goal(msg):
-            self.send_goal(msg)
 
-            # For testing, send a fixed goal instead of opponent's position
-            # goal_pose = PoseStamped()
-            # goal_pose.header.frame_id = 'map'
-            # goal_pose.header.stamp = self.get_clock().now().to_msg()
-            # goal_pose.pose.position.x = 1.0
-            # goal_pose.pose.position.y = 1.0
-            # goal_pose.pose.position.z = 0.0
-            # goal_pose.pose.orientation = msg.pose.orientation
-            # self.send_goal(goal_pose)
+class ProximityCondition:
+    def __init__(self, threshold: float = 0.15, duration: float = 5.0):
+        self.threshold = threshold
+        self.duration = duration
+        self.proximity_start: float | None = None
 
-    def should_send_new_goal(self, current_pose_msg):
-        if self.last_goal_pose is None:
-            return True
-            
-        # Calculate distance between last goal and current target pose
-        dx = current_pose_msg.pose.position.x - self.last_goal_pose.pose.position.x
-        dy = current_pose_msg.pose.position.y - self.last_goal_pose.pose.position.y
-        dist = math.sqrt(dx*dx + dy*dy)
-        
-        # If target moved significantly, update goal
-        if dist > self.min_distance_change:
-            return True
-            
+    def check(self, robot_pose, opponent_pose) -> bool:
+        if robot_pose is None or opponent_pose is None:
+            self.proximity_start = None
+            return False
+
+        dx = opponent_pose.pose.position.x - robot_pose.position.x
+        dy = opponent_pose.pose.position.y - robot_pose.position.y
+        distance = math.sqrt(dx * dx + dy * dy)
+
+        now = time.time()
+
+        if distance <= self.threshold:
+            if self.proximity_start is None:
+                self.proximity_start = now
+            elif now - self.proximity_start >= self.duration:
+                self.proximity_start = None
+                return True
+        else:
+            self.proximity_start = None
+
         return False
 
-    def send_goal(self, pose_msg):
-        # Check if action server is ready without blocking forever
-        if not self._action_client.wait_for_server(timeout_sec=0.5):
-            self.get_logger().warn('Nav2 Action Server not available yet! Is Nav2 running?')
+    def reset(self):
+        self.proximity_start = None
+
+
+class Nav2Attack(Nav2Navigator):
+    def __init__(self):
+        super().__init__()
+
+        self.combat_state = State.ATTACK
+
+        self.condition = ProximityCondition(threshold=0.23, duration=5.0)
+
+        self.opponent_subscription = self.create_subscription(
+            PoseStamped,
+            '/arena_perception_opponent_base_footprint_pose',
+            self.opponent_callback,
+            10)
+
+        # We can either choose between the subscribed defense position of the predefined corners, as an escape goal.
+        # self.defense_subscription = self.create_subscription(
+        #     PointStamped,
+        #     '/defense_position',
+        #     self.defense_callback,
+        #     10)
+        
+        self.create_timer(0.5, self.defense_callback_1)
+
+        self.opponent_pose: PoseStamped | None = None
+        self.defense_position: PointStamped | None = None
+
+        self.defence_timer_start: float | None = None
+        self.defence_duration: float = 10.0
+
+        self.min_distance_change = 0.01
+        self.last_goal_pose = None
+
+        self.create_timer(0.1, self.state_machine_loop)
+
+        self.state = CombatState.ATTACK
+        self.opponent_pose = None
+        self.latest_defense_position = None
+        self.defense_pose = None
+        self.defence_start_time = None
+
+    def opponent_callback(self, msg: PoseStamped):
+        self.opponent_pose = msg
+        if self.combat_state == State.ATTACK:
+            self._handle_attack_goal(msg)
+
+    def defense_callback(self, msg: PointStamped):
+        self.defense_position = msg
+
+    def defense_callback_1(self):
+        center_x = 0.75
+        center_y = 0.75
+        delta = 0.3
+
+        corners = [
+            (center_x - delta, center_y),
+            (center_x + delta, center_y),
+            (center_x, center_y - delta),
+            (center_x, center_y + delta),
+        ]
+        # self.get_logger().info(f'Calculated corners: {corners}')
+
+        if self.opponent_pose is None:
             return
 
-        goal_msg = NavigateToPose.Goal()
-        goal_msg.pose = pose_msg
-        
-        # Ensure the frame is correct (optional, but good practice)
-        # goal_msg.pose.header.frame_id = 'map' 
-        
-        self.get_logger().info(f'Sending goal: ({pose_msg.pose.position.x}, {pose_msg.pose.position.y})')
-        
-        self._send_goal_future = self._action_client.send_goal_async(goal_msg)
-        self._send_goal_future.add_done_callback(self.goal_response_callback)
-        
-        self.last_goal_pose = pose_msg
-        self.goal_in_progress = True
+        ox = self.opponent_pose.pose.position.x
+        oy = self.opponent_pose.pose.position.y
 
-    def goal_response_callback(self, future):
-        goal_handle = future.result()
-        if not goal_handle.accepted:
-            self.get_logger().info('Goal rejected :(')
-            self.goal_in_progress = False
+        farthest_corner = max(
+            corners, key=lambda c: math.sqrt((c[0] - ox) ** 2 + (c[1] - oy) ** 2)
+        )
+        # self.get_logger().info(f'Farthest corner from opponent: {farthest_corner}')
+        msg = PointStamped()
+        msg.header.frame_id = "map"
+        msg.point.x = farthest_corner[0]
+        msg.point.y = farthest_corner[1]
+        msg.point.z = 0.0
+        # self.get_logger().info(f'Updating defense position to farthest corner: ({msg.point.x:.2f}, {msg.point.y:.2f})')
+        self.defense_position = msg
+
+    def _handle_attack_goal(self, msg: PoseStamped):
+        if not self.should_send_new_goal(msg):
+            return
+        self.get_logger().info('Sending attack command')
+        self.attack(msg)
+
+    def should_send_new_goal(self, goal_pose: PoseStamped) -> bool:
+        if self.last_goal_pose is None:
+            return True
+        dx = goal_pose.pose.position.x - self.last_goal_pose.pose.position.x
+        dy = goal_pose.pose.position.y - self.last_goal_pose.pose.position.y
+        dist = math.sqrt(dx * dx + dy * dy)
+        return dist >= self.min_distance_change
+
+    def state_machine_loop(self):
+        if self.combat_state == State.ATTACK:
+            self._attack_state()
+        elif self.combat_state == State.DEFENCE:
+            self._defence_state()
+        elif self.combat_state == State.STANDBY:
+            self._standby_state()
+
+    def _attack_state(self):
+        if self.condition.check(self.current_pose, self.opponent_pose):
+            self.get_logger().info('Proximity condition met! Transitioning to DEFENCE')
+            self.condition.reset()
+            self._transition_to_defence()
+
+    def _transition_to_defence(self):
+        self.combat_state = State.DEFENCE
+        self.defence_timer_start = None
+
+        if self.defense_position is not None and self.opponent_pose is not None:
+            safe_pose = PoseStamped()
+            safe_pose.header = self.defense_position.header
+            safe_pose.pose.position.x = self.defense_position.point.x
+            safe_pose.pose.position.y = self.defense_position.point.y
+            safe_pose.pose.position.z = self.defense_position.point.z
+            safe_pose.pose.orientation.w = 1.0
+            self.get_logger().info(f'Calculated safe pose: ({safe_pose.pose.position.x:.2f}, {safe_pose.pose.position.y:.2f})')
+            self.escape(self.opponent_pose, safe_pose)
+            self.get_logger().info('Navigating to defense position')
+        else:
+            self.get_logger().warn('No defense position available, waiting...')
+
+    def _defence_state(self):
+        if self.defense_position is None:
             return
 
-        self.get_logger().info('Goal accepted :)')
-        self._get_result_future = goal_handle.get_result_async()
-        self._get_result_future.add_done_callback(self.get_result_callback)
+        if self.defence_timer_start is None:
+            if self.state == "IDLE":
+                self.defence_timer_start = time.time()
+                self.get_logger().info(f'Reached defense position, starting {self.defence_duration} s timer')
+        else:
+            elapsed = time.time() - self.defence_timer_start
+            if elapsed >= self.defence_duration:
+                self.get_logger().info('Defence timer complete, transitioning to STANDBY')
+                self.combat_state = State.STANDBY
 
-    def get_result_callback(self, future):
-        result = future.result().result
-        self.get_logger().info('Goal finished')
-        self.goal_in_progress = False
+    def _standby_state(self):
+        self.get_logger().info('In STANDBY, returning to ATTACK')
+        self.combat_state = State.ATTACK
+        if self.opponent_pose is not None:
+            self.attack(self.opponent_pose)
+
 
 def main(args=None):
     rclpy.init(args=args)
+    
     node = Nav2Attack()
     rclpy.spin(node)
+    node.destroy_node()
     rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()

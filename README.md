@@ -102,7 +102,7 @@ ros2 launch robofetz_as robofetz_as.launch.py
 Launch arguments can be overridden like this:
 
 ```bash
-ros2 launch robofetz_as robofetz_as.launch.py use_sim:=false
+ros2 launch robot_bringup robofetz_as.launch.py use_sim:=true
 ```
 
 ---
@@ -153,6 +153,21 @@ use_sim:=false
 ```
 
 ---
+
+
+# Create Map
+
+To create a custom map you can adjust the parameters in `src/robot_navigation/map/my_map.yaml` and execute:
+
+```bash
+ros2 run robot_navigation create_map
+```
+
+After this you can run `map_node` that maps the enemy position to the map and publishes the defence map.
+
+```bash
+ros2 run robot_navigation map_node
+```
 
 # Useful Commands
 
@@ -213,6 +228,23 @@ for node in $(ros2 node list); do
   ros2 param get $node use_sim_time 2>/dev/null || echo "No use_sim_time param"
 done
 ```
+
+Publish TF frame as PoseStamped:
+
+```bash
+ros2 run combat_strategizer tf_to_pose \
+  --ros-args \
+  -p source_frame:=robot/base_footprint \
+  -p reference_frame:=world \
+  -p pose_topic:=/robot_pose
+```
+
+| Parameter       | Description                  | Default | Required |
+|-----------------|------------------------------|---------|----------|
+| source_frame    | TF frame to publish as pose  | -       | yes      |
+| reference_frame | Reference frame for lookup   | world   | no       |
+| pose_topic      | Output PoseStamped topic     | pose    | no       |
+| rate            | Publishing rate (Hz)         | 60.0    | no       |
 
 ---
 

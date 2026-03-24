@@ -6,6 +6,7 @@ import subprocess
 import sys
 from scipy.ndimage import gaussian_filter
 from PIL import Image
+import yaml
 
 def draw_arena_square(map_size, square_length_pixels, border_thickness=1):
     """
@@ -104,9 +105,13 @@ def open_in_gimp(image_path):
         print(f"Error running GIMP: {e}")
         return False
 
-def save_ros_map(map_array, map_dir, resolution=0.005859):
+def save_ros_map(map_array, map_dir, resolution=0.005859,
+                 map_size=None, real_size=None,
+                 square_length=None, border_thickness=None):
     """
-    Save map as .pgm and .yaml for ROS 2.
+    Save map as .pgm and .yaml for ROS 2.  The additional optional
+    parameters will be written back into the YAML metadata so that
+    subsequent runs and the map node can pick them up.
     """
     # 1. Save PGM
     pgm_filename = "map.pgm"
@@ -125,19 +130,39 @@ def save_ros_map(map_array, map_dir, resolution=0.005859):
     png_path = os.path.join(map_dir, png_filename)
     img.save(png_path)
 
-    # 2. Save YAML
-
-    
-    # Calculate origin (bottom-left)
-    # Assuming the robot starts at center (0,0) of the 1.5x1.5m arena
-    # The map origin in YAML is the pose of the lower-left pixel
-    map_size_meters = 1.5
-    origin_x = -map_size_meters / 2.0
-    origin_y = -map_size_meters / 2.0
+    # 2. Update YAML metadata file with our parameters
+    yaml_path = os.path.join(map_dir, 'my_map.yaml')
+    metadata = {}
+    # try to load existing data to preserve unrelated fields
+    if os.path.exists(yaml_path):
+        try:
+            with open(yaml_path, 'r') as f:
+                metadata = yaml.safe_load(f) or {}
+        except Exception:
+            metadata = {}
+    # set/override values
+    if map_size is not None:
+        metadata['map_size'] = map_size
+    if real_size is not None:
+        metadata['real_size'] = real_size
+    if square_length is not None:
+        metadata['square_length'] = square_length
+    if border_thickness is not None:
+        metadata['border_thickness'] = border_thickness
+    metadata['resolution'] = resolution
+    # keep origin if already present otherwise calculate a default
+    if 'origin' not in metadata:
+        # default origin based on assuming center start
+        msize = real_size if real_size else 1.5
+        metadata['origin'] = [-msize/2.0, -msize/2.0, 0.0]
+    # write file
+    with open(yaml_path, 'w') as f:
+        yaml.dump(metadata, f, default_flow_style=False)
 
     print(f"Saved ROS map files to {map_dir}")
     print(f"  - {pgm_filename}")
     print(f"  - map_view.png")
+    print(f"  - {os.path.basename(yaml_path)} updated with parameters")
 
 def get_map_dir():
     # Logic to find the correct directory (same as before)
@@ -159,6 +184,24 @@ def get_map_dir():
             
     os.makedirs(map_dir, exist_ok=True)
     return map_dir
+
+
+def load_yaml_params(map_dir):
+    """
+    Load optional parameters from the YAML file stored alongside the map.
+    If the file doesn't exist or a key is missing, defaults will be applied by
+    the caller.
+    """
+    yaml_path = os.path.join(map_dir, 'my_map.yaml')
+    try:
+        with open(yaml_path, 'r') as f:
+            data = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        data = {}
+    except Exception as e:
+        print(f"Warning: could not read yaml parameters ({e})")
+        data = {}
+    return data
 
 def parse_corners(corner_args):
     # ...existing code...
@@ -185,22 +228,36 @@ def main():
     )
     parser.add_argument('corners', nargs='*', default=[],
                        help='Corner specifications in format CORNER:RADIUS (e.g., TL:0.5 BR:0.3)')
-    parser.add_argument('--square-length', type=int, default=54, 
-                       help='Length of the square arena in pixels')
+    parser.add_argument('--square-length', type=int,
+                       help='Length of the square arena in pixels (overrides yaml)')
+    parser.add_argument('--map-size', type=int,
+                       help='Size of the map in pixels (width/height)')
+    parser.add_argument('--real-size', type=float,
+                       help='Physical size of the map in meters')
+    parser.add_argument('--border-thickness', type=int,
+                       help='Border thickness in pixels')
     
     args = parser.parse_args()
     corner_data = parse_corners(args.corners)
     
-    # Constants
-    MAP_SIZE = 128
-    REAL_SIZE =  2.56# meters
+    # load yaml defaults and then override with command-line arguments
+    map_dir = get_map_dir()
+    yaml_params = load_yaml_params(map_dir)
+    
+    MAP_SIZE = args.map_size or yaml_params.get('map_size', 128)
+    REAL_SIZE = args.real_size or yaml_params.get('real_size', 2.56)
+    SQUARE_LENGTH = args.square_length or yaml_params.get('square_length', 54)
+    BORDER_THICKNESS = args.border_thickness or yaml_params.get('border_thickness', 2)
+    
     PIXELS_PER_METER = MAP_SIZE / REAL_SIZE
-    RESOLUTION = REAL_SIZE / MAP_SIZE
+    RESOLUTION = yaml_params.get('resolution', REAL_SIZE / MAP_SIZE)
     
     print(f"Creating map with corners: {corner_data}")
+    print(f"  map_size={MAP_SIZE}, real_size={REAL_SIZE}, square_length={SQUARE_LENGTH}, border={BORDER_THICKNESS}")
     
     # 1. Create Base Map (Gray outside, White inside square, Black border)
-    map_array = draw_arena_square(MAP_SIZE, args.square_length , border_thickness=2)
+    square_length_pixels = int(SQUARE_LENGTH * PIXELS_PER_METER)
+    map_array = draw_arena_square(MAP_SIZE, square_length_pixels , border_thickness=BORDER_THICKNESS)
     
     # 2. Add Corners
     map_array = add_corners(map_array, corner_data, PIXELS_PER_METER)
@@ -245,7 +302,9 @@ def main():
     # PGM: 0=black(occupied), 255=white(free).
     
     # 5. Save Final Map
-    save_ros_map(blurred_map.astype(np.uint8), map_dir, RESOLUTION)
+    save_ros_map(blurred_map.astype(np.uint8), map_dir, RESOLUTION,
+                 map_size=MAP_SIZE, real_size=REAL_SIZE,
+                 square_length=SQUARE_LENGTH, border_thickness=BORDER_THICKNESS)
     
     # Cleanup
     if os.path.exists(temp_img_path):

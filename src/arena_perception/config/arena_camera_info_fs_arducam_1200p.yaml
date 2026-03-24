@@ -1,0 +1,27 @@
+# USB3.0 camera with 157° lense, calibrated with pinhole camera / radtan distortion model
+image_width: 1920
+image_height: 1200
+camera_name: "GlobalShutterCamera_GlobalS___SB__PCI0_XHC__RHUB_HS03_3_1_0_32e4_0144_800x600"
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [769.14265,   0.     , 907.6535 ,
+           0.     , 768.27685, 628.70184,
+           0.     ,   0.     ,   1.     ]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.206834, 0.030930, -0.001995, -0.007335, 0.000000]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1., 0., 0.,
+         0., 1., 0.,
+         0., 0., 1.]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [535.90064,   0.     , 879.11795,   0.     ,
+           0.     , 647.48976, 636.14302,   0.     ,
+           0.     ,   0.     ,   1.     ,   0.     ]

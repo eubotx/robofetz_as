@@ -51,7 +51,22 @@ def generate_launch_description():
         output='screen'
     )
 
+    robot_tf_to_pose = Node(
+        package='combat_strategizer',
+        executable='tf_to_pose',
+        name='robot_tf_to_pose',
+        parameters=[{
+            'source_frame': 'robot/base_footprint',
+            'reference_frame': 'world',
+            'pose_topic': '/robot/pose',
+            'use_sim_time': use_sim_time
+        }],
+        output='screen'
+    )
+
     ld.add_action(robot_tf_relay)
     ld.add_action(opponent_tf_relay)
+    ld.add_action(robot_tf_to_pose)
+
 
     return ld
