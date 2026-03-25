@@ -16,7 +16,7 @@ def generate_launch_description():
     
     # Path to pipeline config file (single source of truth)
     pipeline_config_path = PathJoinSubstitution([
-        pkg_share, 'config', 'opponent_det_pipeline.yaml'
+        pkg_share, 'config', 'opponent_det_pipeline_config.yaml'
     ])
     
     # =================== LAUNCH ARGUMENTS ===================
@@ -59,18 +59,6 @@ def generate_launch_description():
         }],
     )
     
-    # =================== ROI MASKING NODE ===================
-    roi_masking_node = Node(
-        package=pkg,
-        executable='roi_masking_node',
-        name='roi_masking_node',
-        output='screen',
-        parameters=[LaunchConfiguration('pipeline_config')],
-        remappings=[
-            ('/arena_camera/image_rect', LaunchConfiguration('camera_topic')),
-            ('/arena_camera/camera_info', LaunchConfiguration('camera_info_topic')),
-        ]
-    )
     
     # =================== DETECTOR NODES ===================
     # Color detector
@@ -81,6 +69,7 @@ def generate_launch_description():
         output='screen',
         parameters=[LaunchConfiguration('pipeline_config')],
         remappings=[
+            ('/arena_camera/image_rect', LaunchConfiguration('camera_topic')),
             ('/arena_camera/camera_info', LaunchConfiguration('camera_info_topic')),
             ('/bot/pose', '/bot/pose'),
         ]
@@ -94,6 +83,7 @@ def generate_launch_description():
         output='screen',
         parameters=[LaunchConfiguration('pipeline_config')],
         remappings=[
+            ('/arena_camera/image_rect', LaunchConfiguration('camera_topic')),
             ('/arena_camera/camera_info', LaunchConfiguration('camera_info_topic')),
             ('/bot/pose', '/bot/pose'),
         ]
@@ -138,11 +128,8 @@ def generate_launch_description():
         executable='detection_kalman_filter',
         name='detection_kalman_filter',
         output='screen',
-        parameters=[LaunchConfiguration('pipeline_config')],
-        remappings=[
-            ('detections_3d/color', '/detections_3d/color_array'),
-            ('detections_3d/mog2', '/detections_3d/mog2_array'),
-        ]
+        parameters=[LaunchConfiguration('pipeline_config')]
+        # Remappings removed; topics are directly defined in config.
     )
     
     # =================== TIMING AND DELAYS ===================
@@ -165,7 +152,6 @@ def generate_launch_description():
         declare_pipeline_config,
         
         tf_to_pose_node,
-        roi_masking_node,        # New ROI masking node
         color_detector_node,
         mog2_detector_node,
         delayed_converters,
