@@ -83,3 +83,23 @@ robot_detection_node:
     detection_marker_frames: ["arena_perception/robot_top_tag", "arena_perception/robot_bottom_tag"]
     robot_marker_frames: ["robot/top_apriltag_optical", "robot/bottom_apriltag_optical"]
     marker_names: ["top", "bottom"]
+
+# ROI Mask Node Configuration
+# Masks everything outside the defined ROI with black
+
+roi_mask_node:
+  ros__parameters:
+    # TF Frames
+    camera_frame: "arena_camera_optical"  # Camera optical frame
+    world_frame: "world"                   # World reference frame
+    
+    # ROI Definition in World Coordinates (meters)
+    roi_min_x: -0.1    # Minimum X coordinate (left)
+    roi_max_x: 1.6     # Maximum X coordinate (right)
+    roi_min_y: -0.1    # Minimum Y coordinate (bottom)
+    roi_max_y: 1.6     # Maximum Y coordinate (top)
+    roi_z: 0.0         # Z coordinate (height)
+    
+    # Mask Appearance
+    mask_color: [0, 0, 0]     # Color for masked area (BGR: black)
+    mask_alpha: 1.0           # Opacity (0.0 = transparent, 1.0 = opaque)
