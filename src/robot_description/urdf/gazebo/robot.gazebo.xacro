@@ -61,6 +61,12 @@
         <material>Gazebo/Blue</material>
     </gazebo>
 
+    <gazebo reference="weapon_link">
+        <mu1>0.01</mu1>
+        <mu2>0.01</mu2>
+        <material>Gazebo/Grey</material>
+    </gazebo>
+
     <!-- Gazebo PBR for top AprilTag -->
     <gazebo reference="top_apriltag_link">
         <kp>1000000.0</kp>
