@@ -10,25 +10,33 @@
     <xacro:property name="pi_const" value="3.14159265" />
 
     <!-- Body Dimensions -->
-    <xacro:property name="a" value="0.140" />
-    <xacro:property name="b" value="0.054" />
-    <xacro:property name="c" value="0.14" />
+    <xacro:property name="a" value="0.0969" />  
+    <xacro:property name="b" value="0.065" />
+    <xacro:property name="c" value="0.147" />
+    <xacro:property name="baseframe_offset_y" value="-0.02575" />
 
     <!-- Wheel and caster radius -->
-    <xacro:property name="r" value="0.034" />
+    <xacro:property name="r" value="0.0355" />
 
     <!-- Wheel width -->
-    <xacro:property name="d" value="0.026" />
+    <xacro:property name="d" value="0.01" />
 
     <!-- Wheel Offset to chassis in Y axis -->
-    <xacro:property name="wheel_offset_y" value="0.007" />
+    <xacro:property name="wheel_offset_x" value="-0.00925" />
+    <xacro:property name="wheel_offset_y" value="0.01" />
+
+    <!-- AprilTag properties -->
+    <xacro:property name="tag_size" value="0.094" />
+    <xacro:property name="tag_thickness" value="0.001" />
+    <xacro:property name="tag_mass" value="0.01" />
+    <xacro:property name="tag_offset_y" value="0.0" />
 
     <xacro:property name="s1" value="${r}" />
-    <xacro:property name="s2" value="${a/2.0-0.04075}" />
-    <xacro:property name="s3" value="${a+r}" />
-    <xacro:property name="s4" value="${c/2.0+d/2+wheel_offset_y}" />
+    <xacro:property name="s2" value="${a/2.0+wheel_offset_x}" />
+    <xacro:property name="s4" value="${c/2.0+wheel_offset_y}" />
 
     <!-- Upright support box dimensions (replacing cylinder) -->
+    <xacro:property name="weaponhold_length" value="51.5" />
     <xacro:property name="f" value="0.0049"/>
     <xacro:property name="support_width" value="${2*f}" />
     <xacro:property name="support_height" value="${2*r-2*f}" />
@@ -59,10 +67,6 @@
     <xacro:property name="I_support_y" value="${(1.0/12.0)*m3*(support_width*support_width + support_height*support_height)}" />
     <xacro:property name="I_support_z" value="${(1.0/12.0)*m3*(support_width*support_width + support_width*support_width)}" />
 
-    <!-- AprilTag properties -->
-    <xacro:property name="tag_size" value="0.14" />
-    <xacro:property name="tag_thickness" value="0.001" />
-    <xacro:property name="tag_mass" value="0.01" />
 
     <!-- Complete inertia macros -->
     <xacro:macro name="inertia_body">
@@ -109,6 +113,7 @@
     <joint name="body_link_joint" type="fixed">
         <parent link="base_footprint"/>
         <child link="body_link"/>
+        <origin xyz="${baseframe_offset_y} 0 0" rpy="0 0 0"/>
     </joint>
 
     <link name="body_link">
@@ -128,7 +133,7 @@
     <joint name="top_tag_joint" type="fixed">
         <parent link="body_link"/>
         <child link="top_apriltag_link"/>
-        <origin xyz="0 0 ${s1 + b/2 + tag_thickness/2}" rpy="0 0 0"/>
+        <origin xyz="${tag_offset_y} 0 ${s1 + b/2 + tag_thickness/2}" rpy="0 0 0"/>
     </joint>
     <link name="top_apriltag_link">
         <visual>
@@ -155,7 +160,7 @@
     <joint name="bottom_tag_joint" type="fixed">
         <parent link="body_link"/>
         <child link="bottom_apriltag_link"/>
-        <origin xyz="0 0 ${s1 - b/2 - tag_thickness/2}" rpy="${pi_const} 0 0"/>
+        <origin xyz="${tag_offset_y} 0 ${s1 - b/2 - tag_thickness/2}" rpy="${pi_const} 0 0"/>
     </joint>
     <link name="bottom_apriltag_link">
         <visual>
@@ -182,7 +187,7 @@
     <joint name="right_wheel_joint" type="continuous">
         <parent link="body_link"/>
         <child link="right_wheel_link"/>
-        <origin xyz="${-s2} ${-s4} ${r}" rpy="0 0 0"/>
+        <origin xyz="${s2} ${-s4} ${r}" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
         <limit effort="50000" velocity="10"/>
         <dynamics damping="1.0" friction="1.0"/>
@@ -203,7 +208,7 @@
     <joint name="left_wheel_joint" type="continuous">
         <parent link="body_link"/>
         <child link="left_wheel_link"/>
-        <origin xyz="${-s2} ${s4} ${r}" rpy="0 0 0"/>
+        <origin xyz="${s2} ${s4} ${r}" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
         <limit effort="50000" velocity="10"/>
         <dynamics damping="1.0" friction="1.0"/>
