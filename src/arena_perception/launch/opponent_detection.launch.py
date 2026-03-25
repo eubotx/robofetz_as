@@ -102,13 +102,13 @@ def generate_launch_description():
         parameters=[{
             'parent_frame': 'map',
             'child_frame': 'robot/base_footprint',
-            'pose_topic': '/bot/pose',  # Matches the remapping in detector_node
+            'pose_topic': '/robot/pose',  # Matches the remapping in detector_node
             'publish_rate': 60.0,  # Higher rate for better self-filtering
         }],
         remappings=[
             # No remappings needed for this node
         ],
-        # This node will output robot pose on /bot/pose for the detector node
+        # This node will output robot pose on /robot/pose for the detector node
     )
     
     # =================== NODE 1: DETECTOR ===================
@@ -133,7 +133,7 @@ def generate_launch_description():
         remappings=[
             ('/arena_camera/image_rect', LaunchConfiguration('camera_topic')),
             ('/arena_camera/camera_info', LaunchConfiguration('camera_info_topic')),
-            ('/bot/pose', '/bot/pose'),  # Receives pose from tf_to_pose_node
+            ('/robot/pose', '/robot/pose'),  # Receives pose from tf_to_pose_node
             ('/detections_2d', '/detections_2d'),
             ('/debug/detection_image', '/debug/detection_image'),
         ]

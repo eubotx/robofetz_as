@@ -77,7 +77,7 @@ class FrameDiffRobotDetector(Node):
         self.image_sub = self.create_subscription(Image, '/arena_camera/image_rect', self.image_callback, 10)
         # Using raw camera info as rectified info seems silent in simulation
         self.camera_info_sub = self.create_subscription(CameraInfo, '/arena_camera/camera_info', self.camera_info_callback, 10)
-        self.robot_pose_sub = self.create_subscription(PoseStamped, '/bot/pose', self.robot_pose_callback, 10)
+        self.robot_pose_sub = self.create_subscription(PoseStamped, '/robot/pose', self.robot_pose_callback, 10)
         
         self.pose_publisher = self.create_publisher(PoseStamped, '/detected_robot/pose', 10)
         self.debug_publisher = self.create_publisher(Image, '/debug/detection_image', 10)

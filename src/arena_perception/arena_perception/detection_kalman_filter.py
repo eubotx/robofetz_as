@@ -405,7 +405,7 @@ class SingleOpponentKalmanFilter(Node):
                 
             if self._debug_counter % 20 == 0:
                 speed = np.sqrt(vel[0]**2 + vel[1]**2)
-                self.get_logger().info(f"Speed: {speed:.3f}, Confidence: {self.last_confidence:.2f}, Yaw: {np.arctan2(vel[1], vel[0]):.2f} rad")
+                self.get_logger().debug(f"Speed: {speed:.3f}, Confidence: {self.last_confidence:.2f}, Yaw: {np.arctan2(vel[1], vel[0]):.2f} rad")
 
 
 def main(args=None):

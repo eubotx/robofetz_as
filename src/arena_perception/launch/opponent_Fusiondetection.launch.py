@@ -14,9 +14,9 @@ def generate_launch_description():
     # Get package share directory for config files
     pkg_share = FindPackageShare(pkg)
     
-    # Path to pipeline config file (single source of truth)
-    pipeline_config_path = PathJoinSubstitution([
-        pkg_share, 'config', 'opponent_det_pipeline_config.yaml'
+    # Path to opponent_detection config file (single source of truth)
+    opponent_detection_config_path = PathJoinSubstitution([
+        pkg_share, 'config', 'opponent_detection_config.yaml'
     ])
     
     # =================== LAUNCH ARGUMENTS ===================
@@ -38,27 +38,11 @@ def generate_launch_description():
         description='Use simulation time if true'
     )
     
-    declare_pipeline_config = DeclareLaunchArgument(
-        'pipeline_config',
-        default_value=pipeline_config_path,
-        description='Path to pipeline configuration file'
+    declare_opponent_detection_config = DeclareLaunchArgument(
+        'opponent_detection_config',
+        default_value=opponent_detection_config_path,
+        description='Path to opponent_detection configuration file'
     )
-    
-    # =================== TF TO POSE NODE ===================
-    tf_to_pose_node = Node(
-        package='robofetz_gazebo',
-        executable='tf_to_pose',
-        name='tf_to_pose_converter',
-        output='screen',
-        parameters=[{
-            'parent_frame': 'map',
-            'child_frame': 'robot/base_footprint',
-            'pose_topic': '/bot/pose',
-            'publish_rate': 60.0,
-            'use_sim_time': LaunchConfiguration('use_sim_time'),
-        }],
-    )
-    
     
     # =================== DETECTOR NODES ===================
     # Color detector
@@ -67,11 +51,11 @@ def generate_launch_description():
         executable='opponent_det_ColorSingle',
         name='opponent_det_ColorSingle',
         output='screen',
-        parameters=[LaunchConfiguration('pipeline_config')],
+        parameters=[LaunchConfiguration('opponent_detection_config')],
         remappings=[
             ('/arena_camera/image_rect', LaunchConfiguration('camera_topic')),
             ('/arena_camera/camera_info', LaunchConfiguration('camera_info_topic')),
-            ('/bot/pose', '/bot/pose'),
+            ('/robot/pose', '/robot/pose'),
         ]
     )
     
@@ -81,11 +65,11 @@ def generate_launch_description():
         executable='opponent_det_MOG2single',
         name='opponent_det_MOG2single',
         output='screen',
-        parameters=[LaunchConfiguration('pipeline_config')],
+        parameters=[LaunchConfiguration('opponent_detection_config')],
         remappings=[
             ('/arena_camera/image_rect', LaunchConfiguration('camera_topic')),
             ('/arena_camera/camera_info', LaunchConfiguration('camera_info_topic')),
-            ('/bot/pose', '/bot/pose'),
+            ('/robot/pose', '/robot/pose'),
         ]
     )
     
@@ -96,7 +80,7 @@ def generate_launch_description():
         executable='detection_transformation_2D_3D_node',
         name='detection_2d_to_3d_color',
         output='screen',
-        parameters=[LaunchConfiguration('pipeline_config')],
+        parameters=[LaunchConfiguration('opponent_detection_config')],
         remappings=[
             # Inputs
             ('camera_info', LaunchConfiguration('camera_info_topic')),
@@ -112,7 +96,7 @@ def generate_launch_description():
         executable='detection_transformation_2D_3D_node',
         name='detection_2d_to_3d_mog2',
         output='screen',
-        parameters=[LaunchConfiguration('pipeline_config')],
+        parameters=[LaunchConfiguration('opponent_detection_config')],
         remappings=[
             # Inputs
             ('camera_info', LaunchConfiguration('camera_info_topic')),
@@ -128,7 +112,7 @@ def generate_launch_description():
         executable='detection_kalman_filter',
         name='detection_kalman_filter',
         output='screen',
-        parameters=[LaunchConfiguration('pipeline_config')]
+        parameters=[LaunchConfiguration('opponent_detection_config')]
         # Remappings removed; topics are directly defined in config.
     )
     
@@ -149,9 +133,7 @@ def generate_launch_description():
         declare_camera_topic,
         declare_camera_info_topic,
         declare_use_sim_time,
-        declare_pipeline_config,
-        
-        tf_to_pose_node,
+        declare_opponent_detection_config,
         color_detector_node,
         mog2_detector_node,
         delayed_converters,

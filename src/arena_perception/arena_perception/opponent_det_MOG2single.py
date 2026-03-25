@@ -118,7 +118,7 @@ class OpponentDetMOG2Single(Node):
         
         self.robot_pose_sub = self.create_subscription(
             PoseStamped, 
-            '/bot/pose', 
+            '/robot/pose', 
             self.robot_pose_callback, 
             10
         )
