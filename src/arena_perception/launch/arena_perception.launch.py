@@ -5,11 +5,12 @@ apriltag detection, robot detection, and odometry correction.
 """
 
 from launch import LaunchDescription
-from launch.actions import TimerAction, DeclareLaunchArgument
+from launch.actions import TimerAction, DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
     # Package name
@@ -39,10 +40,46 @@ def generate_launch_description():
         description='Path to arena_perception_config file'
     )
     
+    # Arguments for opponent detection
+    opponent_camera_topic_arg = DeclareLaunchArgument(
+        'opponent_camera_topic',
+        default_value='/arena_camera/image_rect_masked',
+        description='Camera image topic for opponent detection (use masked image by default)'
+    )
+    
+    opponent_camera_info_topic_arg = DeclareLaunchArgument(
+        'opponent_camera_info_topic',
+        default_value='/arena_camera/camera_info',
+        description='Camera info topic for opponent detection'
+    )
+    
+    # Default opponent detection config path
+    default_opponent_detection_config = PathJoinSubstitution([
+        FindPackageShare(perception_pkg),
+        'config', 
+        'opponent_detection_config.yaml'
+    ])
+    
+    opponent_detection_config_arg = DeclareLaunchArgument(
+        'opponent_detection_config',
+        default_value=default_opponent_detection_config,
+        description='Path to opponent_detection configuration file'
+    )
+    
+    enable_opponent_detection_arg = DeclareLaunchArgument(
+        'enable_opponent_detection',
+        default_value='true',
+        description='Enable opponent detection nodes'
+    )
+    
     # Get config files from launch arguments
     arena_perception_config_file = LaunchConfiguration('arena_perception_config')
+    opponent_detection_config_file = LaunchConfiguration('opponent_detection_config')
     use_sim_time = LaunchConfiguration('use_sim_time')
     run_rectification = LaunchConfiguration('run_rectification')
+    opponent_camera_topic = LaunchConfiguration('opponent_camera_topic')
+    opponent_camera_info_topic = LaunchConfiguration('opponent_camera_info_topic')
+    enable_opponent_detection = LaunchConfiguration('enable_opponent_detection')
     
     # Build launch description
     ld = LaunchDescription()
@@ -51,21 +88,10 @@ def generate_launch_description():
     ld.add_action(use_sim_time_arg)
     ld.add_action(run_rectification_arg)
     ld.add_action(arena_perception_config_arg)
-    
-    # Image format converter - converts YUYV to RGB8 for proper rectification
-    # image_format_converter = Node(
-    #     package='arena_perception',
-    #     executable='image_format_converter',
-    #     name='image_format_converter',
-    #     namespace='arena_camera',
-    #     parameters=[{
-    #         'use_sim_time': use_sim_time,
-    #         'input_topic': 'image',
-    #         'output_topic': 'image_rgb',
-    #         'output_encoding': 'rgb8'
-    #     }],
-    #     output='screen',
-    # )
+    ld.add_action(opponent_camera_topic_arg)
+    ld.add_action(opponent_camera_info_topic_arg)
+    ld.add_action(opponent_detection_config_arg)
+    ld.add_action(enable_opponent_detection_arg)
     
     # Camera rectification node - only runs if run_rectification is true
     camera_rectification = Node(
@@ -82,7 +108,6 @@ def generate_launch_description():
         ],
     )
     
-    # ld.add_action(image_format_converter)
     ld.add_action(camera_rectification)
 
     # IMAGE REMAPPING NODE (for pinhole camera case) - only runs when run_rectifaction is false
@@ -177,19 +202,38 @@ def generate_launch_description():
         package='arena_perception',
         executable='roi_mask_node',
         name='roi_mask_node',
-        # namespace='arena_camera',  # Comment out or remove
         parameters=[
             arena_perception_config_file,
             {'use_sim_time': use_sim_time}
         ],
         remappings=[
-            ('image', '/arena_camera/image_rect'),  # Use absolute topic names
+            ('image', '/arena_camera/image_rect'),
             ('camera_info', '/arena_camera/camera_info'),
             ('masked_image', '/arena_camera/image_rect_masked')
         ],
         output='screen'
     )
 
+    # Get the path to opponent detection launch file
+    opponent_detection_launch = PathJoinSubstitution([
+        FindPackageShare(perception_pkg),
+        'launch',
+        'opponent_Fusiondetection.launch.py'
+    ])
+    
+    # Include opponent detection launch file
+    opponent_detection = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(opponent_detection_launch),
+        condition=IfCondition(enable_opponent_detection),
+        launch_arguments={
+            'camera_topic': opponent_camera_topic,
+            'camera_info_topic': opponent_camera_info_topic,
+            'use_sim_time': use_sim_time,
+            'opponent_detection_config': opponent_detection_config_file
+        }.items()
+    )
+    
+    # Add timer actions for main nodes
     ld.add_action(TimerAction(
         period=1.0,  # Slightly offset to avoid congestion
         actions=[apriltag_detection_diy]
@@ -218,6 +262,12 @@ def generate_launch_description():
     ld.add_action(TimerAction(
         period=7.0,
         actions=[robot_tf_to_pose]
-    ))  
+    ))
+    
+    # Add opponent detection with appropriate timing (after ROI mask is ready)
+    ld.add_action(TimerAction(
+        period=9.0,  # Start after ROI mask node (6.0s) to ensure masked image is available
+        actions=[opponent_detection]
+    ))
 
     return ld
