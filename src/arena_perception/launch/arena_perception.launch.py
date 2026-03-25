@@ -173,6 +173,23 @@ def generate_launch_description():
         output='screen'
     )
 
+    roi_mask_node = Node(
+        package='arena_perception',
+        executable='roi_mask_node',
+        name='roi_mask_node',
+        # namespace='arena_camera',  # Comment out or remove
+        parameters=[
+            arena_perception_config_file,
+            {'use_sim_time': use_sim_time}
+        ],
+        remappings=[
+            ('image', '/arena_camera/image_rect'),  # Use absolute topic names
+            ('camera_info', '/arena_camera/camera_info'),
+            ('masked_image', '/arena_camera/image_rect_masked')
+        ],
+        output='screen'
+    )
+
     ld.add_action(TimerAction(
         period=1.0,  # Slightly offset to avoid congestion
         actions=[apriltag_detection_diy]
@@ -195,7 +212,12 @@ def generate_launch_description():
 
     ld.add_action(TimerAction(
         period=6.0,
+        actions=[roi_mask_node]
+    ))
+
+    ld.add_action(TimerAction(
+        period=7.0,
         actions=[robot_tf_to_pose]
-    ))    
+    ))  
 
     return ld

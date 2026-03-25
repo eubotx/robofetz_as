@@ -53,10 +53,8 @@ setup(
             'detection_transformation_2D_3D_node = arena_perception.detection_transformation_2D_3D_node:main',
             'static_tf_test = arena_perception.static_tf_test:main',
             'minimal_tf_test = arena_perception.minimal_tf_test:main',
-            'roi_masking_node = arena_perception.roi_masking_node:main'
+            'roi_mask_node = arena_perception.roi_mask_node:main',
             'opponent_det_MOG2multiple = arena_perception.opponent_det_MOG2multiple:main',
-            'opponent_det_ColorSingle = arena_perception.opponent_det_ColorSingle:main',
-            'opponent_det_ContourSingle = arena_perception.opponent_det_ContourSingle:main',
             'detection_transformation_2D_3D = arena_perception.detection_transformation_2D_3D:main',
             'opponent_tracker_node = arena_perception.opponent_tracker_node:main',
             'detection_2d_to_3d_node = arena_perception.detection_2d_to_3d_node:main',
