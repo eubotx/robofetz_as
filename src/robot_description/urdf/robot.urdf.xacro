@@ -31,6 +31,14 @@
     <xacro:property name="tag_mass" value="0.01" />
     <xacro:property name="tag_offset_y" value="0.0" />
 
+    <!-- Weapon properties -->
+    <xacro:property name="weapon_length" value="0.060" />   
+    <xacro:property name="weapon_width" value="0.124" />  
+    <xacro:property name="weapon_height" value="0.010" />  
+    <xacro:property name="weapon_offset_x" value="0.08495" />
+    <xacro:property name="weapon_mass" value="0.1" />       <!-- Mass of weapon (kg) -->
+    <xacro:property name="weapon_density" value="1430.0" /> <!-- Material density -->
+
     <xacro:property name="s1" value="${r}" />
     <xacro:property name="s2" value="${wheel_offset_x}" />
     <xacro:property name="s4" value="${c/2.0+wheel_offset_y}" />
@@ -54,12 +62,14 @@
     <xacro:property name="d2" value="1430.0" />
     <xacro:property name="d3" value="1430.0" />
     <xacro:property name="d4" value="1430.0" />  <!-- Density for caster balls -->
+    <xacro:property name="d5" value="${weapon_density}" /> <!-- Density for weapon -->
 
     <!-- Mass -->
     <xacro:property name="m1" value="${d1*a*b*c}" />
     <xacro:property name="m2" value="${d2*pi_const*r*r*d}" />
     <xacro:property name="m3" value="${d3*support_width*support_depth*support_height}" />
     <xacro:property name="m4" value="${d4 * (4.0/3.0) * pi_const * caster_radius * caster_radius * caster_radius}" /> <!-- Mass of caster ball -->
+    <xacro:property name="m5" value="${d5*weapon_length*weapon_width*weapon_height}" /> <!-- Mass of weapon -->
 
     <!-- Inertia -->
     <xacro:property name="Ix_body" value="${(1.0/12.0)*m1*(b*b+c*c)}" />
@@ -75,6 +85,11 @@
     
     <!-- Inertia for caster ball (solid sphere) -->
     <xacro:property name="I_caster" value="${(2.0/5.0)*m4*caster_radius*caster_radius}" />
+    
+    <!-- Inertia for weapon (rectangular box) -->
+    <xacro:property name="Ix_weapon" value="${(1.0/12.0)*m5*(weapon_width*weapon_width + weapon_height*weapon_height)}" />
+    <xacro:property name="Iy_weapon" value="${(1.0/12.0)*m5*(weapon_length*weapon_length + weapon_height*weapon_height)}" />
+    <xacro:property name="Iz_weapon" value="${(1.0/12.0)*m5*(weapon_length*weapon_length + weapon_width*weapon_width)}" />
 
     <!-- Complete inertia macros -->
     <xacro:macro name="inertia_body">
@@ -106,6 +121,14 @@
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <mass value="${m4}"/>
             <inertia ixx="${I_caster}" ixy="0.0" ixz="0.0" iyy="${I_caster}" iyz="0.0" izz="${I_caster}" />
+        </inertial>
+    </xacro:macro>
+
+    <xacro:macro name="inertia_weapon">
+        <inertial>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <mass value="${m5}"/>
+            <inertia ixx="${Ix_weapon}" ixy="0.0" ixz="0.0" iyy="${Iy_weapon}" iyz="0.0" izz="${Iz_weapon}" />
         </inertial>
     </xacro:macro>
 
@@ -143,6 +166,25 @@
             <origin rpy="0 0 0" xyz="0 0 ${s1}"/>
         </collision>
         <xacro:inertia_body/>
+    </link>
+
+    <!-- Weapon Link -->
+    <joint name="weapon_joint" type="fixed">
+        <parent link="body_link"/>
+        <child link="weapon_link"/>
+        <origin xyz="${weapon_offset_x} 0 ${s1}" rpy="0 0 0"/>
+    </joint>
+    <link name="weapon_link">
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry><box size="${weapon_length} ${weapon_width} ${weapon_height}"/></geometry>
+            <material name="Red"><color rgba="1 0 0 1"/></material>
+        </visual>
+        <collision>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry><box size="${weapon_length} ${weapon_width} ${weapon_height}"/></geometry>
+        </collision>
+        <xacro:inertia_weapon/>
     </link>
 
     <!-- Top AprilTag -->
