@@ -16,7 +16,7 @@ import threading
 class OpponentDetColorSingle(Node):
     """
     Opponent detector using color-based tracking.
-    Detects a single opponent with persistent ID (opponent_0 format).
+    Detects a single opponent.
     Supports both parameter-based color selection and interactive clicking.
     Parameters are loaded from the pipeline config file.
     """
@@ -29,83 +29,77 @@ class OpponentDetColorSingle(Node):
             namespace='',
             parameters=[
                 # Global settings
-                ('opponent_det_pipeline.global.camera_frame', 'arena_camera_optical'),
-                ('opponent_det_pipeline.global.robot_frame', 'robot_base'),
+                ('camera_frame', 'arena_camera_optical'),
                 
                 # Color detector specific parameters
-                ('opponent_det_pipeline.detection_sources.color.enabled', True),
-                ('opponent_det_pipeline.detection_sources.color.input_topic', '/arena_camera/image_rect_masked'),
-                ('opponent_det_pipeline.detection_sources.color.topic_2d', '/detections_2d/color'),
-                ('opponent_det_pipeline.detection_sources.color.topic_viz', '/debug/color_point'),
-                ('opponent_det_pipeline.detection_sources.color.use_masked_image', True),
+                ('enabled', True),
+                ('input_topic', '/arena_camera/image_rect'),
+                ('topic_2d', '/detections_2d/color'),
+                ('topic_viz', '/debug/color_point'),
                 
                 # Color ranges (HSV format)
-                ('opponent_det_pipeline.detection_sources.color.hue_min', 0),
-                ('opponent_det_pipeline.detection_sources.color.hue_max', 179),
-                ('opponent_det_pipeline.detection_sources.color.sat_min', 50),
-                ('opponent_det_pipeline.detection_sources.color.sat_max', 255),
-                ('opponent_det_pipeline.detection_sources.color.val_min', 50),
-                ('opponent_det_pipeline.detection_sources.color.val_max', 255),
+                ('hue_min', 0),
+                ('hue_max', 179),
+                ('sat_min', 50),
+                ('sat_max', 255),
+                ('val_min', 50),
+                ('val_max', 255),
                 
                 # Detection parameters
-                ('opponent_det_pipeline.detection_sources.color.min_contour_area', 200),
-                ('opponent_det_pipeline.detection_sources.color.max_contour_area', 8000),
-                ('opponent_det_pipeline.detection_sources.color.ignore_radius_px', 60),
-                ('opponent_det_pipeline.detection_sources.color.shadow_expansion_factor', 1.0),
+                ('min_contour_area', 200),
+                ('max_contour_area', 8000),
+                ('ignore_radius_px', 60),
+                ('shadow_expansion_factor', 1.0),
                 
                 # Color selection mode
-                ('opponent_det_pipeline.detection_sources.color.interactive_selection', True),
-                ('opponent_det_pipeline.detection_sources.color.selection_window_name', 'Color Selector - Click on opponent'),
+                ('interactive_selection', True),
+                ('selection_window_name', 'Color Selector - Click on opponent'),
                 
                 # Tracking parameters
-                ('opponent_det_pipeline.detection_sources.color.stationary_timeout', 2.0),
-                ('opponent_det_pipeline.detection_sources.color.match_distance', 100),
+                ('stationary_timeout', 2.0),
                 
                 # Debug
-                ('opponent_det_pipeline.detection_sources.color.debug', True),
+                ('debug', True),
             ]
         )
         
         # Check if this source is enabled
-        self.enabled = self.get_parameter('opponent_det_pipeline.detection_sources.color.enabled').value
+        self.enabled = self.get_parameter('enabled').value
         if not self.enabled:
             self.get_logger().info("Color detector is disabled in config, node will not process images")
             return
         
         # Get global frames
-        self.camera_frame = self.get_parameter('opponent_det_pipeline.global.camera_frame').value
-        self.robot_frame = self.get_parameter('opponent_det_pipeline.global.robot_frame').value
+        self.camera_frame = self.get_parameter('camera_frame').value
         
         # Get topics
-        self.input_topic = self.get_parameter('opponent_det_pipeline.detection_sources.color.input_topic').value
-        self.topic_2d = self.get_parameter('opponent_det_pipeline.detection_sources.color.topic_2d').value
-        self.topic_viz = self.get_parameter('opponent_det_pipeline.detection_sources.color.topic_viz').value
-        self.use_masked = self.get_parameter('opponent_det_pipeline.detection_sources.color.use_masked_image').value
+        self.input_topic = self.get_parameter('input_topic').value
+        self.topic_2d = self.get_parameter('topic_2d').value
+        self.topic_viz = self.get_parameter('topic_viz').value
         
         # Get color ranges
-        self.hue_min = self.get_parameter('opponent_det_pipeline.detection_sources.color.hue_min').value
-        self.hue_max = self.get_parameter('opponent_det_pipeline.detection_sources.color.hue_max').value
-        self.sat_min = self.get_parameter('opponent_det_pipeline.detection_sources.color.sat_min').value
-        self.sat_max = self.get_parameter('opponent_det_pipeline.detection_sources.color.sat_max').value
-        self.val_min = self.get_parameter('opponent_det_pipeline.detection_sources.color.val_min').value
-        self.val_max = self.get_parameter('opponent_det_pipeline.detection_sources.color.val_max').value
+        self.hue_min = self.get_parameter('hue_min').value
+        self.hue_max = self.get_parameter('hue_max').value
+        self.sat_min = self.get_parameter('sat_min').value
+        self.sat_max = self.get_parameter('sat_max').value
+        self.val_min = self.get_parameter('val_min').value
+        self.val_max = self.get_parameter('val_max').value
         
         # Get detection parameters
-        self.min_contour_area = self.get_parameter('opponent_det_pipeline.detection_sources.color.min_contour_area').value
-        self.max_contour_area = self.get_parameter('opponent_det_pipeline.detection_sources.color.max_contour_area').value
-        self.ignore_radius_px = self.get_parameter('opponent_det_pipeline.detection_sources.color.ignore_radius_px').value
-        self.shadow_expansion_factor = self.get_parameter('opponent_det_pipeline.detection_sources.color.shadow_expansion_factor').value
+        self.min_contour_area = self.get_parameter('min_contour_area').value
+        self.max_contour_area = self.get_parameter('max_contour_area').value
+        self.ignore_radius_px = self.get_parameter('ignore_radius_px').value
+        self.shadow_expansion_factor = self.get_parameter('shadow_expansion_factor').value
         
         # Get selection mode parameters
-        self.interactive_mode = self.get_parameter('opponent_det_pipeline.detection_sources.color.interactive_selection').value
-        self.selection_window_name = self.get_parameter('opponent_det_pipeline.detection_sources.color.selection_window_name').value
+        self.interactive_mode = self.get_parameter('interactive_selection').value
+        self.selection_window_name = self.get_parameter('selection_window_name').value
         
         # Get tracking parameters
-        self.stationary_timeout = self.get_parameter('opponent_det_pipeline.detection_sources.color.stationary_timeout').value
-        self.match_distance = self.get_parameter('opponent_det_pipeline.detection_sources.color.match_distance').value
+        self.stationary_timeout = self.get_parameter('stationary_timeout').value
         
         # Get debug parameter
-        self.debug = self.get_parameter('opponent_det_pipeline.detection_sources.color.debug').value
+        self.debug = self.get_parameter('debug').value
 
         # =================== INIT ===================
         self.bridge = CvBridge()
@@ -134,7 +128,6 @@ class OpponentDetColorSingle(Node):
         self.lock = threading.Lock()
         
         # Tracking variables
-        self.opponent_id = 'color_0'  # Fixed ID for single opponent
         self.last_position = None
         self.last_seen = None
         self.stationary = False
@@ -178,7 +171,6 @@ class OpponentDetColorSingle(Node):
 
         self.get_logger().info("OpponentDetColorSingle initialized")
         self.get_logger().info(f"Input topic: {self.input_topic}, Output topic: {self.topic_2d}")
-        self.get_logger().info(f"Using masked image: {self.use_masked}")
         
         if self.interactive_mode:
             self.get_logger().info("Interactive mode: Click on opponent in video window to select color")
@@ -388,8 +380,9 @@ class OpponentDetColorSingle(Node):
                 detection.bbox.size_x = float(w)
                 detection.bbox.size_y = float(h)
                 
+                # Create ObjectHypothesisWithPose
                 hypothesis = ObjectHypothesisWithPose()
-                hypothesis.hypothesis.class_id = f"opponent_{self.opponent_id}"
+                hypothesis.hypothesis.class_id = "opponent"
                 hypothesis.hypothesis.score = 1.0
                 
                 detection.results = [hypothesis]
@@ -441,8 +434,7 @@ class OpponentDetColorSingle(Node):
             cv2.rectangle(debug, (x, y), (x+w, y+h), (0, 255, 0), 2)
             cv2.circle(debug, pixel_pos, 5, (0, 0, 255), -1)
             
-            mask_text = " (masked)" if self.use_masked else ""
-            cv2.putText(debug, f"opponent_0{mask_text}", (x, y - 5), 
+            cv2.putText(debug, "opponent", (x, y - 5), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         
         # Draw stationary opponent
@@ -455,8 +447,7 @@ class OpponentDetColorSingle(Node):
                     cx, cy = self.last_position
                     color = (128, 128, 128)  # Gray for stationary
                     cv2.circle(debug, (int(cx), int(cy)), 10, color, 2)
-                    mask_text = " (masked)" if self.use_masked else ""
-                    cv2.putText(debug, f"opponent_0 (stationary){mask_text}", 
+                    cv2.putText(debug, "opponent (stationary)", 
                                (int(cx) - 40, int(cy) - 15), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
@@ -464,20 +455,17 @@ class OpponentDetColorSingle(Node):
         cv2.putText(debug, "opponent_det_ColorSingle", (10, 30), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
         
-        # Show if using masked images
-        if self.use_masked:
-            cv2.putText(debug, "Using ROI Masked Images", (10, 90),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        # (Masked images check removed)
         
         if contour is None:
             if self.stationary and self.last_position is not None:
-                cv2.putText(debug, f"Opponent stationary (ID: {self.opponent_id})", (10, 60), 
+                cv2.putText(debug, "Opponent stationary", (10, 60), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (128, 128, 128), 2)
             else:
                 cv2.putText(debug, "No opponent detected", (10, 60), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         else:
-            cv2.putText(debug, "Opponent detected! (ID: opponent_0)", (10, 60), 
+            cv2.putText(debug, "Opponent detected!", (10, 60), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
         out_msg = self.bridge.cv2_to_imgmsg(debug, "bgr8")

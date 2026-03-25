@@ -6,13 +6,10 @@ from rclpy.node import Node
 import numpy as np
 from filterpy.kalman import KalmanFilter
 import threading
-import os
 
 from vision_msgs.msg import Detection3DArray
 from geometry_msgs.msg import TransformStamped
 from tf2_ros import TransformBroadcaster
-
-from .param_loader import ParamLoader
 
 
 class TrackedObject:
@@ -127,40 +124,57 @@ class SingleOpponentKalmanFilter(Node):
 
         super().__init__('detection_kalman_filter')
 
-        package_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        config_path = os.path.join(package_dir, 'config', 'opponent_det_pipeline_config.yaml')
-
-        self.param_loader = ParamLoader(self, config_path)
-
-        self.detection_sources = self.param_loader.get_param(
-            'opponent_det_pipeline',
-            'detection_sources',
-            default={}
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('target_frame', 'world'),
+                ('opponent_frame', 'opponent'),
+                ('update_rate', 20.0),
+                ('input_topics', ['']),
+                ('measurement_noises', [0.0]),
+                ('process_noise_position', 0.05),
+                ('process_noise_velocity', 0.5),
+                ('initial_covariance_position', 0.2),
+                ('initial_covariance_velocity', 50.0),
+                ('max_gate_distance', 1.5),
+                ('max_missed_detections', 15),
+                ('vel_threshold_low', 0.02),
+                ('vel_threshold_high', 0.08),
+                ('smoothing_factor', 0.5),
+                ('min_confidence_to_update', 0.1),
+                ('default_orientation', [0.0, 0.0, 0.0, 1.0])
+            ]
         )
 
-        self.kf_params = self.param_loader.get_param(
-            'opponent_det_pipeline',
-            'kalman_filter',
-            default={}
-        )
-
-        self.used_sources = self.kf_params.get("used_sources", [])
-
-        self.measurement_noise = self.kf_params.get("measurement_noise", {})
+        self.target_frame = self.get_parameter('target_frame').value
+        self.child_frame = self.get_parameter('opponent_frame').value
+        
+        # Build kf_params dict to match what TrackedObject expects
+        self.kf_params = {
+            'process_noise': {
+                'position': self.get_parameter('process_noise_position').value,
+                'velocity': self.get_parameter('process_noise_velocity').value
+            },
+            'initial_covariance': {
+                'position': self.get_parameter('initial_covariance_position').value,
+                'velocity': self.get_parameter('initial_covariance_velocity').value
+            },
+            'orientation': {
+                'default_orientation': self.get_parameter('default_orientation').value
+            }
+        }
 
         # Association parameters
-        assoc_params = self.kf_params.get("association", {})
-        self.max_gate = assoc_params.get("max_gate_distance", 1.5)
-        self.max_missed = assoc_params.get("max_missed_detections", 15)
+        self.max_gate = self.get_parameter('max_gate_distance').value
+        self.max_missed = self.get_parameter('max_missed_detections').value
 
         # Orientation parameters
-        orientation_params = self.kf_params.get("orientation", {})
-        self.vel_threshold_low = orientation_params.get("vel_threshold_low", 0.02)
-        self.vel_threshold_high = orientation_params.get("vel_threshold_high", 0.08)
-        self.orientation_smoothing_factor = orientation_params.get("smoothing_factor", 0.5)  # Increased for faster response
-        self.min_confidence_to_update = orientation_params.get("min_confidence_to_update", 0.1)  # Lowered to update more easily
+        self.vel_threshold_low = self.get_parameter('vel_threshold_low').value
+        self.vel_threshold_high = self.get_parameter('vel_threshold_high').value
+        self.orientation_smoothing_factor = self.get_parameter('smoothing_factor').value
+        self.min_confidence_to_update = self.get_parameter('min_confidence_to_update').value
         
-        default_orient = orientation_params.get("default_orientation", [0.0, 0.0, 0.0, 1.0])
+        default_orient = self.get_parameter('default_orientation').value
         self.last_valid_orientation = tuple(default_orient)
         self.current_orientation = tuple(default_orient)
         
@@ -168,36 +182,28 @@ class SingleOpponentKalmanFilter(Node):
         self.last_confidence = 0.0
 
         # Update rate
-        update_rate = self.kf_params.get("update_rate", 20.0)
+        update_rate = self.get_parameter('update_rate').value
         timer_period = 1.0 / update_rate
 
         self.track = None
 
         self.lock = threading.Lock()
 
-        self.target_frame = self.param_loader.get_param(
-            'opponent_det_pipeline',
-            'global.target_frame',
-            default="world"
-        )
-        
-        self.child_frame = self.kf_params.get("opponent_frame", "opponent_0")
-
         self.tf_broadcaster = TransformBroadcaster(self)
 
         self.subscribers = []
+        self.measurement_noise = {}
 
-        for src in self.used_sources:
+        input_topics = self.get_parameter('input_topics').value
+        measurement_noises = self.get_parameter('measurement_noises').value
 
-            if src not in self.detection_sources:
-                self.get_logger().warn(f"Source {src} not found in detection_sources")
-                continue
-
-            topic = self.detection_sources[src].get("topic_3d")
-
-            if not topic:
-                self.get_logger().warn(f"No topic_3d for source {src}")
-                continue
+        for i, topic in enumerate(input_topics):
+            src_name = f"source_{i}"
+            
+            if i < len(measurement_noises):
+                self.measurement_noise[src_name] = measurement_noises[i]
+            else:
+                self.measurement_noise[src_name] = 0.05
 
             def make_cb(name):
                 return lambda msg: self.detection_callback(msg, name)
@@ -206,12 +212,11 @@ class SingleOpponentKalmanFilter(Node):
                 self.create_subscription(
                     Detection3DArray,
                     topic,
-                    make_cb(src),
+                    make_cb(src_name),
                     10
                 )
             )
-
-            self.get_logger().info(f"Subscribed to {topic}")
+            self.get_logger().info(f"Subscribed to {topic} as {src_name} with noise {self.measurement_noise[src_name]}")
 
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
