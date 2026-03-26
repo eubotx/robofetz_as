@@ -852,6 +852,9 @@ void loop() {
 
     // 1. Funkdaten empfangen und Ziele setzen
     transceiver.update(robot);
+    Serial.println("Speed received:");
+    Serial.println(leftWheel.getDesiredWheelSpeed());
+    Serial.println(rightWheel.getDesiredWheelSpeed());
     
     // 2. Waffengeschwindigkeit setzen (aus dem transceiver Cache)
     weapon.setWeaponSpeed(transceiver.getWeaponSpeed());
