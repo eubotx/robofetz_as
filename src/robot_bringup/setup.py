@@ -35,6 +35,7 @@ setup(
     entry_points={
         'console_scripts': [
             'keyboard_node = robot_bringup.keyboard_node:main',
+            'radio_bridge_node = robot_bringup.transmitter:main',
         ],
     },
 )
