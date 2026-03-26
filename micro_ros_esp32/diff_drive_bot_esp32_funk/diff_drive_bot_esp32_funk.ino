@@ -1,21 +1,7 @@
 #include <stdio.h>
-// #include <rcl/rcl.h>
-// #include <rcl/error_handling.h>
-// #include <rclc/rclc.h>
-// #include <rclc/executor.h>
-// #include <std_msgs/msg/int32.h>
-// #include <std_msgs/msg/float32.h>
-// #include <std_msgs/msg/float64_multi_array.h>
-// #include <geometry_msgs/msg/twist.h>
-// #include <sensor_msgs/msg/joint_state.h>
 #include <ESP32Encoder.h>
 #include <algorithm> // For std::sort
 #include <HardwareSerial.h>
-
-// Debug macros (uncomment to enable)
-#define DEBUG_DRIVE_LEFT    // Enable left debug topic
-#define DEBUG_DRIVE_RIGHT   // Enable right debug topic
-//#define DEBUG_LOOPTIME             // Enable loop time debug topic
 
 
 // Robot parameters
@@ -38,14 +24,6 @@ double KI = 3.0;
 double KD = 0.0;
 double KI_MAX = 20.0;
 
-// WiFi configuration
-// //constexpr const char* MY_IP = "192.168.8.171"; // Bjoern Gelb DO NOT DELETE
-// constexpr const char* MY_IP = "192.168.8.204"; // Flo Gelb DO NOT DELETE
-// //constexpr const char* MY_IP = "192.168.8.231"; // Dario Gelb DO NOT DELETE
-// constexpr const char* MY_SSID = "GL-MT300N-V2-7d8";
-// constexpr const char* MY_PASSWORD = "goodlife";
-// constexpr int MY_PORT = 8888;
-
 // Pin definitions
 constexpr int LEFT_ENCODER_C2_PIN = 19;
 constexpr int LEFT_ENCODER_C1_PIN = 18;
@@ -65,50 +43,9 @@ constexpr int MOTORDRIVER_STBY_PIN = 33;
 constexpr int MOTORDRIVER_WEAPON_PIN = 23;
 
 
-// Funkmodul Pins (Neu/Angepasst)
-constexpr int HC12_RX_PIN = 22; // Physikalisch 39
-constexpr int HC12_TX_PIN = 21; // Physikalisch 42
+constexpr int HC12_RX_PIN = 22;
+constexpr int HC12_TX_PIN = 21;
 constexpr int HC12_SET_PIN = 15;
-
-
-// 4 Floating
-
-
-// ROS2 entities
-
-#ifdef DEBUG_DRIVE_LEFT
-// rcl_publisher_t debugDriveLeftPublisher;
-// std_msgs__msg__Float64MultiArray debugMotorcontrolLeftMsg;
-// #endif
-
-// #ifdef DEBUG_DRIVE_RIGHT
-// rcl_publisher_t debugDriveRightPublisher; 
-// std_msgs__msg__Float64MultiArray debugMotorcontrolRightMsg;
-#endif
-
-#ifdef DEBUG_LOOPTIME
-rcl_publisher_t debugLooptimePublisher;
-// std_msgs__msg__Float64MultiArray debugLooptimeMsg;
-#endif
-
-// rcl_subscription_t twistSubscriber;
-// rcl_subscription_t pidTuningSubscriber;
-// rcl_subscription_t weaponSpeedSubscriber;
-// std_msgs__msg__Float64MultiArray pidTuningMsg;
-// geometry_msgs__msg__Twist twistMsg;
-// std_msgs__msg__Float32 weaponSpeedMsg;
-// rclc_executor_t executor;
-// rclc_support_t support;
-// rcl_allocator_t allocator;
-// rcl_node_t node;
-// rcl_timer_t timer;
-// rcl_publisher_t jointStatePublisher;
-// sensor_msgs__msg__JointState jointStateMsg;
-
-
-// Error handling macros
-// #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if (temp_rc != RCL_RET_OK) {} }
-#define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if (temp_rc != RCL_RET_OK) {} }
 
 // Encoder class
 class Encoder {
@@ -207,9 +144,9 @@ public:
         // Configure LEDC channel
         
         
-        // ledcSetup(channel, freq, resolution);
-        // ledcAttachPin(pin3, channel);
-        ledcAttach(pin3,  freq, resolution);
+        ledcSetup(channel, freq, resolution);
+        ledcAttachPin(pin3, channel);
+        // ledcAttach(pin3,  freq, resolution);
     }
 
     void update() {
@@ -433,21 +370,19 @@ public:
 
     void init() {
         // Configure PWM with LEDC
-        // ledcSetup(channel, freq, resolution);
-        // ledcAttachPin(pinPwm, channel);
-        ledcAttach(pinPwm, freq, resolution);
+        ledcSetup(channel, freq, resolution);
+        ledcAttachPin(pinPwm, channel);
+        // ledcAttach(pinPwm, freq, resolution);
         // Execute arming sequence
         performArmingSequence();
     }
 
     void update() {
-        // ledcWrite(channel, motorControllerDutyCycle);
-        ledcWrite(pinPwm, motorControllerDutyCycle);
+        ledcWrite(channel, motorControllerDutyCycle);
     }
 
     void stop() {
-        // ledcWrite(channel, PWM_MIN);  // Send minimum throttle
-        ledcWrite(pinPwm, PWM_MIN);  // Send minimum throttle
+        ledcWrite(channel, PWM_MIN);  // Send minimum throttle
 
     }
 
@@ -548,7 +483,7 @@ public:
         _serial.begin(baud, SERIAL_8N1, rx, tx);
     }
 
-    void update(RobotControl& robot) {
+    void update() {
         if (_serial.available() > 0) {
             String input = _serial.readStringUntil('\n');
             input.trim();
@@ -558,54 +493,35 @@ public:
                 String data = input.substring(4);
                 int commaIndex = data.indexOf(',');
                 if (commaIndex != -1) {
-                    float lin = data.substring(0, commaIndex).toFloat();
-                    float ang = data.substring(commaIndex + 1).toFloat();
-                    robot.calculateAndSetWheelSpeeds(lin, ang);
-                    
-                    // Debugging am PC
-                    Serial.print("Radio CMD -> Lin: "); Serial.print(lin);
-                    Serial.print(" Ang: "); Serial.println(ang);
+                    _vel_lin = data.substring(0, commaIndex).toFloat();
+                    _vel_ang = data.substring(commaIndex + 1).toFloat();
+                    _newDataAvailable = true;
                 }
             } 
             else if (input.startsWith("WPN:")) {
-                float speed = input.substring(4).toFloat();
-                // Hier brauchen wir Zugriff auf das Weapon Objekt
-                // Da RobotControl die Weapon kapselt, fügen wir dort eine Methode hinzu oder greifen direkt zu
-                _lastWeaponSpeed = speed; 
-                Serial.print("Radio WPN -> "); Serial.println(speed);
+                _weapon_speed = input.substring(4).toFloat();
+                _newDataAvailable = true;
             }
         }
     }
 
-    float getWeaponSpeed() const { return _lastWeaponSpeed; }
+    // Getters
+    float getVelLin() const { return _vel_lin; }
+    float getVelAng() const { return _vel_ang; }
+    float getWeaponSpeed() const { return _weapon_speed; }
+    bool isNewDataAvailable() const { return _newDataAvailable; }
+    
+    // Reset the flag after reading
+    void resetNewDataFlag() { _newDataAvailable = false; }
 
 private:
     HardwareSerial& _serial;
     int _setPin;
-    float _lastWeaponSpeed = 0.0;
+    float _vel_lin = 0.0;
+    float _vel_ang = 0.0;
+    float _weapon_speed = 0.0;
+    bool _newDataAvailable = false;
 };
-
-
-
-#ifdef DEBUG_LOOPTIME
-// Loop time variables
-constexpr int LOOPTIME_WINDOW_SIZE = 10; // Number of cycles to track
-unsigned long loopTimes[LOOPTIME_WINDOW_SIZE] = {0}; // Array to store loop times
-int loopTimeIndex = 0; // Index for the current loop time
-unsigned long lastLoopTime = 0; // Time of the last loop iteration
-
-
-// // Function to calculate loop time statistics
-// void collectLooptime() {
-//     unsigned long currentTime = micros();
-//     unsigned long loopTime = currentTime - lastLoopTime;
-//     lastLoopTime = currentTime;
-
-//     // Store the current loop time in the array
-//     loopTimes[loopTimeIndex] = loopTime;
-//     loopTimeIndex = (loopTimeIndex + 1) % LOOPTIME_WINDOW_SIZE;
-// }
-#endif
 
 
 // Initilize HC12 Communication
@@ -639,232 +555,24 @@ Weapon weapon(MOTORDRIVER_WEAPON_PIN, 14);
 // Initialize robot control
 RobotControl robot(leftWheel, rightWheel, weapon, WHEEL_DIAMETER, WHEEL_DISTANCE);
 
-
-
-
-
-// // Timer callback
-// void timer_callback(rcl_timer_t* timer, int64_t last_call_time) {
-//     RCLC_UNUSED(last_call_time);
-//     if (timer != NULL) {
-		
-// 		// ---------------- JOINT STATE PUBLISHER ----------------
-// 		jointStateMsg.header.stamp.sec = millis() / 1000;
-// 		jointStateMsg.header.stamp.nanosec = (millis() % 1000) * 1000000;
-
-// 		// Wheel angular position in radians
-// 		jointStateMsg.position.data[0] = leftWheel.getAngularPosition() * 2.0 * M_PI;
-// 		jointStateMsg.position.data[1] = rightWheel.getAngularPosition() * 2.0 * M_PI;
-
-// 		// Wheel speed in rad/s
-// 		jointStateMsg.velocity.data[0] = leftWheel.getMeasuredWheelSpeed() * 2.0 * M_PI;
-// 		jointStateMsg.velocity.data[1] = rightWheel.getMeasuredWheelSpeed() * 2.0 * M_PI;
-
-// 		// Effort: publish PWM duty cycle (optional)
-// 		jointStateMsg.effort.data[0] = leftMotorDriver.getMotorDutyCycle();
-// 		jointStateMsg.effort.data[1] = rightMotorDriver.getMotorDutyCycle();
-
-// 		RCSOFTCHECK(rcl_publish(&jointStatePublisher, &jointStateMsg, NULL));
-
-// #ifdef DEBUG_DRIVE_LEFT
-//         // Publish left debug information (PID + PWM)
-//         debugMotorcontrolLeftMsg.data.data[0] = leftMotor.getDesiredMotorSpeed();  // Desired value
-//         debugMotorcontrolLeftMsg.data.data[1] = leftMotor.getMeasuredMotorSpeed(); // Measured value
-//         debugMotorcontrolLeftMsg.data.data[2] = leftMotor.getDesiredMotorSpeed() - leftMotor.getMeasuredMotorSpeed(); // Error
-//         debugMotorcontrolLeftMsg.data.data[3] = leftMotorDriver.getMotorDutyCycle(); // PWM duty cycle
-//         RCSOFTCHECK(rcl_publish(&debugDriveLeftPublisher, &debugMotorcontrolLeftMsg, NULL));
-// #endif
-
-// #ifdef DEBUG_DRIVE_RIGHT
-//         // Publish right debug information (PID + PWM)
-//         debugMotorcontrolRightMsg.data.data[0] = rightMotor.getDesiredMotorSpeed();  // Desired value
-//         debugMotorcontrolRightMsg.data.data[1] = rightMotor.getMeasuredMotorSpeed(); // Measured value
-//         debugMotorcontrolRightMsg.data.data[2] = rightMotor.getDesiredMotorSpeed() - rightMotor.getMeasuredMotorSpeed(); // Error
-//         debugMotorcontrolRightMsg.data.data[3] = rightMotorDriver.getMotorDutyCycle(); // PWM duty cycle
-//         RCSOFTCHECK(rcl_publish(&debugDriveRightPublisher, &debugMotorcontrolRightMsg, NULL));
-// #endif
-
-// #ifdef DEBUG_LOOPTIME
-//         // Calculate statistics
-//         unsigned long sortedLoopTimes[LOOPTIME_WINDOW_SIZE];
-//         memcpy(sortedLoopTimes, loopTimes, sizeof(loopTimes));
-//         std::sort(sortedLoopTimes, sortedLoopTimes + LOOPTIME_WINDOW_SIZE);
-
-//         unsigned long minLoopTime = sortedLoopTimes[0];
-//         unsigned long maxLoopTime = sortedLoopTimes[LOOPTIME_WINDOW_SIZE - 1];
-//         unsigned long medianLoopTime = sortedLoopTimes[LOOPTIME_WINDOW_SIZE / 2];
-        
-//         // Publish loop time statistics
-        
-//         debugLooptimeMsg.data.data[0] = medianLoopTime;  // Median
-//         debugLooptimeMsg.data.data[1] = minLoopTime;     // Minrclc_subscription_init_default
-//         debugLooptimeMsg.data.data[2] = maxLoopTime;     // Max
-//         RCSOFTCHECK(rcl_publish(&debugLooptimePublisher, &debugLooptimeMsg, NULL));
-// #endif
-
-//     }
-// }
-
-// // Twist message callback
-// void cmd_vel_callback(const void* msgin) {
-//     const geometry_msgs__msg__Twist* msg = (const geometry_msgs__msg__Twist*)msgin;
-//     robot.calculateAndSetWheelSpeeds(msg->linear.x, msg->angular.z);
-// }
-
-// // PID tuning callback
-// void pid_tuning_callback(const void* msgin) {
-//     const std_msgs__msg__Float64MultiArray* msg = (const std_msgs__msg__Float64MultiArray*)msgin;
-
-//     // Ensure the message contains exactly 4 values (Kp, Ki, Kd, KiMax)
-    
-//     if (msg->data.size == 4) {
-//         double Kp = msg->data.data[0];
-//         double Ki = msg->data.data[1];
-//         double Kd = msg->data.data[2];
-//         double KiMax = msg->data.data[3];
-
-//         // Update PID parameters for both left and right controllers
-//         leftPid.setPidValues(Kp, Ki, Kd, KiMax);
-//         rightPid.setPidValues(Kp, Ki, Kd, KiMax);
-//     }
-// }
-
-
-// PID tuning callback
-// void weapon_speed_callback(const void* msgin) {
-//     const std_msgs__msg__Float32* msg = (const std_msgs__msg__Float32*)msgin;
-
-//     double weaponSpeed = msg->data;
-
-//     weapon.setWeaponSpeed(weaponSpeed);
-// }
-
-
 void setup() {
-    // set_microros_wifi_transports((char*)MY_SSID, (char*)MY_PASSWORD, (char*)MY_IP, MY_PORT);
-
-    // Serieller Monitor für lokales Debugging
-    Serial.begin(115200);
-
     pinMode(MOTORDRIVER_STBY_PIN, OUTPUT);
     digitalWrite(MOTORDRIVER_STBY_PIN, HIGH);
     robot.init();
     transceiver.init(9600, HC12_RX_PIN, HC12_TX_PIN);
-    Serial.println("Robot Ready. Listening for HC-12 Commands...");
-
-    // allocator = rcl_get_default_allocator();
-    // RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
-    // RCCHECK(rclc_node_init_default(&node, "diff_drive_bot_esp32", "", &support));
-    // RCCHECK(rclc_subscription_init_default(&twistSubscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel"));  //TODO change to best effort?
-    // RCCHECK(rclc_subscription_init_default(&pidTuningSubscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray), "drive/pid_tuning"));  //TODO change to parameter?
-    // RCCHECK(rclc_subscription_init_default(&weaponSpeedSubscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), "weapon/speed"));
-    // pidTuningMsg.data.capacity = 4;  // 4 values for the left and right PID tuning (Kp, Ki, Kd, KiMax)
-    // pidTuningMsg.data.size = 4;      // 8 values total (4 for left, 4 for right)
-    // pidTuningMsg.data.data = (double*)malloc(4 * sizeof(double)); // Allocate memory for 8 values
-    // weaponSpeedMsg.data = 0.0;  // 1 value
-  	
-  	// Joint state publisher
-//   RCCHECK(rclc_publisher_init_best_effort(
-//       &jointStatePublisher,
-//       &node,
-//       ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, JointState),
-//       "joint_states"
-//   ));
-  
-  // Setup JointState message memory - following your existing pattern
-//   jointStateMsg.name.capacity = 2;
-//   jointStateMsg.name.size = 2;
-//   jointStateMsg.name.data = (rosidl_runtime_c__String*)malloc(2 * sizeof(rosidl_runtime_c__String));
-  
-  // Initialize strings manually
-//   jointStateMsg.name.data[0].data = (char*)"left_wheel_joint";
-//   jointStateMsg.name.data[0].size = strlen("left_wheel_joint");
-//   jointStateMsg.name.data[0].capacity = jointStateMsg.name.data[0].size + 1;
-  
-//   jointStateMsg.name.data[1].data = (char*)"right_wheel_joint";
-//   jointStateMsg.name.data[1].size = strlen("right_wheel_joint");
-//   jointStateMsg.name.data[1].capacity = jointStateMsg.name.data[1].size + 1;
-  
-  // Allocate positions, velocities, efforts (like you do for pidTuningMsg)
-//   jointStateMsg.position.capacity = 2;
-//   jointStateMsg.position.size = 2;
-//   jointStateMsg.position.data = (double*)malloc(2 * sizeof(double));
-  
-//   jointStateMsg.velocity.capacity = 2;
-//   jointStateMsg.velocity.size = 2;
-//   jointStateMsg.velocity.data = (double*)malloc(2 * sizeof(double));
-  
-//   jointStateMsg.effort.capacity = 2;
-//   jointStateMsg.effort.size = 2;
-//   jointStateMsg.effort.data = (double*)malloc(2 * sizeof(double));
-
-
-#ifdef DEBUG_DRIVE_LEFT
-    // Initialize left debug publisher
-    // RCCHECK(rclc_publisher_init_best_effort(
-    //     &debugDriveLeftPublisher,
-    //     &node,
-    //     ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray),
-    //     "drive/left/debug"
-    // // ));
-    // debugMotorcontrolLeftMsg.data.capacity = 4;
-    // debugMotorcontrolLeftMsg.data.size = 4;
-    // debugMotorcontrolLeftMsg.data.data = (double*)malloc(4 * sizeof(double));
-#endif
-
-#ifdef DEBUG_DRIVE_RIGHT
-    // Initialize right debug publisher
-    // RCCHECK(rclc_publisher_init_best_effort(
-    //     &debugDriveRightPublisher,
-    //     &node,
-    //     ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray),
-    //     "drive/right/debug"
-    // ));
-    // debugMotorcontrolRightMsg.data.capacity = 4;
-    // debugMotorcontrolRightMsg.data.size = 4;
-    // debugMotorcontrolRightMsg.data.data = (double*)malloc(4 * sizeof(double));
-#endif
-
-#ifdef DEBUG_LOOPTIME
-    // Initialize loop time debug publisher
-    // RCCHECK(rclc_publisher_init_best_effort(
-    //     &debugLooptimePublisher,
-    //     &node,
-    //     ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray),
-    //     "looptime_debug"
-    // ));
-    debugLooptimeMsg.data.capacity = 3;
-    debugLooptimeMsg.data.size = 3;
-    debugLooptimeMsg.data.data = (double*)malloc(3 * sizeof(double));
-#endif
-
-    // const unsigned int timer_period_ms = 100;
-    // RCCHECK(rclc_timer_init_default2(&timer, &support, RCL_MS_TO_NS(timer_period_ms), timer_callback, true));
-    // RCCHECK(rclc_executor_init(&executor, &support.context, 4, &allocator));
-    // RCCHECK(rclc_executor_add_timer(&executor, &timer));
-    // RCCHECK(rclc_executor_add_subscription(&executor, &twistSubscriber, &twistMsg, &cmd_vel_callback, ON_NEW_DATA));
-    // RCCHECK(rclc_executor_add_subscription(&executor, &pidTuningSubscriber, &pidTuningMsg, &pid_tuning_callback, ON_NEW_DATA));
-    // RCCHECK(rclc_executor_add_subscription(&executor, &weaponSpeedSubscriber, &weaponSpeedMsg, &weapon_speed_callback, ON_NEW_DATA));
 }
 
+
 void loop() {
-    // RCCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1000)));  //max time budget 1000 ms 
-
-    // 1. Funkdaten empfangen und Ziele setzen
-    transceiver.update(robot);
-    Serial.println("Speed received:");
-    Serial.println(leftWheel.getDesiredWheelSpeed());
-    Serial.println(rightWheel.getDesiredWheelSpeed());
+    transceiver.update();
     
-    // 2. Waffengeschwindigkeit setzen (aus dem transceiver Cache)
-    weapon.setWeaponSpeed(transceiver.getWeaponSpeed());
-
+    // Check if new data is available
+    if (transceiver.isNewDataAvailable()) {
+        robot.calculateAndSetWheelSpeeds(transceiver.getVelLin(), transceiver.getVelAng());
+        weapon.setWeaponSpeed(transceiver.getWeaponSpeed());
+        transceiver.resetNewDataFlag();
+    }
 
     robot.updateDrives();
     robot.updateWeapon();
-
-#ifdef DEBUG_LOOPTIME
-    // Get looptime data
-    collectLooptime();
-#endif
 }
