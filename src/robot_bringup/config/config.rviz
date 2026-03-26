@@ -6,7 +6,6 @@ Panels:
       Expanded:
         - /TF1
         - /Map1/Topic1
-        - /Pose1
       Splitter Ratio: 0.5203094482421875
     Tree Height: 466
   - Class: rviz_common/Selection
@@ -69,11 +68,9 @@ Visualization Manager:
           Value: true
         odom:
           Value: true
-        opponent/base_footprint_sim:
+        opponent:
           Value: true
         robot/base_footprint:
-          Value: true
-        robot/base_footprint_sim:
           Value: true
         robot/body_link:
           Value: false
@@ -93,10 +90,6 @@ Visualization Manager:
           Value: false
         robot/front_right_support_top_caster_link:
           Value: false
-        robot/left_wheel_link:
-          Value: true
-        robot/right_wheel_link:
-          Value: true
         robot/top_apriltag_link:
           Value: false
         robot/top_apriltag_optical:
@@ -138,18 +131,12 @@ Visualization Manager:
                       {}
                     robot/front_right_support_top_caster_link:
                       {}
-                  robot/left_wheel_link:
-                    {}
-                  robot/right_wheel_link:
-                    {}
                   robot/top_apriltag_link:
                     robot/top_apriltag_optical:
                       {}
                   robot/weapon_link:
                     {}
-          opponent/base_footprint_sim:
-            {}
-          robot/base_footprint_sim:
+          opponent:
             {}
       Update Interval: 0
       Value: true
@@ -366,7 +353,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /arena_camera/image_rect
+        Value: /arena_camera/image_rect_masked
       Value: true
       Visibility:
         Grid: true
@@ -397,6 +384,26 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /robot/pose
+      Value: true
+    - Alpha: 1
+      Axes Length: 1
+      Axes Radius: 0.10000000149011612
+      Class: rviz_default_plugins/Pose
+      Color: 255; 25; 0
+      Enabled: true
+      Head Length: 0.30000001192092896
+      Head Radius: 0.10000000149011612
+      Name: Pose
+      Shaft Length: 0.20000000298023224
+      Shaft Radius: 0.05000000074505806
+      Shape: Arrow
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /opponent/pose
       Value: true
   Enabled: true
   Global Options:
