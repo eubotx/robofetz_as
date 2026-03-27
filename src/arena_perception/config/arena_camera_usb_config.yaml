@@ -4,7 +4,7 @@ arena_camera/usb_cam:
     
     # Hardware
     #video device to be set asaunch argument or environment variable ARENA_CAMERA_DEVICE
-    video_device: "/dev/video4"                         # video device, can be overridden via launch argument
+    video_device: "/dev/video0"                         # video device, can be overridden via launch argument
     camera_name: "arena_camera"                        # string: camera name
     camera_info_url: "package://arena_perception/config/arena_camera_info_fs_arducam_1200p.yaml"                              # string: calibration file
     frame_id: "arena_camera_optical"                     # string: TF frame
@@ -12,7 +12,7 @@ arena_camera/usb_cam:
     #Image format  
     image_width: 1920                                   # int: resolution width  #800 is best, 1280
     image_height: 1200                                  # int: resolution heigh  #600 is best, 960
-    framerate: 30.0                                   # float: target FPS
+    framerate: 15.0                                   # float: target FPS
     pixel_format: "yuyv2rgb"                               # string: 'yuyv', 'mjpeg', 'grey' -> 'yuyv' often also used in greyscale cams
     io_method: "mmap"
     brightness: 0

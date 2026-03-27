@@ -22,7 +22,7 @@ class OpponentDetMOG2Single(Node):
             parameters=[
                 ('camera_frame', 'arena_camera_optical'),
                 ('enabled', True),
-                ('input_topic', '/arena_camera/image_rect'),
+                ('input_topic', '/arena_camera/image_rect_masked'),
                 ('topic_2d', '/detections_2d/mog2'),
                 ('topic_viz', '/debug/mog2_point'),
                 ('min_contour_area', 300),

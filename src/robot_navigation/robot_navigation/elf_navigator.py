@@ -55,7 +55,7 @@ class ElfNavigator(Node):
         self.yaw_integral = 0.0
         self.last_time = self.get_clock().now()
 
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel_autonomous', 10)
 
         self.command_sub = self.create_subscription(
             String,
