@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+
+# ros2 topic pub /autonomy std_msgs/msg/Bool "{data: true}" --once
 from enum import Enum
 import math
 import time
@@ -298,7 +301,7 @@ class ElfCombatStrategizer(Node):
         mode = String()
         mode.data = 'BACKWARD'
         self.drive_mode_pub.publish(mode)
-        
+
         self.goal_pose_pub.publish(goal)
 
         mode = String()
