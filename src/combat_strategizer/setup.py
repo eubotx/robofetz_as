@@ -29,6 +29,8 @@ setup(
             'tf_to_pose = combat_strategizer.tf_to_pose:main',
             'simple_attack = combat_strategizer.simple_attack:main',
             'elf_combat_strategizer = combat_strategizer.elf_combat_strategizer:main',
+            'cmd_vel_muxer = combat_strategizer.cmd_vel_muxer:main',
+
         ],
     },
 )

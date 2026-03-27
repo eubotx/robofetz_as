@@ -13,7 +13,7 @@ def generate_launch_description():
             os.path.join(get_package_share_path('teleop_twist_joy') ,'launch' ,'teleop-launch.py')
         ),
         launch_arguments={
-            'joy_vel': 'cmd_vel',
+            'joy_vel': 'cmd_vel_teleop',
             'joy_config': 'xbox',
             'config_filepath': config_path  # Convert Path object to string
         }.items()
