@@ -1,0 +1,31 @@
+# USB3.0 camera with 157° lense, calibrated with pinhole camera / radtan distortion model
+image_width: 1920
+image_height: 1200
+camera_name: "arena_camera"
+
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [798.578825, 0.0, 964.481777,
+         0.0, 805.395404, 573.713627,
+         0.0, 0.0, 1.0]
+
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.246374, 0.037323, 0.002031, -0.003160, 0.0]
+
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0,
+         0.0, 1.0, 0.0,
+         0.0, 0.0, 1.0]
+
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [549.958865, 0.0, 966.283605, 0.0,
+         0.0, 663.472783, 565.315612, 0.0,
+         0.0, 0.0, 1.0, 0.0]
