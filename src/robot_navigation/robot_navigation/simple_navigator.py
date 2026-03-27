@@ -16,7 +16,7 @@ class BattleBotNavigator(Node):
             namespace='',
             parameters=[
                 ('linear_kp', 2.0),        # Increased for faster response
-                ('angular_kp', 3.0),        # Increased for quicker turns
+                ('angular_kp', 4.0),        # Increased for quicker turns
                 ('angular_ki', 0.5),         # Keep some integral for steady-state error
                 ('max_linear', 1.0),          # Increased max speed
                 ('max_angular', 3.5),          # Increased turn rate
@@ -73,7 +73,7 @@ class BattleBotNavigator(Node):
             10)
             
         # Publisher
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel_autonomous', 10)
         
         # Control timer (30Hz)
         self.control_timer = self.create_timer(1.0/30.0, self.control_loop)
