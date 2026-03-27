@@ -61,7 +61,8 @@ detection_kalman_filter:
     target_frame: "world"
     opponent_frame: "opponent"
     update_rate: 20.0
-    input_topics: ["/detections_3d/color_array", "/detections_3d/mog2_array"] # "/detections_3d/color_array", 
+    input_topics: [ "/detections_3d/color_array", "/detections_3d/mog2_array"] # "/detections_3d/color_array", 
+    # input_topics: [ "/detections_3d/mog2_array"],
     measurement_noises: [0.08, 0.04]
     process_noise_position: 0.05
     process_noise_velocity: 0.5

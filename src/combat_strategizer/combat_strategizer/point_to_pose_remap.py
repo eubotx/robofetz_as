@@ -10,20 +10,32 @@ class PointToPoseRemap(Node):
     def __init__(self):
         super().__init__('point_to_pose_remap')
 
+        # Declare parameters with default values
+        self.declare_parameter('input_topic', '/detected_opponent/viz_point')
+        self.declare_parameter('output_topic', '/opponent/pose')
+
+        # Get parameter values
+        input_topic = self.get_parameter('input_topic').get_parameter_value().string_value
+        output_topic = self.get_parameter('output_topic').get_parameter_value().string_value
+
+        # Create subscriber
         self.subscription = self.create_subscription(
             PointStamped,
-            '/detected_opponent/viz_point',
+            input_topic,
             self.point_callback,
             10
         )
 
+        # Create publisher
         self.publisher = self.create_publisher(
             PoseStamped,
-            '/arena_perception_opponent_base_footprint_pose',
+            output_topic,
             10
         )
 
-        self.get_logger().info('PointToPoseRemap node started')
+        self.get_logger().info(f'PointToPoseRemap started')
+        self.get_logger().info(f'Subscribing to: {input_topic}')
+        self.get_logger().info(f'Publishing to: {output_topic}')
 
     def point_callback(self, msg: PointStamped):
         pose_msg = PoseStamped()

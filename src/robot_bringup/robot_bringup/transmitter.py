@@ -9,7 +9,7 @@ class RadioBridgeNode(Node):
     def __init__(self):
         super().__init__('radio_bridge_node')
 
-        self.declare_parameter('serial_port', '/dev/ttyUSB1')
+        self.declare_parameter('serial_port', '/dev/ttyUSB0')
         self.declare_parameter('baud_rate', 115200)
 
         serial_port = self.get_parameter('serial_port').value

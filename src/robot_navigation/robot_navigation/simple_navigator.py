@@ -62,7 +62,7 @@ class BattleBotNavigator(Node):
         # Subscribers
         self.pose_sub = self.create_subscription(
             PoseStamped, 
-            '/arena_perception_robot_base_footprint_pose', 
+            '/robot/pose', 
             self.pose_callback, 
             10)
             
