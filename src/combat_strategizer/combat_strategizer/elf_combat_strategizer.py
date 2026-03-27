@@ -29,17 +29,17 @@ class ElfCombatStrategizer(Node):
             parameters=[
                 ('arena_width', 1.5),
                 ('arena_height', 1.5),
-                ('wall_threshold', 0.1),
+                ('wall_threshold', 0.2),
                 ('center_x', 0.75),
                 ('center_y', 0.75),
                 ('escape_offset', 0.2),
                 ('proximity_radius', 0.2),
                 ('proximity_duration', 5.0),
                 ('robot_pose_timeout', 2.0),
-                ('backward_speed', 0.3),
+                ('backward_speed', 0.5),
                 ('turn_speed', 1.0),
                 ('escape_reached_threshold', 0.1),
-                ('wall_recovery_backward_distance', 0.3),
+                ('wall_recovery_backward_distance', 0.5),
                 ('turn_tolerance', 0.05),
             ]
         )
@@ -91,7 +91,7 @@ class ElfCombatStrategizer(Node):
 
         self.opponent_pose_sub = self.create_subscription(
             PoseStamped,
-            '/arena_perception_opponent_base_footprint_pose',
+            '/opponent/pose',
             self.opponent_pose_callback,
             10
         )

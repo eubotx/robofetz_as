@@ -17,12 +17,16 @@ class ElfNavigator(Node):
             namespace='',
             parameters=[
                 ('default_linear_speed', 0.3),
-                ('default_angular_speed', 1.0),
-                ('forward_speed', 0.3),
-                ('backward_speed', 0.3),
-                ('turn_speed', 1.0),
+                ('default_angular_speed', 3.0),
+                ('forward_speed', 1.0),
+                ('backward_speed', 1.0),
+                ('turn_speed', 3.5),
                 ('position_tolerance', 0.1),
                 ('angle_threshold_for_driving', 0.17),
+                ('linear_kp',1.0),
+                ('angular_kp', 1.8),
+                ('angular_ki', 0.5),
+                ('integral_windup_limit', 1.5),
             ]
         )
 
@@ -39,13 +43,19 @@ class ElfNavigator(Node):
         self.angle_threshold = self.get_parameter(
             'angle_threshold_for_driving'
         ).value
+        self.linear_kp = self.get_parameter('linear_kp').value
+        self.angular_kp = self.get_parameter('angular_kp').value
+        self.angular_ki = self.get_parameter('angular_ki').value
+        self.integral_windup_limit = self.get_parameter('integral_windup_limit').value
 
         self.goal_pose: PoseStamped | None = None
         self.robot_pose: PoseStamped | None = None
         self.drive_mode = 'FORWARD'
         self.tracking_active = False
+        self.yaw_integral = 0.0
+        self.last_time = self.get_clock().now()
 
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel_autonomous', 10)
 
         self.command_sub = self.create_subscription(
             String,
@@ -82,6 +92,7 @@ class ElfNavigator(Node):
     def goal_callback(self, msg: PoseStamped):
         self.goal_pose = msg
         self.tracking_active = True
+        self.yaw_integral = 0.0
 
     def pose_callback(self, msg: PoseStamped):
         self.robot_pose = msg
@@ -157,18 +168,30 @@ class ElfNavigator(Node):
         else:
             effective_yaw_error = self.normalize_angle(yaw_error + math.pi)
 
+        now = self.get_clock().now()
+        dt = (now - self.last_time).nanoseconds * 1e-9
+        if dt > 0.1:
+            dt = 0.1
+        self.last_time = now
+
+        if abs(effective_yaw_error) < math.pi / 1.5:
+            self.yaw_integral += effective_yaw_error * dt
+            self.yaw_integral = max(min(self.yaw_integral, self.integral_windup_limit),
+                                    -self.integral_windup_limit)
+        else:
+            self.yaw_integral *= 0.5
+
         cmd = Twist()
 
-        angular_cmd = self.turn_speed if effective_yaw_error > 0 else -self.turn_speed
-        if abs(effective_yaw_error) < 0.1:
-            angular_cmd = self.turn_speed * effective_yaw_error * 10
+        angular_cmd = self.angular_kp * effective_yaw_error + self.angular_ki * self.yaw_integral
         cmd.angular.z = max(min(angular_cmd, self.turn_speed), -self.turn_speed)
 
         angle_factor = max(0.3, 1.0 - abs(effective_yaw_error) / math.pi)
+        linear_cmd = self.linear_kp * distance * angle_factor
         if self.drive_mode == 'FORWARD':
-            cmd.linear.x = self.forward_speed * angle_factor
+            cmd.linear.x = max(min(linear_cmd, self.forward_speed), 0.0)
         else:
-            cmd.linear.x = -self.backward_speed * angle_factor
+            cmd.linear.x = max(min(-linear_cmd, 0.0), -self.backward_speed)
 
         self.cmd_pub.publish(cmd)
 
