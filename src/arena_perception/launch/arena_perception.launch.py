@@ -107,6 +107,19 @@ def generate_launch_description():
             ('image_rect', 'image_rect')
         ],
     )
+
+    elf_rectification = Node(
+            package='arena_perception',
+            executable='elf_rectification',
+            namespace='arena_camera',
+            name='elf_rectification',
+            output='screen',
+            parameters=[
+                {'image_topic': 'image'},
+                {'camera_info_topic': 'camera_info'},
+                {'rectified_topic': 'image_rect'}
+            ]
+        )
     
     ld.add_action(camera_rectification)
 

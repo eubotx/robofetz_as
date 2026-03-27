@@ -60,6 +60,7 @@ setup(
             'detection_2d_to_3d_node = arena_perception.detection_2d_to_3d_node:main',
             'frame_diff_detector = arena_perception.frame_diff_detector:main',
             'image_format_converter = arena_perception.image_format_converter:main',
+            'elf_rectification = arena_perception.elf_rectification:main',
         ],
     },
 )
