@@ -91,7 +91,7 @@ class ElfCombatStrategizer(Node):
 
         self.opponent_pose_sub = self.create_subscription(
             PoseStamped,
-            '/arena_perception_opponent_base_footprint_pose',
+            '/opponent/pose',
             self.opponent_pose_callback,
             10
         )

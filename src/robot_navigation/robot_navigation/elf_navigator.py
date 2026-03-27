@@ -45,7 +45,7 @@ class ElfNavigator(Node):
         self.drive_mode = 'FORWARD'
         self.tracking_active = False
 
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel_autonomous', 10)
 
         self.command_sub = self.create_subscription(
             String,
