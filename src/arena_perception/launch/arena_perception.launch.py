@@ -265,9 +265,9 @@ def generate_launch_description():
     ))
     
     # Add opponent detection with appropriate timing (after ROI mask is ready)
-    ld.add_action(TimerAction(
-        period=9.0,  # Start after ROI mask node (6.0s) to ensure masked image is available
-        actions=[opponent_detection]
-    ))
+    # ld.add_action(TimerAction(
+    #     period=9.0,  # Start after ROI mask node (6.0s) to ensure masked image is available
+    #     actions=[opponent_detection]
+    # ))
 
     return ld

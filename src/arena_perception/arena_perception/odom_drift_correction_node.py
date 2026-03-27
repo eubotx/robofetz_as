@@ -186,7 +186,7 @@ class OdometryCorrectionNode(Node):
             transform = self.tf_buffer.lookup_transform(
                 from_frame,
                 to_frame,
-                rclpy.time.Time(),
+                rclpy.time.Time(seconds=0),
             )
             
             # check if transform is recent
