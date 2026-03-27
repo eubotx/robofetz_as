@@ -25,7 +25,7 @@ class BattleBotNavigator(Node):
                 ('orientation_tolerance', 0.3),
                 ('goal_frame', 'map'),
                 ('integral_windup_limit', 2.0),
-                ('min_speed', 0.5),
+                ('min_speed', 0.3),
                 ('angle_threshold_for_driving', 0.5),
                 ('distance_to_slow_down', 0.1),
             ]

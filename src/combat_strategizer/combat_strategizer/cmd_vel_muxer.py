@@ -15,11 +15,12 @@ class CmdVelMuxer(Node):
         
         # Inversion parameters
         self.declare_parameter('invert_linear_x', True)
-        self.declare_parameter('invert_linear_y', True)
+        self.declare_parameter('invert_linear_y', False)
         self.declare_parameter('invert_angular_z', False)
         self.invert_linear_x = self.get_parameter('invert_linear_x').get_parameter_value().bool_value
         self.invert_linear_y = self.get_parameter('invert_linear_y').get_parameter_value().bool_value
         self.invert_angular_z = self.get_parameter('invert_angular_z').get_parameter_value().bool_value
+        self.current_marker = "top"
         
         # Publishers
         self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
@@ -63,17 +64,24 @@ class CmdVelMuxer(Node):
         self.current_teleop_cmd = msg
         self.last_teleop_time = self.get_clock().now().nanoseconds / 1e9
         self.has_received_teleop = True
-        self.get_logger().debug('Received teleop command', throttle_duration_sec=1.0)
+        #self.get_logger().debug('Received teleop command', throttle_duration_sec=1.0)
     
     def autonomous_callback(self, msg):
         """Handle incoming autonomous commands"""
         self.current_autonomous_cmd = msg
-        self.get_logger().debug('Received autonomous command', throttle_duration_sec=1.0)
+        #self.get_logger().debug('Received autonomous command', throttle_duration_sec=1.0)
     
     def marker_callback(self, msg):
         """Handle marker state changes"""
+    
+        # Ignore None or empty values
+        if msg.data == "none":
+            return
+
+        self.current_marker = msg.data 
+
         self.current_marker = msg.data
-        self.get_logger().info(f'Marker state changed to: {self.current_marker}')
+        #self.get_logger().info(f'Marker state changed to: {self.current_marker}')
     
     def invert_for_upside_down(self, twist_msg):
         """
@@ -83,7 +91,7 @@ class CmdVelMuxer(Node):
         inverted = Twist()
         
         # Apply inversion based on parameters
-        inverted.linear.x = -twist_msg.linear.x if self.invert_linear_x else twist_msg.linear.x
+        inverted.linear.x = twist_msg.linear.x * -1 if self.invert_linear_x else twist_msg.linear.x
         inverted.linear.y = -twist_msg.linear.y if self.invert_linear_y else twist_msg.linear.y
         inverted.linear.z = twist_msg.linear.z  # Keep vertical as is (usually 0)
         
