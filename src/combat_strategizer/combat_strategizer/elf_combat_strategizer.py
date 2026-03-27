@@ -32,11 +32,11 @@ class ElfCombatStrategizer(Node):
                 ('escape_offset', 0.2),
                 ('proximity_radius', 0.2),
                 ('proximity_duration', 5.0),
-                ('attack_angle_threshold', 40.0),
+                ('attack_angle_threshold', 10.0),
                 ('defense_angle_threshold', 10.0),
                 ('robot_pose_timeout', 2.0),
                 ('forward_speed', 0.3),
-                ('backward_speed', 0.2),
+                ('backward_speed', 0.3),
                 ('turn_speed', 1.0),
                 ('escape_reached_threshold', 0.1),
                 ('wall_recovery_backward_distance', 0.1),
@@ -188,8 +188,14 @@ class ElfCombatStrategizer(Node):
         distance = math.sqrt((ox - rx) ** 2 + (oy - ry) ** 2)
 
         self.get_logger().info(f'Proximity check: distance={distance:.2f}m')
+        self.get_logger().info( f'Coordinates: {rx} , {ry}')
+        current_yaw = self.quaternion_to_yaw(self.robot_pose.pose.orientation)
         
+        self.get_logger().info(f'yaw: {math.degrees(current_yaw):.2f}')
+        self.get_logger().info
+
         now = time.time()
+
 
         if distance <= self.proximity_radius:
             if self.proximity_start_time is None:
@@ -229,18 +235,21 @@ class ElfCombatStrategizer(Node):
             return False
 
         current_yaw = self.quaternion_to_yaw(self.robot_pose.pose.orientation)
+        
+        self.get_logger().info(f'yaw: {current_yaw:.2f}')
 
         facing_out = False
-        if rx < self.wall_threshold and abs(current_yaw) > math.pi / 2:
+        if rx < self.wall_threshold and abs(current_yaw) > math.pi *3/4:
             facing_out = True
         elif (rx > self.arena_width - self.wall_threshold and
-              abs(current_yaw) < math.pi / 2):
+              abs(current_yaw) < math.pi / 4):
             facing_out = True
         elif (ry < self.wall_threshold and
-              (current_yaw < -math.pi / 2 or current_yaw > math.pi / 2)):
+            #   ( current_yaw < -math.pi / 2 or current_yaw > math.pi / 2)):
+              ( current_yaw  < -math.pi /4  and current_yaw > -math.pi * 3/4)):
             facing_out = True
         elif (ry > self.arena_height - self.wall_threshold and
-              abs(current_yaw) < math.pi / 2):
+              current_yaw > math.pi / 4 and  current_yaw < math.pi * 3/4):
             facing_out = True
 
         return facing_out
