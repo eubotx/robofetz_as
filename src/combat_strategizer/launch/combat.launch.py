@@ -21,7 +21,7 @@ def generate_launch_description():
         executable='simple_attack',
         name='simple_attack',
     )
-
+    '''
     opponent_tf_to_pose = Node(
         package='combat_strategizer',
         executable='tf_to_pose',
@@ -34,11 +34,22 @@ def generate_launch_description():
         output='screen'
     )
 
+    '''
 
+    cmd_vel_muxer = Node(
+        package='combat_strategizer',
+        executable='cmd_vel_muxer',
+        name='cmd_vel_muxer',
+        parameters=[{
+            'teleop_timeout': 0.2,  # seconds
+        }],         
+        output='screen'
+    )       
 
     # Build launch description
     ld = LaunchDescription()
     ld.add_action(simple_navigator)
     ld.add_action(combat_strategizer)
-    ld.add_action(opponent_tf_to_pose)
+    #ld.add_action(opponent_tf_to_pose)
+    ld.add_action(cmd_vel_muxer)
     return ld
