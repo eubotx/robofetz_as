@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
+from enum import Enum
 import math
 import time
-from enum import Enum
 
-import rclpy
 from geometry_msgs.msg import PoseStamped
+import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool, String
 
@@ -32,14 +32,11 @@ class ElfCombatStrategizer(Node):
                 ('escape_offset', 0.2),
                 ('proximity_radius', 0.2),
                 ('proximity_duration', 5.0),
-                ('attack_angle_threshold', 10.0),
-                ('defense_angle_threshold', 10.0),
                 ('robot_pose_timeout', 2.0),
-                ('forward_speed', 0.3),
                 ('backward_speed', 0.3),
                 ('turn_speed', 1.0),
                 ('escape_reached_threshold', 0.1),
-                ('wall_recovery_backward_distance', 0.1),
+                ('wall_recovery_backward_distance', 0.3),
                 ('turn_tolerance', 0.05),
             ]
         )
@@ -52,12 +49,7 @@ class ElfCombatStrategizer(Node):
         self.escape_offset = self.get_parameter('escape_offset').value
         self.proximity_radius = self.get_parameter('proximity_radius').value
         self.proximity_duration = self.get_parameter('proximity_duration').value
-        attack_angle_deg = self.get_parameter('attack_angle_threshold').value
-        self.attack_angle_threshold = math.radians(attack_angle_deg)
-        defense_angle_deg = self.get_parameter('defense_angle_threshold').value
-        self.defense_angle_threshold = math.radians(defense_angle_deg)
         self.robot_pose_timeout = self.get_parameter('robot_pose_timeout').value
-        self.forward_speed = self.get_parameter('forward_speed').value
         self.backward_speed = self.get_parameter('backward_speed').value
         self.turn_speed = self.get_parameter('turn_speed').value
         escape_threshold = self.get_parameter('escape_reached_threshold').value
@@ -78,7 +70,6 @@ class ElfCombatStrategizer(Node):
         self.wall_recovery_phase = 0
         self.wall_recovery_target_yaw: float | None = None
 
-        self.last_command_time = 0.0
         self.command_interval = 0.05
 
         self.autonomy_sub = self.create_subscription(
@@ -104,16 +95,13 @@ class ElfCombatStrategizer(Node):
 
         self.navigator_cmd_pub = self.create_publisher(String, '/elf_navigator_cmd', 10)
         self.goal_pose_pub = self.create_publisher(PoseStamped, '/goal_pose', 10)
+        self.drive_mode_pub = self.create_publisher(String, '/drive_mode', 10)
 
         self.create_timer(self.command_interval, self.state_machine_loop)
 
         self.get_logger().info('Elf Combat Strategizer initialized!')
         self.get_logger().info(f'Arena: {self.arena_width}m x {self.arena_height}m')
         self.get_logger().info(f'Center: ({self.center_x}, {self.center_y})')
-        attack_deg = math.degrees(self.attack_angle_threshold)
-        self.get_logger().info(f'Attack angle threshold: {attack_deg:.1f} deg')
-        defense_deg = math.degrees(self.defense_angle_threshold)
-        self.get_logger().info(f'Defense angle threshold: {defense_deg:.1f} deg')
 
     def autonomy_callback(self, msg: Bool):
         self.autonomy = msg.data
@@ -187,15 +175,7 @@ class ElfCombatStrategizer(Node):
 
         distance = math.sqrt((ox - rx) ** 2 + (oy - ry) ** 2)
 
-        self.get_logger().info(f'Proximity check: distance={distance:.2f}m')
-        self.get_logger().info( f'Coordinates: {rx} , {ry}')
-        current_yaw = self.quaternion_to_yaw(self.robot_pose.pose.orientation)
-        
-        self.get_logger().info(f'yaw: {math.degrees(current_yaw):.2f}')
-        self.get_logger().info
-
         now = time.time()
-
 
         if distance <= self.proximity_radius:
             if self.proximity_start_time is None:
@@ -235,21 +215,18 @@ class ElfCombatStrategizer(Node):
             return False
 
         current_yaw = self.quaternion_to_yaw(self.robot_pose.pose.orientation)
-        
-        self.get_logger().info(f'yaw: {current_yaw:.2f}')
 
         facing_out = False
-        if rx < self.wall_threshold and abs(current_yaw) > math.pi *3/4:
+        if rx < self.wall_threshold and abs(current_yaw) > math.pi * 3/4:
             facing_out = True
         elif (rx > self.arena_width - self.wall_threshold and
               abs(current_yaw) < math.pi / 4):
             facing_out = True
         elif (ry < self.wall_threshold and
-            #   ( current_yaw < -math.pi / 2 or current_yaw > math.pi / 2)):
-              ( current_yaw  < -math.pi /4  and current_yaw > -math.pi * 3/4)):
+              (current_yaw < -math.pi / 4 and current_yaw > -math.pi * 3/4)):
             facing_out = True
         elif (ry > self.arena_height - self.wall_threshold and
-              current_yaw > math.pi / 4 and  current_yaw < math.pi * 3/4):
+              current_yaw > math.pi / 4 and current_yaw < math.pi * 3/4):
             facing_out = True
 
         return facing_out
@@ -289,11 +266,6 @@ class ElfCombatStrategizer(Node):
         self.send_command('STOP')
 
     def execute_idle(self):
-        if self.robot_pose is not None:
-            goal = PoseStamped()
-            goal.header = self.robot_pose.header
-            goal.pose = self.robot_pose.pose
-            self.goal_pose_pub.publish(goal)
         self.send_command('STOP')
 
     def execute_attack(self):
@@ -301,26 +273,14 @@ class ElfCombatStrategizer(Node):
             self.send_command('STOP')
             return
 
-        angle_to_opponent = self.calculate_angle_to_target(
-            self.opponent_pose.pose.position.x,
-            self.opponent_pose.pose.position.y
-        )
+        goal = PoseStamped()
+        goal.header = self.opponent_pose.header
+        goal.pose = self.opponent_pose.pose
+        self.goal_pose_pub.publish(goal)
 
-        angle_deg = math.degrees(angle_to_opponent)
-        threshold_deg = math.degrees(self.attack_angle_threshold)
-
-        if abs(angle_to_opponent) > self.attack_angle_threshold:
-            turn_cmd = self.turn_speed if angle_to_opponent > 0 else -self.turn_speed
-            self.get_logger().info(
-                f'ATTACK: Angle {angle_deg:.1f} deg > {threshold_deg:.1f} deg '
-                f'threshold, TURNING'
-            )
-            self.send_command(f'TURN:{turn_cmd}')
-        else:
-            self.get_logger().info(
-                f'ATTACK: Angle {angle_deg:.1f} deg OK, DRIVING FORWARD'
-            )
-            self.send_command(f'FORWARD:{self.forward_speed}')
+        mode = String()
+        mode.data = 'FORWARD'
+        self.drive_mode_pub.publish(mode)
 
     def execute_defense(self):
         if self.robot_pose is None or self.escape_position is None:
@@ -328,30 +288,22 @@ class ElfCombatStrategizer(Node):
             return
 
         ex, ey = self.escape_position
-        angle_to_escape = self.calculate_angle_to_target(ex, ey)
 
-        backward_angle = self.normalize_angle(angle_to_escape + math.pi)
+        goal = PoseStamped()
+        goal.header.stamp = self.get_clock().now().to_msg()
+        goal.header.frame_id = 'map'
+        goal.pose.position.x = ex
+        goal.pose.position.y = ey
+        goal.pose.orientation.w = 1.0
+        mode = String()
+        mode.data = 'BACKWARD'
+        self.drive_mode_pub.publish(mode)
+        
+        self.goal_pose_pub.publish(goal)
 
-        rx = self.robot_pose.pose.position.x
-        ry = self.robot_pose.pose.position.y
-        dist_to_escape = math.sqrt((ex - rx) ** 2 + (ey - ry) ** 2)
-
-        backward_deg = math.degrees(backward_angle)
-        threshold_deg = math.degrees(self.defense_angle_threshold)
-
-        if abs(backward_angle) > self.defense_angle_threshold:
-            turn_cmd = self.turn_speed if backward_angle > 0 else -self.turn_speed
-            self.get_logger().info(
-                f'DEFENSE: Backward angle {backward_deg:.1f} deg > '
-                f'{threshold_deg:.1f} deg threshold, TURNING'
-            )
-            self.send_command(f'TURN:{turn_cmd}')
-        else:
-            self.get_logger().info(
-                f'DEFENSE: Angle OK ({backward_deg:.1f} deg), '
-                f'DRIVING BACKWARD (dist to escape: {dist_to_escape:.2f}m)'
-            )
-            self.send_command(f'BACKWARD:{self.backward_speed}')
+        mode = String()
+        mode.data = 'BACKWARD'
+        self.drive_mode_pub.publish(mode)
 
     def execute_wall_recovery(self):
         if self.robot_pose is None:
@@ -427,19 +379,6 @@ class ElfCombatStrategizer(Node):
 
         farthest = max(escape_positions, key=dist)
         return farthest
-
-    def calculate_angle_to_target(self, target_x: float, target_y: float) -> float:
-        if self.robot_pose is None:
-            return 0.0
-
-        rx = self.robot_pose.pose.position.x
-        ry = self.robot_pose.pose.position.y
-
-        desired_yaw = math.atan2(target_y - ry, target_x - rx)
-        current_yaw = self.quaternion_to_yaw(self.robot_pose.pose.orientation)
-
-        angle_error = self.normalize_angle(desired_yaw - current_yaw)
-        return angle_error
 
     @staticmethod
     def quaternion_to_yaw(q) -> float:
