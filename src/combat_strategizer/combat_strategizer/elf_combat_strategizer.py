@@ -39,7 +39,7 @@ class ElfCombatStrategizer(Node):
                 ('backward_speed', 0.5),
                 ('turn_speed', 1.0),
                 ('escape_reached_threshold', 0.1),
-                ('wall_recovery_backward_distance', 0.5),
+                ('wall_recovery_backward_distance', 1.0),
                 ('turn_tolerance', 0.05),
             ]
         )
@@ -326,42 +326,10 @@ class ElfCombatStrategizer(Node):
 
             if elapsed >= backward_time:
                 self.send_command('STOP')
-                self.wall_recovery_phase = 2
-                current_yaw = self.quaternion_to_yaw(
-                    self.robot_pose.pose.orientation
-                )
-                self.wall_recovery_target_yaw = self.normalize_angle(
-                    current_yaw + math.pi
-                )
-                target_deg = math.degrees(self.wall_recovery_target_yaw)
                 self.get_logger().info(
-                    f'WALLRECOVERY: Phase 2 - Turn 180 deg to {target_deg:.1f}'
+                    'WALLRECOVERY complete! Transitioning to ATTACK'
                 )
-
-        elif self.wall_recovery_phase == 2:
-            current_yaw = self.quaternion_to_yaw(self.robot_pose.pose.orientation)
-            yaw_error = self.normalize_angle(
-                self.wall_recovery_target_yaw - current_yaw
-            )
-
-            if abs(yaw_error) < self.turn_tolerance:
-                self.send_command('STOP')
-                self.wall_recovery_phase = 3
-                self.get_logger().info('WALLRECOVERY: Phase 3 - Turn complete')
-            else:
-                turn_cmd = self.turn_speed if yaw_error > 0 else -self.turn_speed
-                error_deg = math.degrees(yaw_error)
-                self.get_logger().info(
-                    f'WALLRECOVERY: Turning, error={error_deg:.1f} deg'
-                )
-                self.send_command(f'TURN:{turn_cmd}')
-
-        elif self.wall_recovery_phase == 3:
-            self.send_command('STOP')
-            self.get_logger().info(
-                'WALLRECOVERY complete! Transitioning to ATTACK'
-            )
-            self.transition_to_attack()
+                self.transition_to_attack()
 
     def calculate_escape_position(self) -> tuple[float, float]:
         escape_positions = [

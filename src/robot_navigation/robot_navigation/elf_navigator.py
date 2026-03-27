@@ -18,15 +18,15 @@ class ElfNavigator(Node):
             parameters=[
                 ('default_linear_speed', 0.3),
                 ('default_angular_speed', 3.0),
-                ('forward_speed', 1.0),
-                ('backward_speed', 1.0),
+                ('forward_speed', 3.0),
+                ('backward_speed', 3.0),
                 ('turn_speed', 3.5),
                 ('position_tolerance', 0.1),
                 ('angle_threshold_for_driving', 0.17),
                 ('linear_kp',1.0),
                 ('angular_kp', 1.8),
                 ('angular_ki', 0.5),
-                ('integral_windup_limit', 1.5),
+                ('integral_windup_limit', 2.0),
             ]
         )
 
