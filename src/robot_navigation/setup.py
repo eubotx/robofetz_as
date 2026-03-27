@@ -37,6 +37,7 @@ setup(
             'nav2_navigator = robot_navigation.nav2_navigator:main',
             'create_map = robot_navigation.create_map:main',
             'map_node = robot_navigation.map_node:main',
+            'elf_navigator = robot_navigation.elf_navigator:main',
         ],
     },
 )
