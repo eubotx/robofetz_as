@@ -22,12 +22,6 @@ def generate_launch_description():
         description='Use simulation (Gazebo) clock if true'
     )
     
-    run_rectification_arg = DeclareLaunchArgument(
-        'run_rectification',
-        default_value='true',
-        description='Whether to run the camera rectification node. Set to false for pinhole cameras (like in Gazebo simulation)'
-    )
-    
     default_arena_perception_config = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
         'config', 
@@ -76,7 +70,6 @@ def generate_launch_description():
     arena_perception_config_file = LaunchConfiguration('arena_perception_config')
     opponent_detection_config_file = LaunchConfiguration('opponent_detection_config')
     use_sim_time = LaunchConfiguration('use_sim_time')
-    run_rectification = LaunchConfiguration('run_rectification')
     opponent_camera_topic = LaunchConfiguration('opponent_camera_topic')
     opponent_camera_info_topic = LaunchConfiguration('opponent_camera_info_topic')
     enable_opponent_detection = LaunchConfiguration('enable_opponent_detection')
@@ -86,20 +79,17 @@ def generate_launch_description():
     
     # Add launch arguments
     ld.add_action(use_sim_time_arg)
-    ld.add_action(run_rectification_arg)
     ld.add_action(arena_perception_config_arg)
     ld.add_action(opponent_camera_topic_arg)
     ld.add_action(opponent_camera_info_topic_arg)
     ld.add_action(opponent_detection_config_arg)
     ld.add_action(enable_opponent_detection_arg)
     
-    # Camera rectification node - only runs if run_rectification is true
     camera_rectification = Node(
         package='image_proc',
         executable='rectify_node',
         namespace='arena_camera',
         name='rectify_node',
-        condition=IfCondition(run_rectification),
         parameters=[{'use_sim_time': use_sim_time}],
         output='screen',
         remappings=[
@@ -110,22 +100,34 @@ def generate_launch_description():
     
     ld.add_action(camera_rectification)
 
-    # IMAGE REMAPPING NODE (for pinhole camera case) - only runs when run_rectifaction is false
-    # republishes image to image_rect so downstream nodes work and we safe computing power
-    image_remap_node = Node(
-        package='topic_tools',
-        executable='relay',
-        name='image_to_rect_relay',
+    crop_decimate_node = Node(
+        package='image_proc',
+        executable='crop_decimate_node',
         namespace='arena_camera',
+        name='crop_decimate_node', 
         parameters=[{
-            'use_sim_time': use_sim_time
+            'use_sim_time': use_sim_time,
+            'decimation_x': 2,  # Use int, not float
+            'decimation_y': 2,  # Use int, not float
+            'offset_x': 0,      # Use int, not float
+            'offset_y': 0,      # Use int, not float
+            #'width': crop_width,      # These should also be ints if uncommented
+            #'height': crop_height,    # These should also be ints if uncommented
+            #'interpolation': crop_interpolation,  # This should be int (0-4)
+            'approx_sync': True,  # Add this to help with message synchronization
+            'queue_size': 10,      # Add queue size for sync
+            'slop': 10.1               # Time tolerance in seconds (100ms)
         }],
-        arguments=['image', 'image_rect'],
-        condition=UnlessCondition(run_rectification),
+        remappings=[
+            ('in/image_raw', 'image_rect'),
+            ('in/camera_info', 'camera_info'),
+            ('out/image_raw', 'cropped/image_rect'),
+            ('out/camera_info', 'cropped/camera_info')
+        ],
         output='screen'
     )
     
-    ld.add_action(image_remap_node)
+    ld.add_action(crop_decimate_node)
     
     # Self written Apriltag detection node 
     # swap with premade ros one for efficiency
