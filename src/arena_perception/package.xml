@@ -40,7 +40,8 @@
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>python3-bitstring</exec_depend>
   <exec_depend>python3-pyapriltags</exec_depend>
-
+  <exec_depend>python3-yt-dlp</exec_depend>
+  
   <export>
     <build_type>ament_python</build_type>
   </export>

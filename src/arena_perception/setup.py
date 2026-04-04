@@ -30,6 +30,18 @@ setup(
         'pyapriltags>=3.3.0.3',
         'bitstring',
         'pyyaml>=6.0',
+        'ultralytics>=8.2.0',
+        'opencv-python>=4.5.0',
+        'numpy>=1.22.0',
+        'torch>=2.0.0',
+        'torchvision>=0.15.0',
+        'tqdm>=4.64.0',
+        'matplotlib>=3.5.0',
+        'pillow>=9.0.0',
+        'scipy>=1.8.0',
+        'pyyaml>=6.0',
+        'yt-dlp>=2024.0.0',
+        'scenedetect[opencv]>=0.6.2'
     ],
     zip_safe=True,
     maintainer='eubotx',
@@ -60,6 +72,8 @@ setup(
             'detection_2d_to_3d_node = arena_perception.detection_2d_to_3d_node:main',
             'frame_diff_detector = arena_perception.frame_diff_detector:main',
             'image_format_converter = arena_perception.image_format_converter:main',
+            'dataset_create = arena_perception.1_dataset_create:main',
+            'youtube-downloader = arena_perception.youtube_downloader:main'
         ],
     },
 )
