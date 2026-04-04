@@ -257,3 +257,36 @@ ros2 run combat_strategizer tf_to_pose \
 ```bash
 source install/local_setup.bash
 ```
+
+
+# Docker image
+
+Build it with this:
+```bash
+DOCKER_BUILDKIT=1 docker build --ssh default -t robofetz_jazzy .
+```
+
+First make the x11 forwarding possible, in order to display GUI windows. 
+```bash
+xhost +local:docker
+```
+
+Finally run the container with the arguments as given.
+```bash
+docker run -it --rm \
+    --name robofetz_container \
+    --privileged \
+    --network host \
+    --ipc=host \
+    --gpus all \
+    --env="DISPLAY" \
+    --env="GZ_IP=127.0.0.1" \
+    --env="NVIDIA_DRIVER_CAPABILITIES=all" \
+    --env="NVIDIA_VISIBLE_DEVICES=all" \
+    --env="QT_X11_NO_MITSHM=1" \
+    --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
+    --volume="/dev:/dev" \
+    --volume="$SSH_AUTH_SOCK:/run/ssh-agent/ssh-agent.sock" \
+    --env="SSH_AUTH_SOCK=/run/ssh-agent/ssh-agent.sock" \
+    robofetz_jazzy
+```
