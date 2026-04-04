@@ -73,7 +73,7 @@ setup(
             'frame_diff_detector = arena_perception.frame_diff_detector:main',
             'image_format_converter = arena_perception.image_format_converter:main',
             'dataset_create = arena_perception.1_dataset_create:main',
-            'youtube-downloader = arena_perception.youtube_downloader:main'
+            'youtube-downloader = arena_perception.0_youtube_downloader:main'
         ],
     },
 )
