@@ -118,3 +118,6 @@ Thumbs.db
 *.mp4
 
 *temp.yaml
+
+*.pt
+*.avi

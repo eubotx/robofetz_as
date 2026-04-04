@@ -2,6 +2,8 @@
 FROM osrf/ros:jazzy-desktop-full
 
 ENV DEBIAN_FRONTEND=noninteractive
+# Erlaubt pip-Installationen systemweit (umgeht PEP 668)
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
 # 1. System-Tools & SSH Client installieren
 RUN apt-get update && apt-get install -y \
@@ -35,10 +37,24 @@ RUN apt-get update && apt-get install -y \
     ros-jazzy-ros-gz \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. Python-Packages (Fix: pyapriltags jetzt korrekt via pip)
-RUN pip3 install --no-cache-dir --break-system-packages \
+# 4. Python-Packages (Torch GPU, Ultralytics, SAM2 Dependencies & Fixes)
+# Wir installieren PyTorch separat mit dem CUDA-Index, damit pip nicht die CPU-Version zieht
+RUN pip3 install --no-cache-dir \
+    torch \
+    torchvision \
+    torchaudio \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# Restliche Pip-Pakete inklusive der Konfliktlösungen (Setuptools & Numpy)
+RUN pip3 install --no-cache-dir \
     filterpy \
-    pyapriltags
+    pyapriltags \
+    ultralytics \
+    "setuptools<80" \
+    "numpy>=2.2.3" \
+    bitstring \
+    "scenedetect[opencv]>=0.6.2" \
+    "yt-dlp>=2024.0.0"
 
 # 5. Klonen via SSH (Nutzt den gemounteten SSH-Agent)
 WORKDIR /ros2_ws/src

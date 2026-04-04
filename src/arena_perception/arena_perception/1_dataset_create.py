@@ -433,16 +433,18 @@ class SAM2YOLOGeneratorNode(Node):
         skip_existing = self.get_parameter('skip_existing').value
         force_reprocess = self.get_parameter('force_reprocess').value
 
-        # If output_base_dir is empty, use a default inside the package share directory
         if not output_base_dir:
-            try:
-                package_share = get_package_share_directory('your_package_name')  # Change to actual package name
-                output_base_dir = os.path.join(package_share, 'datasets')
-            except Exception as e:
-                self.get_logger().error(f"Could not find package share directory: {e}")
-                output_base_dir = os.path.expanduser('~/sam2_yolo_datasets')
-                self.get_logger().warn(f"Using fallback output directory: {output_base_dir}")
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            if 'build' in script_dir or 'install' in script_dir:
+                # Navigation zum Workspace Root (angepasst an Standard ROS2 install layout)
+                workspace_root = os.path.normpath(os.path.join(script_dir, '..', '..', '..', '..', '..'))
+                output_base_dir = os.path.join(workspace_root, 'src', 'arena_perception', 'dataset')
+            else:
+                # Falls lokal im src ausgeführt
+                package_root = os.path.dirname(script_dir)
+                output_base_dir = os.path.join(package_root, 'dataset')
 
+        
         if not video_folder:
             self.get_logger().error("Parameter 'video_folder' must be provided.")
             rclpy.shutdown()
