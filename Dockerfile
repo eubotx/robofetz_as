@@ -39,23 +39,29 @@ RUN apt-get update && apt-get install -y \
 
 # 4. Python-Packages (Torch GPU, Ultralytics, SAM2 Dependencies & Fixes)
 # Wir installieren PyTorch separat mit dem CUDA-Index, damit pip nicht die CPU-Version zieht
+# 4. Python-Packages (Torch GPU, Ultralytics, SAM2 Dependencies & Fixes)
+
+# 4.1 PyTorch separat mit dem CUDA-Index installieren
 RUN pip3 install --no-cache-dir \
     torch \
     torchvision \
     torchaudio \
     --index-url https://download.pytorch.org/whl/cu121
 
-# Restliche Pip-Pakete inklusive der Konfliktlösungen (Setuptools & Numpy)
+# 4.2 Debian-Konflikte umgehen: Numpy & SciPy zwingend "drüber" installieren
+RUN pip3 install --no-cache-dir --ignore-installed \
+    "numpy>=2.2.3" \
+    scipy
+
+# 4.3 Restliche Pip-Pakete
 RUN pip3 install --no-cache-dir \
     filterpy \
     pyapriltags \
     ultralytics \
     "setuptools<80" \
-    "numpy>=2.2.3" \
     bitstring \
     "scenedetect[opencv]>=0.6.2" \
     "yt-dlp>=2024.0.0"
-
 # 5. Klonen via SSH (Nutzt den gemounteten SSH-Agent)
 WORKDIR /ros2_ws/src
 RUN --mount=type=ssh git clone --recursive git@github.com:eubotx/robofetz_as.git
