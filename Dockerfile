@@ -37,9 +37,9 @@ RUN apt-get update && apt-get install -y \
     ros-jazzy-ros-gz \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. Python-Packages (Torch GPU, Ultralytics, SAM2 Dependencies & Fixes)
 # Wir installieren PyTorch separat mit dem CUDA-Index, damit pip nicht die CPU-Version zieht
 # 4. Python-Packages (Torch GPU, Ultralytics, SAM2 Dependencies & Fixes)
+# Kommentiere einfach den index-url aus, wenn du die CPU-Version von PyTorch installieren möchtest (z.B. für Tests auf einem Nicht-GPU-System)
 
 # 4.1 PyTorch separat mit dem CUDA-Index installieren
 RUN pip3 install --no-cache-dir \

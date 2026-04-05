@@ -265,6 +265,7 @@ Build it with this:
 ```bash
 DOCKER_BUILDKIT=1 docker build --ssh default -t robofetz_jazzy .
 ```
+Important note: if you are running this docker on a machine without GPU please comment the line `--index-url https://download.pytorch.org/whl/cu121` out.
 
 First make the x11 forwarding possible, in order to display GUI windows. 
 ```bash
