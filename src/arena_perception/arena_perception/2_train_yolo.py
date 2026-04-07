@@ -160,7 +160,10 @@ class YOLOTrainer:
             
             # Plot predictions on the image
             for box in results.boxes:
-                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
+                # NUMPY>=2 FIX: Use .tolist() to cast NumPy arrays directly into native Python int sequences.
+                # OpenCV drawing functions will fail if fed NumPy 2.0 scalars directly.
+                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int).tolist()
+                
                 conf = float(box.conf[0])
                 cls_id = int(box.cls[0])
                 
@@ -274,7 +277,7 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
         # Example default settings
         sys.argv.extend([
-            "--data", "/home/sjadav/Documents/Projects/ARL_TOH/YOLO_TRAIN/dataset_blocks_statics/dataset.yaml",  # Path to your dataset YAML
+            "--data", "/ros2_ws/src/robofetz_as/src/arena_perception/dataset/combined_dataset/dataset.yaml",  # Path to your dataset YAML
             "--model", "yolov8m.pt",           # Using YOLOv8 small model
             "--epochs", "30",                  # Train for 50 epochs
             "--batch", "8",                    # Batch size
