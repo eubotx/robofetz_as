@@ -172,8 +172,39 @@ def generate_launch_description():
     # 1B. REAL HARDWARE (CONDITIONAL)
     # ============================================
     
-    #includes to do
+    # Radio communication via HC-12
+    radio_bridge = Node(
+        package='robot_bringup',
+        executable='radio_bridge_node',
+        name='radio_bridge_node',
+        parameters=[{
+            'use_sim_time': use_sim
+        }],
+        output='screen',
+        condition=UnlessCondition(use_sim)
+    )
 
+    # Include robot localization launch with the config file
+    arena_camera_usb = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare(perception_pkg),
+                'launch',
+                'arena_camera_usb.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'use_sim_time': use_sim
+        }.items(),
+        # Control opponent in sim
+        condition=UnlessCondition(use_sim)
+    )
+    
+    # Start immidiatly, no need to wait for robot state publisher
+    ld.add_action(radio_bridge)
+    ld.add_action(arena_camera_usb)
+
+    # Waits for robot state publisher
     ld.add_action(TimerAction(
         period=3.0,
         actions=[gazebo_sim_launch]
@@ -277,7 +308,25 @@ def generate_launch_description():
         ]),
         launch_arguments={
             'use_sim_time': use_sim
-        }.items()
+        }.items(),
+        # Control bot in reality
+        condition=UnlessCondition(use_sim)
+    )
+
+    # Include robot localization launch with the config file
+    opponent_teleop_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare(robot_bringup_pkg),
+                'launch',
+                'teleop_opponent.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'use_sim_time': use_sim
+        }.items(),
+        # Control opponent in sim
+        condition=IfCondition(use_sim)
     )
 
     weapon_speed_control = IncludeLaunchDescription(
@@ -294,6 +343,7 @@ def generate_launch_description():
     )
     
     ld.add_action(robot_teleop_launch)
+    ld.add_action(opponent_teleop_launch)
     ld.add_action(weapon_speed_control)
 
 
