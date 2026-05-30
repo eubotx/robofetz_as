@@ -7,6 +7,7 @@ from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_xml.launch_description_sources import XMLLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
 from launch.conditions import IfCondition, UnlessCondition
@@ -17,7 +18,7 @@ def generate_launch_description():
     localization_pkg = 'arena_perception'
     robot_description_pkg = 'robot_description'
     gazebo_pkg = 'robofetz_gazebo'
-    robot_bringup_pkg = 'robot_bringup'  # Assuming you have a robot_bringup package
+    robot_bringup_pkg = 'robot_bringup'
     
     # ============================================
     # LAUNCH ARGUMENTS
@@ -259,9 +260,63 @@ def generate_launch_description():
         period=localization_delay,
         actions=[robot_localization_launch]
     ))
+
+    # ============================================
+    # 4. ROBOT TELEOP
+    # ============================================
+    #ToDo: Make this an own package which lets you choose between Xbox and Keyboard
+    
+    # Include robot localization launch with the config file
+    robot_teleop_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare(robot_bringup_pkg),
+                'launch',
+                'xbox_teleop.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'use_sim_time': use_sim
+        }.items()
+    )
+
+    weapon_speed_control = IncludeLaunchDescription(
+        XMLLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare(robot_bringup_pkg),
+                'launch',
+                'weaponspeed_slider.launch'
+            ])
+        ]),
+        launch_arguments={
+            'use_sim_time': use_sim
+        }.items()
+    )
+    
+    ld.add_action(robot_teleop_launch)
+    ld.add_action(weapon_speed_control)
+
+
+    # ============================================
+    # 5. CMD_VEL MUXER
+    # ============================================
+    
+    # Muxes cmd_vel between teleop and autonomous, so you can overwrite autonomy
+    cmd_vel_muxer = Node(
+        package='combat_strategizer',
+        executable='cmd_vel_muxer',
+        name='robot_cmd_vel_muxer',
+        parameters=[{
+            'use_sim_time': use_sim
+        }],
+        output='screen'
+    )
+    
+    ld.add_action(cmd_vel_muxer)
+
     
     # ============================================
-    # 4. RVIZ2 VISUALIZATION (CONDITIONAL)
+    # 6. RVIZ2 VISUALIZATION (CONDITIONAL)
     # ============================================
     
     # RViz2 config file path - using the configurable file name

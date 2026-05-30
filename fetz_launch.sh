@@ -23,8 +23,6 @@ open_tab "Opponent Detection (MOG)" "ros2 launch arena_perception opponent_detec
 # open_tab "Opponent Detection (Color)" "ros2 launch arena_perception opponent_detection_color.launch.py"
 
 open_tab "Robot Bringup" "ros2 launch robot_bringup robofetz_as.launch.py use_sim:=false"
-open_tab "Cmd Vel Muxer" "ros2 run combat_strategizer cmd_vel_muxer"
-open_tab "Xbox Teleop" "ros2 launch robot_bringup xbox_teleop.launch.py"
 open_tab "Radio Bridge" "ros2 run robot_bringup radio_bridge_node"
 open_tab "Elf Navigator" "ros2 run robot_navigation elf_navigator"
 open_tab "Elf Combat Strategizer" "ros2 run combat_strategizer elf_combat_strategizer"
