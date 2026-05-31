@@ -24,8 +24,8 @@ open_tab "Opponent Detection (MOG)" "ros2 launch arena_perception opponent_detec
 
 open_tab "Robot Bringup" "ros2 launch robot_bringup robofetz_as.launch.py use_sim:=false"
 #open_tab "Radio Bridge" "ros2 run robot_bringup radio_bridge_node"
-open_tab "Elf Navigator" "ros2 run robot_navigation elf_navigator"
-open_tab "Elf Combat Strategizer" "ros2 run combat_strategizer elf_combat_strategizer"
+#open_tab "Elf Navigator" "ros2 run robot_navigation elf_navigator"
+#open_tab "Elf Combat Strategizer" "ros2 run combat_strategizer elf_combat_strategizer"
 
 # Special tab for publishing the autonomy topic (will exit after publishing)
 gnome-terminal --tab --title="Enable Autonomy" -- bash -c "source /home/bjorn/robofetz_as/install/setup.bash' --once; exec bash" &

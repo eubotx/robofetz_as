@@ -19,6 +19,8 @@ def generate_launch_description():
     robot_description_pkg = 'robot_description'
     gazebo_pkg = 'robofetz_gazebo'
     robot_bringup_pkg = 'robot_bringup'
+    strategizer_pkg = 'combat_strategizer'
+
     
     # ============================================
     # LAUNCH ARGUMENTS
@@ -346,6 +348,28 @@ def generate_launch_description():
     ld.add_action(opponent_teleop_launch)
     ld.add_action(weapon_speed_control)
 
+    # ============================================
+    # 5. AUTONOMY
+    # ============================================
+
+    # Include autonomy launch
+    autonomy_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare(strategizer_pkg),
+                'launch',
+                'elf_autonomy.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'use_sim_time': use_sim
+        }.items()
+    )
+
+    ld.add_action(TimerAction(
+        period=30.0,
+        actions=[autonomy_launch]
+    ))
 
     # ============================================
     # 5. CMD_VEL MUXER
