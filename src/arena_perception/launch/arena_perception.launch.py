@@ -22,12 +22,6 @@ def generate_launch_description():
         description='Use simulation (Gazebo) clock if true'
     )
     
-    run_rectification_arg = DeclareLaunchArgument(
-        'run_rectification',
-        default_value='true',
-        description='Whether to run the camera rectification node. Set to false for pinhole cameras (like in Gazebo simulation)'
-    )
-    
     default_arena_perception_config = PathJoinSubstitution([
         FindPackageShare(perception_pkg),
         'config', 
@@ -38,19 +32,6 @@ def generate_launch_description():
         'arena_perception_config',
         default_value=default_arena_perception_config,
         description='Path to arena_perception_config file'
-    )
-    
-    # Arguments for opponent detection
-    opponent_camera_topic_arg = DeclareLaunchArgument(
-        'opponent_camera_topic',
-        default_value='/arena_camera/image_rect_masked',
-        description='Camera image topic for opponent detection (use masked image by default)'
-    )
-    
-    opponent_camera_info_topic_arg = DeclareLaunchArgument(
-        'opponent_camera_info_topic',
-        default_value='/arena_camera/camera_info',
-        description='Camera info topic for opponent detection'
     )
     
     # Default opponent detection config path
@@ -73,12 +54,9 @@ def generate_launch_description():
     )
     
     # Get config files from launch arguments
+    use_sim_time = LaunchConfiguration('use_sim_time')
     arena_perception_config_file = LaunchConfiguration('arena_perception_config')
     opponent_detection_config_file = LaunchConfiguration('opponent_detection_config')
-    use_sim_time = LaunchConfiguration('use_sim_time')
-    run_rectification = LaunchConfiguration('run_rectification')
-    opponent_camera_topic = LaunchConfiguration('opponent_camera_topic')
-    opponent_camera_info_topic = LaunchConfiguration('opponent_camera_info_topic')
     enable_opponent_detection = LaunchConfiguration('enable_opponent_detection')
     
     # Build launch description
@@ -86,20 +64,15 @@ def generate_launch_description():
     
     # Add launch arguments
     ld.add_action(use_sim_time_arg)
-    ld.add_action(run_rectification_arg)
     ld.add_action(arena_perception_config_arg)
-    ld.add_action(opponent_camera_topic_arg)
-    ld.add_action(opponent_camera_info_topic_arg)
     ld.add_action(opponent_detection_config_arg)
     ld.add_action(enable_opponent_detection_arg)
     
-    # Camera rectification node - only runs if run_rectification is true
     camera_rectification = Node(
         package='image_proc',
         executable='rectify_node',
         namespace='arena_camera',
         name='rectify_node',
-        condition=IfCondition(run_rectification),
         parameters=[{'use_sim_time': use_sim_time}],
         output='screen',
         remappings=[
@@ -110,22 +83,34 @@ def generate_launch_description():
     
     ld.add_action(camera_rectification)
 
-    # IMAGE REMAPPING NODE (for pinhole camera case) - only runs when run_rectifaction is false
-    # republishes image to image_rect so downstream nodes work and we safe computing power
-    image_remap_node = Node(
-        package='topic_tools',
-        executable='relay',
-        name='image_to_rect_relay',
+    crop_decimate_node = Node(
+        package='image_proc',
+        executable='crop_decimate_node',
         namespace='arena_camera',
+        name='crop_decimate_node', 
         parameters=[{
-            'use_sim_time': use_sim_time
+            'use_sim_time': use_sim_time,
+            'decimation_x': 2,  # Use int, not float
+            'decimation_y': 2,  # Use int, not float
+            'offset_x': 0,      # Use int, not float
+            'offset_y': 0,      # Use int, not float
+            #'width': crop_width,      # These should also be ints if uncommented
+            #'height': crop_height,    # These should also be ints if uncommented
+            #'interpolation': crop_interpolation,  # This should be int (0-4)
+            'approx_sync': True,  # Add this to help with message synchronization
+            'queue_size': 10,      # Add queue size for sync
+            'slop': 10.1               # Time tolerance in seconds (100ms)
         }],
-        arguments=['image', 'image_rect'],
-        condition=UnlessCondition(run_rectification),
+        remappings=[
+            ('in/image_raw', 'image_rect_masked'),
+            ('in/camera_info', 'camera_info'),
+            ('out/image_raw', 'cropped/image_rect_masked'),
+            ('out/camera_info', 'cropped/camera_info')
+        ],
         output='screen'
     )
     
-    ld.add_action(image_remap_node)
+    ld.add_action(crop_decimate_node)
     
     # Self written Apriltag detection node 
     # swap with premade ros one for efficiency
@@ -213,23 +198,24 @@ def generate_launch_description():
         ],
         output='screen'
     )
-
-    # Get the path to opponent detection launch file
-    opponent_detection_launch = PathJoinSubstitution([
-        FindPackageShare(perception_pkg),
-        'launch',
-        'opponent_Fusiondetection.launch.py'
-    ])
     
     # Include opponent detection launch file
     opponent_detection = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(opponent_detection_launch),
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare(perception_pkg),
+                'launch',
+                'opponent_Fusiondetection.launch.py'
+                # 'opponent_detection_mog.launch.py'
+                #'opponent_Fusiondetection.launch.py'
+            ])
+        ),
         condition=IfCondition(enable_opponent_detection),
         launch_arguments={
-            'camera_topic': opponent_camera_topic,
-            'camera_info_topic': opponent_camera_info_topic,
             'use_sim_time': use_sim_time,
-            'opponent_detection_config': opponent_detection_config_file
+            'opponent_detection_config': opponent_detection_config_file,
+            'camera_topic': '/arena_camera/cropped/image_rect_masked',
+            'camera_info_topic': '/arena_camera/cropped/camera_info',
         }.items()
     )
     
@@ -264,10 +250,10 @@ def generate_launch_description():
         actions=[robot_tf_to_pose]
     ))
     
-    # Add opponent detection with appropriate timing (after ROI mask is ready)
-    # ld.add_action(TimerAction(
-    #     period=9.0,  # Start after ROI mask node (6.0s) to ensure masked image is available
-    #     actions=[opponent_detection]
-    # ))
+    # Add opponent detection with appropriate timing (after ROI mask and cropping is ready)
+    ld.add_action(TimerAction(
+        period=15.0,  # Start after ROI mask node (6.0s) to ensure masked image is available
+        actions=[opponent_detection]
+    ))
 
     return ld

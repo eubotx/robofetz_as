@@ -22,13 +22,13 @@ def generate_launch_description():
     # =================== LAUNCH ARGUMENTS ===================
     declare_camera_topic = DeclareLaunchArgument(
         'camera_topic',
-        default_value='/arena_camera/image_rect',
+        default_value='/arena_camera/cropped/image_rect_masked',
         description='Camera image topic'
     )
     
     declare_camera_info_topic = DeclareLaunchArgument(
         'camera_info_topic',
-        default_value='/arena_camera/camera_info',
+        default_value='/arena_camera/cropped/camera_info',
         description='Camera info topic'
     )
     
@@ -115,6 +115,19 @@ def generate_launch_description():
         parameters=[LaunchConfiguration('opponent_detection_config')]
         # Remappings removed; topics are directly defined in config.
     )
+
+
+    opponent_tf_to_pose = Node(
+        package='combat_strategizer',
+        executable='tf_to_pose',
+        name='opponent_tf_to_pose',
+        parameters=[{
+            'source_frame': 'opponent',
+            'reference_frame': 'world',
+            'pose_topic': '/opponent/pose',
+        }],
+        output='screen'
+    )
     
     # =================== TIMING AND DELAYS ===================
     # Start ROI masking immediately with detectors
@@ -128,6 +141,11 @@ def generate_launch_description():
         actions=[kalman_filter_node]
     )
     
+    delayed_tf_to_pose = TimerAction(
+        period=2.0,
+        actions=[opponent_tf_to_pose]
+    )
+
     # =================== RETURN ===================
     return LaunchDescription([
         declare_camera_topic,
@@ -138,4 +156,5 @@ def generate_launch_description():
         mog2_detector_node,
         delayed_converters,
         delayed_kalman,
+        delayed_tf_to_pose,
     ])

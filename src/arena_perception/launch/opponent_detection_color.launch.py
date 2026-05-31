@@ -20,13 +20,13 @@ def generate_launch_description():
     # =================== LAUNCH ARGUMENTS ===================
     declare_camera_topic = DeclareLaunchArgument(
         'camera_topic',
-        default_value='/arena_camera/image_rect_masked',
+        default_value='/arena_camera/cropped/image_rect_masked',
         description='Camera image topic'
     )
     
     declare_camera_info_topic = DeclareLaunchArgument(
         'camera_info_topic',
-        default_value='/arena_camera/camera_info',
+        default_value='/arena_camera/cropped/camera_info',
         description='Camera info topic'
     )
     

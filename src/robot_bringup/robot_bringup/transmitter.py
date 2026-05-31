@@ -28,7 +28,7 @@ class RadioBridgeNode(Node):
         # Format: CMD:linear,angular
         data = f"CMD:{msg.linear.x:.2f},{msg.angular.z:.2f}\n"
         self.serial_conn.write(data.encode('utf-8'))
-        self.get_logger().info(f'Sending: {data.strip()}')
+        self.get_logger().debug(f'Sending: {data.strip()}')
 
     def callback_pid_tuning(self, msg: Float64MultiArray):
         if len(msg.data) >= 4:
@@ -40,7 +40,7 @@ class RadioBridgeNode(Node):
         # Format: WPN:speed
         data = f"WPN:{msg.data:.2f}\n"
         self.serial_conn.write(data.encode('utf-8'))
-        self.get_logger().info(f'Sending: {data.strip()}')
+        self.get_logger().debug(f'Sending: {data.strip()}')
 
     def serial_rx_thread(self):
         while rclpy.ok():
