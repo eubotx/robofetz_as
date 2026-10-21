@@ -7,6 +7,14 @@ The system can run:
 * Fully in simulation (Gazebo)
 * On real hardware (camera + ESP32 controlled robot)
 
+## Robot Hardware
+
+| Elfbar prototype | CAD model |
+| --- | --- |
+| ![Assembled Elfbar combat robot with its tracking marker on the top cover](docs/images/elfbar.jpg) | ![CAD rendering of the Elfbar combat robot](docs/images/elfbar-cad.png) |
+
+The assembled Elfbar robot and its CAD model.
+
 ---
 
 # Installation Instructions
