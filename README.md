@@ -2,6 +2,10 @@
 
 **ROBOFETZ_AS** is an autonomous system based on ROS2 (Jazzy) to make battle bots actual autonomous robots. It provides robot perception, robot localization, combat strategy infrastructure, robot navigation, robot controls, and all required ROS2 infrastructure including a full simulation environment.
 
+See [System architecture and assessment](docs/architecture.md) for the current
+launch graph, TF ownership, Elf behavior, and improvement priorities. Contributor
+and agent guidance is in [AGENTS.md](AGENTS.md).
+
 The system can run:
 
 * Fully in simulation (Gazebo)
@@ -102,7 +106,7 @@ source install/local_setup.bash
 ```bash
 cd robofetz_as
 source install/local_setup.bash
-ros2 launch robofetz_as robofetz_as.launch.py
+ros2 launch robot_bringup robofetz_as.launch.py
 ```
 
 ---
@@ -136,13 +140,13 @@ ros2 launch robot_bringup robofetz_as.launch.py use_sim:=true
 Full simulation (default):
 
 ```bash
-ros2 launch robofetz_as robofetz_as.launch.py
+ros2 launch robot_bringup robofetz_as.launch.py
 ```
 
 Simulation with wide-angle world (currently not supported):
 
 ```bash
-ros2 launch robofetz_as robofetz_as.launch.py \
+ros2 launch robot_bringup robofetz_as.launch.py \
 use_sim:=true \
 world:=robofetz_arena_wideangle.world
 ```
@@ -150,7 +154,7 @@ world:=robofetz_arena_wideangle.world
 Simulation with fake perception:
 
 ```bash
-ros2 launch robofetz_as robofetz_as.launch.py \
+ros2 launch robot_bringup robofetz_as.launch.py \
 use_sim:=true \
 use_fake_perception:=true
 ```
@@ -158,7 +162,7 @@ use_fake_perception:=true
 Real robot mode:
 
 ```bash
-ros2 launch robofetz_as robofetz_as.launch.py \
+ros2 launch robot_bringup robofetz_as.launch.py \
 use_sim:=false
 ```
 

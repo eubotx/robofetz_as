@@ -8,7 +8,7 @@ from tf2_ros import TransformException
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 
-class BattleBotNavigator(Node):
+class SimpleBotNavigator(Node):
     def __init__(self):
         super().__init__('battle_bot_navigator')
         
@@ -200,7 +200,7 @@ class BattleBotNavigator(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    navigator = BattleBotNavigator()
+    navigator = SimpleBotNavigator()
     
     def shutdown_handler():
         navigator.get_logger().info("Shutting down - stopping robot")
