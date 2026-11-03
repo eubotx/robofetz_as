@@ -2,9 +2,7 @@
 
 **ROBOFETZ_AS** is an autonomous system based on ROS2 (Jazzy) to make battle bots actual autonomous robots. It provides robot perception, robot localization, combat strategy infrastructure, robot navigation, robot controls, and all required ROS2 infrastructure including a full simulation environment.
 
-See [System architecture and assessment](docs/architecture.md) for the current
-launch graph, TF ownership, Elf behavior, and improvement priorities. Contributor
-and agent guidance is in [AGENTS.md](AGENTS.md).
+[Package guides](docs/packages/README.md) · [System architecture](docs/architecture.md) · [Contributor guide](AGENTS.md)
 
 The system can run:
 
@@ -227,7 +225,11 @@ Clean workspace:
 rm -rf build install log
 ```
 
-Arm weapon:
+Arm the optional `weapon_control` policy:
+
+`/weapon/armed` only gates that node. The default weapon slider and radio path
+do not subscribe to it; see [weapon interfaces](docs/packages/combat_strategizer.md)
+and [firmware behavior](docs/firmware.md).
 
 ```bash
 ros2 topic pub /weapon/armed std_msgs/Bool "{data: true}"
