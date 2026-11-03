@@ -1,0 +1,11 @@
+services:
+  sim:
+    image: robofetz-as:jazzy
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    init: true
+    shm_size: 1gb
+    ports:
+      - "127.0.0.1:6080:6080"
+    stop_grace_period: 20s
