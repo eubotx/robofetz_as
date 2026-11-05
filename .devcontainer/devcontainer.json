@@ -1,0 +1,41 @@
+{
+  "name": "ROBOFETZ_AS · ROS 2 Jazzy",
+  "build": {
+    "dockerfile": "../docker/Dockerfile",
+    "context": "..",
+    "target": "development"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/ws,type=bind",
+  "workspaceFolder": "/ws",
+  "mounts": [
+    "source=robofetz-${devcontainerId}-build,target=/ws/build,type=volume",
+    "source=robofetz-${devcontainerId}-install,target=/ws/install,type=volume",
+    "source=robofetz-${devcontainerId}-log,target=/ws/log,type=volume"
+  ],
+  "runArgs": ["--init", "--shm-size=1g", "--publish", "127.0.0.1:6080:6080"],
+  "containerEnv": {
+    "ROS_DOMAIN_ID": "42",
+    "ROS_AUTOMATIC_DISCOVERY_RANGE": "LOCALHOST",
+    "DISPLAY": ":99",
+    "QT_QPA_PLATFORM": "xcb",
+    "QT_X11_NO_MITSHM": "1",
+    "LIBGL_ALWAYS_SOFTWARE": "1"
+  },
+  "remoteUser": "robot",
+  "updateRemoteUserUID": true,
+  "overrideCommand": false,
+  "shutdownAction": "stopContainer",
+  "postCreateCommand": ["bash", ".devcontainer/workspace.sh", "build"],
+  "waitFor": "postCreateCommand",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

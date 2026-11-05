@@ -4,6 +4,8 @@
 
 [Package guides](docs/packages/README.md) · [System architecture](docs/architecture.md) · [Contributor guide](AGENTS.md)
 
+[VS Code Dev Container](docker/DEVCONTAINER.md) · [Standalone Docker simulation](docker/README.md)
+
 The system can run:
 
 * Fully in simulation (Gazebo)

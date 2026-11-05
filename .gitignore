@@ -1,6 +1,8 @@
 # General development files
 # VSCode workspace settings
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/settings.json
 # Swap files for vim
 *.swp
 # Swap files for vim

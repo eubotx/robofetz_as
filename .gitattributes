@@ -1,0 +1,4 @@
+.devcontainer/* text eol=lf
+.vscode/*.json text eol=lf
+docker/Dockerfile text eol=lf
+docker/*.sh text eol=lf

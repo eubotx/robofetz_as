@@ -1,6 +1,8 @@
 #!/bin/bash
 set -eo pipefail
 
+unset WAYLAND_DISPLAY WAYLAND_SOCKET
+export XDG_SESSION_TYPE=x11
 export DISPLAY=:99
 export QT_QPA_PLATFORM=xcb
 export QT_X11_NO_MITSHM=1

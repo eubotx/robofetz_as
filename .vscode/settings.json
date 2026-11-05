@@ -1,0 +1,21 @@
+{
+  "python.defaultInterpreterPath": "/usr/bin/python3",
+  "python.analysis.extraPaths": [
+    "/opt/robot-python",
+    "/opt/ros/jazzy/lib/python3.12/site-packages",
+    "/opt/ros/jazzy/local/lib/python3.12/dist-packages",
+    "src/arena_perception",
+    "src/combat_strategizer",
+    "src/robot_navigation",
+    "src/robot_bringup",
+    "src/robot_description",
+    "src/robofetz_gazebo",
+    "src/slider_publisher"
+  ],
+  "files.watcherExclude": {
+    "**/build/**": true,
+    "**/install/**": true,
+    "**/log/**": true
+  },
+  "search.exclude": {"build": true, "install": true, "log": true}
+}

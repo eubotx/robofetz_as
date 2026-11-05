@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ROS: build simulation workspace",
+      "type": "process",
+      "command": "bash",
+      "args": [".devcontainer/workspace.sh", "build"],
+      "group": {"kind": "build", "isDefault": true},
+      "problemMatcher": []
+    },
+    {
+      "label": "ROS: test simulation workspace",
+      "type": "process",
+      "command": "bash",
+      "args": [".devcontainer/workspace.sh", "test"],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "ROS: smoke test",
+      "type": "process",
+      "command": "bash",
+      "args": [".devcontainer/workspace.sh", "smoke"],
+      "problemMatcher": []
+    },
+    {
+      "label": "ROS: simulation desktop",
+      "type": "process",
+      "command": "bash",
+      "args": [".devcontainer/workspace.sh", "sim"],
+      "problemMatcher": []
+    }
+  ]
+}
