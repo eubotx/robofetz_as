@@ -9,8 +9,7 @@
     "src/robot_navigation",
     "src/robot_bringup",
     "src/robot_description",
-    "src/robofetz_gazebo",
-    "src/slider_publisher"
+    "src/robofetz_gazebo"
   ],
   "files.watcherExclude": {
     "**/build/**": true,
@@ -21,6 +20,5 @@
     "build": true,
     "install": true,
     "log": true
-  },
-  "cmake.sourceDirectory": "/home/florian/robofetz_as/src/slider_publisher"
+  }
 }

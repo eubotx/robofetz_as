@@ -36,10 +36,9 @@ code .
 
 Stop the standalone Compose simulator if it is running, then run
 **Dev Containers: Reopen in Container** from the Command Palette.
-The first setup installs editor extensions, initializes the pinned
-`src/slider_publisher` submodule, and builds the workspace. The first image
-build and submodule fetch require internet access. Wait for the initial
-build to finish.
+The first setup installs editor extensions and builds the workspace. The
+first image build requires internet access. Wait for the initial build to
+finish.
 
 Look for **Dev Container: ROBOFETZ_AS · ROS 2 Jazzy** in the bottom-left
 corner of VS Code. Open an integrated terminal and check:
@@ -82,7 +81,11 @@ build fresh. This clears the build outputs and logs; source stays in WSL.
 For lasting changes to system dependencies, edit the [Dockerfile](Dockerfile)
 and rebuild the container.
 
-The build searches only `arena_perception`, `combat_strategizer`, `robot_navigation`, `robot_bringup`, `robot_description`, `robofetz_gazebo` and `slider_publisher`. It excludes the micro-ROS hardware paths even if initialized. The AprilTag image dataset submodule is optional test/reference data and is not required by the running simulation. No hardware submodule or dataset is downloaded automatically. The slider is checked out at the parent repository's gitlink, rather than a moving branch tip.
+The build searches only `arena_perception`, `combat_strategizer`,
+`robot_navigation`, `robot_bringup`, `robot_description`, and
+`robofetz_gazebo`. It excludes the micro-ROS hardware paths even if
+initialized. The AprilTag image dataset submodule is optional test and
+reference data. No hardware submodule or dataset is downloaded automatically.
 
 ## Edit, build and test
 
@@ -131,7 +134,8 @@ Run **ROS: simulation desktop**, then open [noVNC](http://localhost:6080/vnc.htm
 
 Xbox controllers are unsupported in this WSL 2 setup because the tested WSL
 kernel lacks the `xpad` driver. To drive the simulated opponent, open a second
-Dev Container terminal while the simulation is running:
+Dev Container terminal while the simulation is running and start
+`enemy_teleop_node` using the `keyboard_node` executable:
 
 ```bash
 ros2 run robot_bringup keyboard_node

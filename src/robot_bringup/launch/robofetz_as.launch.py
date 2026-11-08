@@ -7,7 +7,6 @@ from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_xml.launch_description_sources import XMLLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
 from launch.conditions import IfCondition, UnlessCondition
@@ -331,22 +330,8 @@ def generate_launch_description():
         condition=IfCondition(use_sim)
     )
 
-    weapon_speed_control = IncludeLaunchDescription(
-        XMLLaunchDescriptionSource([
-            PathJoinSubstitution([
-                FindPackageShare(robot_bringup_pkg),
-                'launch',
-                'weaponspeed_slider.launch'
-            ])
-        ]),
-        launch_arguments={
-            'use_sim_time': use_sim
-        }.items()
-    )
-    
     ld.add_action(robot_teleop_launch)
     ld.add_action(opponent_teleop_launch)
-    ld.add_action(weapon_speed_control)
 
     # ============================================
     # 5. AUTONOMY

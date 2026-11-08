@@ -15,11 +15,11 @@ There are different variants of combat strategizers available:
 | `nav2_attack` | Optional Nav2 example | Chooses attack and retreat destinations for a Nav2 action client. |
 
 
-## Simple combat strategizer
+## simple_combat_strategizer
 
 `simple_combat_strategizer` forwards each `/opponent/pose` message unchanged
-to `/goal_pose`. Both topics use `geometry_msgs/msg/PoseStamped`. Its
-navigator combines that goal with the robot's own pose and starts steering as
+to `/goal_pose`. Both topics use `geometry_msgs/msg/PoseStamped`.
+`simple_navigator` combines that goal with `/robot/pose` and starts steering as
 soon as both are available. This gives a baseline where every new opponent
 observation becomes the next target.
 [Strategizer source](../../src/combat_strategizer/combat_strategizer/simple_combat_strategizer.py)
@@ -34,10 +34,10 @@ flowchart LR
 
 - Reject stale targets before forwarding them.
 
-## Elf combat strategizer
+## elf_combat_strategizer
 
-`elf_combat_strategizer` reads the robot and opponent poses and runs its state
-machine at 20 Hz. It starts with `/autonomy` disabled. Pursuit and retreat use
+`elf_combat_strategizer` reads `/robot/pose` and `/opponent/pose` and runs its
+state machine at 20 Hz. It starts with `/autonomy` disabled. Pursuit and retreat use
 a goal plus a drive direction. An immediate command interrupts goal tracking
 to stop or reverse during wall recovery.
 [Strategizer source](../../src/combat_strategizer/combat_strategizer/elf_combat_strategizer.py)
@@ -80,14 +80,14 @@ keeps the last opponent pose without an expiry.
 
 - Check the original observation time for both robot and opponent.
 
-## Nav2 attack
+## nav2_attack
 
 `nav2_attack` is an optional example that inherits the `Nav2Navigator` class.
 It runs under the node name `nav2_navigator`, uses the legacy robot and
 opponent pose topics, and calls `attack()` and `escape()` within the same
 node. The inherited wrapper aligns the robot before sending the destination
-to Nav2.
-[Strategizer source](../../src/combat_strategizer/combat_strategizer/nav2_attack.py) · [Nav2 navigator](robot_navigation.md#nav2-navigator)
+to `bt_navigator` on `/navigate_to_pose`.
+[Strategizer source](../../src/combat_strategizer/combat_strategizer/nav2_attack.py) · [nav2_navigator](robot_navigation.md#nav2_navigator)
 
 ```mermaid
 flowchart LR
@@ -98,7 +98,7 @@ flowchart LR
   end
   Robot["/arena_perception_robot_base_footprint_pose"] --> Wrapper
   Opponent["/arena_perception_opponent_base_footprint_pose"] --> Strategy
-  Wrapper -->|"navigate_to_pose action"| Nav2["Nav2 servers"]
+  Wrapper -->|"/navigate_to_pose action"| Nav2["bt_navigator"]
 ```
 
 During attack, an opponent position change of at least 0.01 m triggers a new
@@ -120,12 +120,6 @@ rejection or failure, so the dwell can start without reaching the goal.
 | [`tf_to_pose`](../../src/combat_strategizer/combat_strategizer/tf_to_pose.py) | Publishes the latest TF pose as `PoseStamped`, stamping the message with the current ROS time. Defaults to the `world` reference frame and 60 Hz. |
 | [`point_to_pose_remap`](../../src/combat_strategizer/combat_strategizer/point_to_pose_remap.py) | Converts `/detected_opponent/viz_point` to `/opponent/pose`. It preserves x and y, sets z to zero, and uses an identity orientation. |
 | [`conditions/`](../../src/combat_strategizer/combat_strategizer/conditions) and [`states.py`](../../src/combat_strategizer/combat_strategizer/states.py) | Python helpers for proximity, timeouts, navigation completion, and combat states. Elf and Nav2Attack implement their active proximity checks separately. |
-
-Standard perception uses `tf_to_pose` for both pose topics. It reads
-`robot/base_footprint` for the robot and `opponent` for the target. Fake
-perception changes the target frame to
-`arena_perception/opponent/base_footprint`.
-[Perception guide](arena_perception.md)
 
 ### Proposed improvements
 

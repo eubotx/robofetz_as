@@ -10,6 +10,5 @@
 | [robot_description](robot_description.md) | Robot geometry, tag mounts and Gazebo plugins |
 | [robofetz_gazebo](robofetz_gazebo.md) | Simulation worlds, spawning and ROS bridges |
 | [robot_bringup](robot_bringup.md) | System launch, `robot_cmd_vel_muxer`, teleop and serial radio bridge |
-| [slider_publisher](slider_publisher.md) | Third-party GUI used for weapon speed |
 
 Of 37 first-party console entries, 31 have a matching module and `main`. The six broken entries are listed in the [perception guide](arena_perception.md). Runtime behavior was reviewed from source.

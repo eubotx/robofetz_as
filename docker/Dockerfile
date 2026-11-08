@@ -3,11 +3,11 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       build-essential cmake git python3-colcon-common-extensions python3-pip python3-wheel \
       python3-opencv python3-numpy python3-scipy python3-matplotlib python3-pil \
-      python3-yaml python3-bitstring python3-serial python3-pyqt5 \
+      python3-yaml python3-bitstring python3-serial \
       ros-jazzy-ros-gz ros-jazzy-rviz2 ros-jazzy-xacro ros-jazzy-robot-state-publisher \
       ros-jazzy-joint-state-publisher ros-jazzy-teleop-twist-joy ros-jazzy-joy \
-      ros-jazzy-launch-xml ros-jazzy-image-proc ros-jazzy-cv-bridge ros-jazzy-vision-msgs \
-      ros-jazzy-tf-transformations ros-jazzy-tf2-geometry-msgs ros-jazzy-python-qt-binding \
+      ros-jazzy-image-proc ros-jazzy-cv-bridge ros-jazzy-vision-msgs \
+      ros-jazzy-tf-transformations ros-jazzy-tf2-geometry-msgs \
       ros-jazzy-usb-cam ros-jazzy-camera-ros ros-jazzy-topic-tools \
       ros-jazzy-navigation2 ros-jazzy-nav2-bringup \
       xvfb x11-utils x11vnc openbox novnc websockify fonts-dejavu-core \
@@ -41,10 +41,6 @@ CMD ["sleep", "infinity"]
 
 FROM dependencies AS simulation
 WORKDIR /ws
-# The same gitlink as this branch, including for checkouts without submodules.
-RUN git init -q src/slider_publisher \
-    && git -C src/slider_publisher fetch --depth=1 https://github.com/oKermorgant/slider_publisher.git 6c6099c012b166b5cb21ee17163a9cc4f0743c53 \
-    && git -C src/slider_publisher checkout -q --detach FETCH_HEAD
 COPY src/ src/
 COPY docker/ros-env.sh /usr/local/bin/ros-env
 COPY docker/sim.sh /usr/local/bin/robofetz-sim

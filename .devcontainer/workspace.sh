@@ -2,13 +2,12 @@
 set -eo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 source /opt/ros/jazzy/setup.bash
-packages=(arena_perception combat_strategizer robot_navigation robot_bringup robot_description robofetz_gazebo slider_publisher)
+packages=(arena_perception combat_strategizer robot_navigation robot_bringup robot_description robofetz_gazebo)
 paths=()
 for package in "${packages[@]}"; do paths+=("src/$package"); done
 case "${1:-build}" in
     build)
         shift || true
-        git submodule update --init -- src/slider_publisher
         colcon build --symlink-install --executor sequential --base-paths "${paths[@]}" "$@"
         ;;
     test)

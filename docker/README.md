@@ -33,8 +33,8 @@ localhost port 6080, even when the Dev Container's simulation task is idle.
 docker compose -f docker/compose.yaml up --build
 ```
 
-The first build downloads dependencies, builds the six project packages and
-the pinned `slider_publisher`, and runs a headless smoke check. Compose starts
+The first build downloads dependencies, builds the six project packages, and
+runs a headless smoke check. Compose starts
 the `sim` service from the resulting `robofetz-as:jazzy` image and streams its
 logs. Source is copied into the image, so run `up --build` again after editing
 it. Docker can reuse unchanged dependency layers. To start the already-built
@@ -42,8 +42,8 @@ image in the background, use `up -d` in place of `up --build`.
 
 Open [the simulation desktop](http://localhost:6080/vnc.html?autoconnect=1&resize=scale)
 in your host browser. Gazebo simulates the arena and sensors; RViz visualizes
-ROS data. Both run on the container's virtual desktop, alongside the weapon
-slider and color selector. Click the simulated opponent in the color selector,
+ROS data. Both run on the container's virtual desktop alongside the color
+selector. Click the simulated opponent in the color selector,
 or press **q** in that window to use its default settings. The launch starts
 Elf after a delay, with autonomy disabled. The desktop uses software rendering,
 so simulation speed depends on CPU capacity.
@@ -79,15 +79,15 @@ Press Ctrl+C to stop `tf2_echo`, then type `exit` to leave that shell.
 Xbox controllers are unsupported in this WSL 2 setup because the tested WSL
 kernel lacks the `xpad` driver. The Compose service also passes through no host
 devices.
-With the simulation running, start the included keyboard node from a second
-host terminal:
+With the simulation running, start `enemy_teleop_node` from a second host
+terminal using the `keyboard_node` executable:
 
 ```bash
 docker compose -f docker/compose.yaml exec sim ros-env ros2 run robot_bringup keyboard_node
 ```
 
-Focus the keyboard node's terminal. Use WASD or the arrow keys to move the
-**simulated opponent**, Space to stop it, and Q to quit the keyboard node.
+Focus the terminal running `enemy_teleop_node`. Use WASD or the arrow keys to
+move the **simulated opponent**, Space to stop it, and Q to quit.
 
 For graphical control, use [rqt Robot Steering](https://github.com/ros-visualization/rqt_robot_steering)
 if you have installed it in the simulation's ROS environment. Set its topic to
@@ -95,8 +95,9 @@ if you have installed it in the simulation's ROS environment. Set its topic to
 
 ## Try Elf against a moving opponent
 
-Wait for Elf to start, then enable autonomy in the running simulation and drive
-the opponent using one of the controls above.
+Wait for `elf_combat_strategizer` and `elf_navigator` to start, then enable
+`/autonomy` in simulation and drive the opponent using one of the controls
+above.
 
 ```bash
 docker compose -f docker/compose.yaml exec sim ros-env ros2 topic pub --once /autonomy std_msgs/msg/Bool '{data: true}'

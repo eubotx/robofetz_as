@@ -28,8 +28,8 @@ the last goal if opponent updates stop. [Navigator source](../src/robot_navigati
 
 ### Simple autonomy launch
 
-`simple_autonomy.launch.py` starts the Simple combat strategizer and
-navigator. [Rhino launch](../src/combat_strategizer/launch/simple_autonomy.launch.py)
+`simple_autonomy.launch.py` starts `simple_combat_strategizer` and
+`simple_navigator`. [Simple launch](../src/combat_strategizer/launch/simple_autonomy.launch.py)
 
 ## Elf autonomy stack
 

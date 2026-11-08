@@ -254,7 +254,8 @@ for node in $(ros2 node list); do
 done
 ```
 
-Publish TF frame as PoseStamped:
+Run the `tf_to_pose` executable with a standalone output topic. In standard
+bringup, `robot_tf_to_pose` publishes `/robot/pose`.
 
 ```bash
 ros2 run combat_strategizer tf_to_pose \

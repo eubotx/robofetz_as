@@ -8,7 +8,11 @@ The URDF defines the robot geometry, tag mounts and Gazebo plugins.
 
 [robot_state_publisher.launch.py](../../src/robot_description/launch/robot_state_publisher.launch.py) processes [robot.urdf.xacro](../../src/robot_description/urdf/robot.urdf.xacro) in Python and starts the external `robot_state_publisher/robot_state_publisher` node. Arguments: `use_sim_time=false` and `prefix=''`. Bringup supplies `prefix=robot/`. The xacro is processed without a link-name prefix; the ROS node's `frame_prefix` adds it to TF. `publish_frequency=50.0` is configured.
 
-The description string is supplied as `robot_description`. Gazebo's create process consumes `/robot_description`. Joint states (`sensor_msgs/JointState` on `/joint_states`) support moving-joint TF; fixed transforms form the mounting geometry. TF outputs are `/tf` and `/tf_static` (`tf2_msgs/TFMessage`).
+`robot_state_publisher` gets the URDF from the `robot_description` parameter.
+`spawn_robot` consumes the published `/robot_description` topic.
+`robot_state_publisher` reads `/joint_states` (`sensor_msgs/JointState`) for
+moving joints and publishes transforms on `/tf` and `/tf_static`
+(`tf2_msgs/TFMessage`).
 
 **Improve**
 
@@ -28,7 +32,8 @@ The description string is supplied as `robot_description`. Gazebo's create proce
 
 Body dimensions are 0.0969 × 0.147 × 0.065 m; wheel radius 0.0355 m, width 0.01 m, wheel separation 0.167 m. Link masses/inertias are computed from dimensions and density properties. The visual tag surface is 0.094 m square; perception's detected tag edge is separately configured as 0.0522 m. These are different quantities that require calibration validation, not an automatic assumption of equality.
 
-The robot detector queries tag optical frame → base_footprint mounting transforms, so tag orientation and offsets are part of a localization interface. A geometry edit can change world localization even if control code is unchanged.
+`robot_detection_node` queries the transforms from the tag optical frames to
+`robot/base_footprint`, so tag orientation and offsets affect localization.
 
 **Improve**
 
@@ -46,7 +51,8 @@ The robot detector queries tag optical frame → base_footprint mounting transfo
 | gz::sim::systems::JointStatePublisher | Output robot/joint_states, right_wheel_joint and left_wheel_joint. |
 | gz::sim::systems::OdometryPublisher | Ground-truth outputs robot/odometry_ground_truth, robot/odometry_ground_truth_with_covariance and robot/pose_ground_truth at 60 Hz; world → robot/base_footprint_sim; dimensions=3. |
 
-The current bridge enables commands, wheel joint states and ground-truth TF, but not wheel odometry/slip TF. There is no simulated weapon-speed consumer, despite the weapon geometry and the always-launched slider.
+The current bridge enables drive commands, wheel joint states and ground-truth
+TF. The weapon is fixed geometry in the simulation.
 
 **Improve**
 
@@ -58,14 +64,12 @@ The current bridge enables commands, wheel joint states and ground-truth TF, but
 
 ```mermaid
 flowchart LR
-  URDF[robot.urdf.xacro] --> RSP[external robot_state_publisher]
+  URDF[robot.urdf.xacro] --> RSP["robot_state_publisher"]
   GZ[robot.gazebo.xacro] --> URDF
   Textures[AprilTag textures] --> GZ
-  JointStates[joint_states] --> RSP
-  RSP --> Mounts[fixed tag mounts and moving-link TF]
-  RSP --> Description[robot_description]
-  Description --> Spawn[external Gazebo create]
-  Mounts --> Detector[arena_perception robot detector]
+  JointStates["/joint_states"] --> RSP
+  RSP -->|"/tf and /tf_static"| Detector["robot_detection_node"]
+  RSP -->|"/robot_description"| Spawn["spawn_robot"]
 ```
 
 It provides robot-relative geometry only; world/map/odom and camera relationships belong to perception/localization.

@@ -22,7 +22,7 @@ There are different variants of navigators available:
 | `elf_navigator` | Default controller | Tracks a goal forward or backward and handles immediate commands from the Elf strategizer. |
 | `nav2_navigator` | Optional Nav2 example | Aligns the robot locally, then hands the destination to Nav2 for path planning and tracking. |
 
-## Simple navigator
+## simple_navigator
 
 `simple_navigator` receives `/robot/pose` and `/goal_pose` as
 `geometry_msgs/msg/PoseStamped`. At 30 Hz it steers toward the goal with
@@ -36,7 +36,7 @@ flowchart LR
   Goal["/goal_pose"] --> Simple
   Simple -->|"/cmd_vel_autonomous"| Mux["robot_cmd_vel_muxer"]
   Teleop["/cmd_vel_teleop"] --> Mux
-  Mux -->|"/cmd_vel"| Drive["Robot drive"]
+  Mux -->|"/cmd_vel"| Drive["gz_bridge or radio_bridge_node"]
 ```
 
 The navigator keeps the last robot and goal poses until new ones arrive. When
@@ -53,7 +53,7 @@ steering. Arrival uses position alone.
 
 - Apply the transform before computing position error.
 
-## Elf navigator
+## elf_navigator
 
 `elf_navigator` also tracks `/goal_pose` using `/robot/pose`, with a 20 Hz
 control loop. The strategizer sends `FORWARD` or `BACKWARD` on `/drive_mode`.
@@ -66,11 +66,12 @@ ending goal tracking.
 ```mermaid
 flowchart LR
   Pose["/robot/pose"] --> Elf["elf_navigator"]
-  Strategy["Elf strategizer"] -->|"/goal_pose and /drive_mode"| Elf
+  Strategy["elf_combat_strategizer"] -->|"/goal_pose"| Elf
+  Strategy -->|"/drive_mode"| Elf
   Strategy -->|"/elf_navigator_cmd"| Elf
   Elf -->|"/cmd_vel_autonomous"| Mux["robot_cmd_vel_muxer"]
   Teleop["/cmd_vel_teleop"] --> Mux
-  Mux -->|"/cmd_vel"| Drive["Robot drive"]
+  Mux -->|"/cmd_vel"| Drive["gz_bridge or radio_bridge_node"]
 ```
 
 ### Immediate commands
@@ -97,23 +98,27 @@ invalid numeric text can raise an exception.
 
 - Reject malformed commands and stop when inputs expire.
 
-## Nav2 navigator
+## nav2_navigator
 
 `nav2_navigator` is an optional example for comparing local pose tracking
 with path planning. It takes the robot pose from
 `/arena_perception_robot_base_footprint_pose`. It turns toward the opponent
 using a 10 Hz PID loop, then sends a `nav2_msgs/action/NavigateToPose` goal to
-`navigate_to_pose`. An attack uses the opponent as the destination. An escape
-faces the opponent first and then sends a safe destination.
+`bt_navigator` on `/navigate_to_pose`. An attack uses the opponent as the
+destination. An escape faces the opponent first and then sends a safe
+destination.
 [Navigator source](../../src/robot_navigation/robot_navigation/nav2_navigator.py)
 
 ```mermaid
 flowchart LR
-  Input["Standalone command topics or strategy calls"] --> Wrapper["nav2_navigator"]
+  Attack["/attack_command (standalone)"] --> Wrapper["nav2_navigator"]
+  Escape["/escape_command (standalone)"] --> Wrapper
   Pose["/arena_perception_robot_base_footprint_pose"] --> Wrapper
-  Wrapper -->|"Alignment /cmd_vel"| Drive["Robot drive"]
-  Wrapper -->|"navigate_to_pose action"| Nav2["Nav2 servers"]
-  Nav2 -->|"/cmd_vel_smoothed"| Relay["Velocity relay"]
+  Wrapper -->|"/cmd_vel (alignment)"| Drive["gz_bridge or radio_bridge_node"]
+  Wrapper -->|"/navigate_to_pose action"| Nav2["bt_navigator"]
+  Nav2 --> Controller["controller_server"]
+  Controller -->|"/cmd_vel_nav"| Smoother["velocity_smoother"]
+  Smoother -->|"/cmd_vel_smoothed"| Relay["relay_vel_republisher_cmd"]
   Relay -->|"/cmd_vel"| Drive
 ```
 
@@ -123,11 +128,11 @@ and `/escape_command`. Its escape demo uses (0, 0) as the safe destination.
 uses the configured goal frame label without transforming the coordinates.
 Any completed action result returns it to `IDLE`, including a failed or
 canceled goal. Cancellation is asynchronous, so an old result can also affect
-the current state. [Nav2 strategy](combat_strategizer.md#nav2-attack)
+the current state. [Nav2 strategy](combat_strategizer.md#nav2_attack)
 
 [`nav2.launch.py`](../../src/robot_navigation/launch/nav2.launch.py) starts the
-external Nav2 servers, static map server, and velocity relay. Start the wrapper
-or the Nav2 strategy separately. The launch uses
+external Nav2 servers, `map_server`, and `relay_vel_republisher_cmd`. Start
+`nav2_navigator` or the `nav2_attack` executable separately. The launch uses
 [`nav2_params.yaml`](../../src/robot_navigation/config/nav2_params.yaml) with
 DWB by default. Set `params_file` to
 [`nav2_params_mppi.yaml`](../../src/robot_navigation/config/nav2_params_mppi.yaml)
@@ -135,10 +140,11 @@ to select MPPI. Both configurations expect `/odom`, which standard bringup
 does not supply. Both reference the supplied behavior tree for planning, path
 following, and recovery. [Behavior tree](../../src/robot_navigation/config/bt_navigator.xml)
 
-The wrapper and relay publish directly to `/cmd_vel`, so running them alongside
-`robot_cmd_vel_muxer` gives the drive topic multiple publishers. The relay takes
-`cmd_vel_smoothed` directly. The collision monitor's configured output is
-`cmd_vel_collision`.
+`nav2_navigator` and `relay_vel_republisher_cmd` publish directly to
+`/cmd_vel`, so running them alongside `robot_cmd_vel_muxer` gives the drive
+topic multiple publishers. `relay_vel_republisher_cmd` takes
+`/cmd_vel_smoothed` directly. The configured `collision_monitor` output is
+`/cmd_vel_collision`.
 
 ### Proposed improvement
 
@@ -153,7 +159,8 @@ The wrapper and relay publish directly to `/cmd_vel`, so running them alongside
 | [`map_node`](../../src/robot_navigation/robot_navigation/map_node.py) | Defense experiment that darkens the area around the opponent on an arena map and selects the brightest pixel as a candidate escape point. |
 
 `map_node` reads `map.pgm` and the `map_size`, `origin`, and `real_size`
-fields in `my_map.yaml`. It uses the legacy opponent pose topic and publishes
+fields in `my_map.yaml`. It reads
+`/arena_perception_opponent_base_footprint_pose` and publishes
 `/map_defence` (occupancy grid), `/map_debug_image` (mono8 image), and
 `/defense_position` (point in `map`) at 1 Hz. The active strategies choose
 defense positions independently.

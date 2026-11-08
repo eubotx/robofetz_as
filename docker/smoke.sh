@@ -3,10 +3,9 @@ set -eo pipefail
 export ROS_LOCALHOST_ONLY=1
 export ROS_DOMAIN_ID=91
 for pkg in arena_perception combat_strategizer robot_navigation robot_bringup \
-           robot_description robofetz_gazebo slider_publisher; do
+           robot_description robofetz_gazebo; do
     ros2 pkg prefix "$pkg" >/dev/null
 done
-test -x "$(ros2 pkg prefix slider_publisher)/lib/slider_publisher/slider_publisher"
 test -r /usr/share/novnc/vnc.html
 python3 - <<'PY'
 import cv2
@@ -14,7 +13,6 @@ import numpy as np
 from cv_bridge import CvBridge
 from filterpy.kalman import KalmanFilter
 from pyapriltags import Detector
-from python_qt_binding import QtWidgets
 from arena_perception import detection_kalman_filter
 from robot_navigation import elf_navigator
 

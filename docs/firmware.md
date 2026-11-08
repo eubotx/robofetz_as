@@ -1,6 +1,9 @@
 # ESP32 firmware
 
-Default hardware path: ROS topics → [radio_bridge_node](packages/robot_bringup.md) → USB serial (115200 baud) → PC-side ESP32 → HC-12 (9600 baud) → robot ESP32. The sketches live outside the colcon workspace packages.
+On hardware, `radio_bridge_node` reads `/cmd_vel` and `/weapon/speed` and
+sends commands over USB serial (115200 baud) to the PC-side ESP32. The HC-12
+link (9600 baud) carries them to the robot ESP32. The sketches live outside
+the colcon workspace packages. [radio_bridge_node](packages/robot_bringup.md#radio_bridge_node)
 
 ## Radio pair
 
@@ -24,12 +27,12 @@ Either accepted command reapplies both retained setpoints. `RobotControl` conver
 
 | Direction | Topic | Type and payload |
 | --- | --- | --- |
-| In | `cmd_vel` | Twist, linear.x and angular.z |
-| In | `weapon/speed` | Float32, normalized speed |
-| In | `drive/pid_tuning` | Float64MultiArray, exactly [Kp, Ki, Kd, KiMax] |
-| Out, 10 Hz best effort | `joint_states` | JointState, left/right wheel position (rad), velocity (rad/s), PWM duty in effort. Stamp uses MCU uptime. |
-| Optional, 10 Hz best effort | `drive/left/debug`, `drive/right/debug` | Float64MultiArray, desired motor RPS, measured RPS, error, duty |
-| Optional, 10 Hz best effort | `looptime_debug` | Float64MultiArray, median/minimum/maximum loop time (µs) |
+| In | `/cmd_vel` | Twist, linear.x and angular.z |
+| In | `/weapon/speed` | Float32, normalized speed |
+| In | `/drive/pid_tuning` | Float64MultiArray, exactly [Kp, Ki, Kd, KiMax] |
+| Out, 10 Hz best effort | `/joint_states` | JointState, left/right wheel position (rad), velocity (rad/s), PWM duty in effort. Stamp uses MCU uptime. |
+| Optional, 10 Hz best effort | `/drive/left/debug`, `/drive/right/debug` | Float64MultiArray, desired motor RPS, measured RPS, error, duty |
+| Optional, 10 Hz best effort | `/looptime_debug` | Float64MultiArray, median/minimum/maximum loop time (µs) |
 
 **Improve:** Synchronize timestamps and keep executor waits outside the actuator update loop. The executor can wait up to 1 s before the next drive update.
 

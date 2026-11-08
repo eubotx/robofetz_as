@@ -10,17 +10,17 @@ Spawns the robot and opponent in Gazebo and bridges their commands, camera data 
 
 [Source](../../src/robofetz_gazebo/robofetz_gazebo/camera_info_publisher.py). Requires `config_file` (default empty; throws when absent). Subscribes to `image_topic=/arena_camera/image` (`sensor_msgs/Image`, depth 10); publishes relative `camera_info` (`sensor_msgs/CameraInfo`, depth 10). Reads image dimensions, distortion model and K/D/R/P from YAML. On each new image timestamp it copies image stamp/frame and emits fixed calibration, with zero binning/ROI. Duplicate timestamps are suppressed. No timer/service/action.
 
-The default bridge already supplies CameraInfo.
+`gz_bridge` already supplies `/arena_camera/camera_info` in the default simulation.
 
 **Improve:** validate YAML matrices against actual image dimensions and avoid two CameraInfo authorities; make the output topic explicit.
 
 ### grayscale_republisher
 
-[Source: GrayscaleRepublisher](../../src/robofetz_gazebo/robofetz_gazebo/grayscale_republisher_node.py). Executable `grayscale_republisher`, node `grayscale_republisher`. Subscribes to relative `arena_camera/image_sim_color` and publishes `arena_camera/image_raw`, both `sensor_msgs/Image`, depth 10. Converts bgr8 to mono8 and preserves the header. Callback-driven; topics are hard-coded, no custom parameters. Not selected by current simulation launch, whose bridge uses `arena_camera/image`.
+[Source: GrayscaleRepublisher](../../src/robofetz_gazebo/robofetz_gazebo/grayscale_republisher_node.py). Executable and node `grayscale_republisher`. In the root namespace it subscribes to `/arena_camera/image_sim_color` and publishes `/arena_camera/image_raw`, both `sensor_msgs/Image`, depth 10. It converts bgr8 to mono8 and preserves the header. The topics are hard-coded. The default simulation uses `gz_bridge` to publish `/arena_camera/image`.
 
 **Improve:** parameterize/remap image endpoints, keep color available for the active color detector, and remove or explicitly label unused conversion profiles.
 
-### tf_to_pose
+### tf_to_pose_stamped
 
 [Source: TFToPoseStamped](../../src/robofetz_gazebo/robofetz_gazebo/tf_to_pose.py). Executable `tf_to_pose`, node `tf_to_pose_stamped`. Requires `parent_frame`, `child_frame` and `pose_topic`; `publish_rate=10.0` Hz. Uses latest TF with lookup timeout 0.1 s; publishes `geometry_msgs/PoseStamped`, depth 10, copying the **transform header**. Lookup failures produce throttled warnings.
 
@@ -38,7 +38,7 @@ Not used in current launch. It is an alternative to combat_strategizer's similar
 
 [robofetz_gazebo_sim.launch.py](../../src/robofetz_gazebo/launch/robofetz_gazebo_sim.launch.py) starts `gz sim -r -v 4`, configures model-search paths, optionally includes robot_description, spawns two models with `ros_gz_sim/create`, and starts `ros_gz_bridge/parameter_bridge` as `gz_bridge`.
 
-Arguments: `world=robofetz_arena_wideangle.world` and `enable_robot_state_pub=true`. Root bringup overrides the world to pinhole and disables the duplicate robot state publisher. Internal timers: description +2 s, spawning +5 s, bridge +6 s, measured from this included launch's start. Robot spawn pose is (0.3,1.2,0), yaw -0.78; opponent (1.2,0.3,0), yaw 2.36. Robot spawn consumes /robot_description; opponent xacro is expanded and supplied as a string.
+Arguments: `world=robofetz_arena_wideangle.world` and `enable_robot_state_pub=true`. Root bringup overrides the world to pinhole and supplies its own `robot_state_publisher`. Internal timers: description +2 s, spawning +5 s, bridge +6 s, measured from this included launch's start. Robot spawn pose is (0.3,1.2,0), yaw -0.78. The opponent spawns at (1.2,0.3,0) with yaw 2.36. `spawn_robot` consumes `/robot_description`. `spawn_opponent` receives the expanded opponent xacro as a string.
 
 [bridge_parameters.yaml](../../src/robofetz_gazebo/parameters/bridge_parameters.yaml) enables these endpoints (root namespace):
 
@@ -70,18 +70,21 @@ The [opponent model](../../src/robofetz_gazebo/models/simple_diff_drive_opponent
 ```mermaid
 flowchart LR
   World[chosen world + model assets] --> GZ[Gazebo]
-  Description[robot_description] --> Spawn[robot create process]
-  Opponent[opponent xacro] --> Spawn2[opponent create process]
+  Description["robot_state_publisher"] -->|"/robot_description"| Spawn["spawn_robot"]
+  Opponent[opponent xacro] --> Spawn2["spawn_opponent"]
   Spawn --> GZ
   Spawn2 --> GZ
   GZ <-->|configured transport mapping| Bridge[gz_bridge]
-  Bridge --> Camera[ROS image + CameraInfo]
-  Bridge --> Truth[ROS ground-truth TF]
-  Bridge --> Joints[ROS joint_states]
-  Commands[robot and opponent Twist] --> Bridge
+  Bridge --> Camera["/arena_camera/image and /arena_camera/camera_info"]
+  Bridge --> Truth["/tf"]
+  Bridge --> Joints["/joint_states"]
+  Commands["/cmd_vel and /opponent/cmd_vel"] --> Bridge
 ```
 
-The helper Python nodes are optional utilities, not stages in this active bridge graph. Fake perception consumes ground-truth TF via arena_perception relays; camera perception consumes the rendered image pair. Ground truth remains in *_sim frames, separate from estimated robot TF.
+In fake perception, `robot_tf_relay` and `opponent_tf_relay` read Gazebo
+ground truth from `/tf`. Camera perception uses the rendered image and
+calibration topics. The ground-truth TF frames are
+`robot/base_footprint_sim` and `opponent/base_footprint_sim`.
 
 ## Package improvements
 

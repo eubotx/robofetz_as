@@ -15,7 +15,6 @@ setup(
         
         # Add launch files
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch')),
         
         # Add config files
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),

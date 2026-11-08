@@ -41,7 +41,7 @@ All subscriptions use depth 10. Numbers are formatted to two decimal places. Dri
 
 **Improve:** Validate serial fields and expose connection state.
 
-### keyboard_node
+### enemy_teleop_node
 
 [Source: EnemyTeleop](../../src/robot_bringup/robot_bringup/keyboard_node.py). Executable `keyboard_node`, node `enemy_teleop_node`. Publishes `geometry_msgs/Twist` on `/opponent/cmd_vel`, depth 10. A nominal 0.1 s timer polls terminal keys and republishes the retained command: arrows/WASD select ±0.5 m/s or ±1 rad/s, space stops, Q quits. Terminal reads can block for 0.1 s each, so the timer is not a strict output-rate guarantee. Shutdown attempts a zero command. No parameters, subscriptions, services or actions. Uses POSIX termios/tty and is not started by the default simulation launch.
 
@@ -51,15 +51,14 @@ All subscriptions use depth 10. Numbers are formatted to two decimal places. Dri
 
 | Launch/config | Interface and role |
 | --- | --- |
-| [xbox_teleop.launch.py](../../src/robot_bringup/launch/xbox_teleop.launch.py) | Includes the external `teleop_twist_joy` launch with `joy_vel=cmd_vel_teleop`. Joystick input becomes a Twist for `robot_cmd_vel_muxer`. |
-| [teleop_opponent.launch.py](../../src/robot_bringup/launch/teleop_opponent.launch.py) | Sets `joy_vel=opponent/cmd_vel` so the operator can drive the Gazebo opponent with the Xbox controller while testing the robot’s autonomy. |
+| [xbox_teleop.launch.py](../../src/robot_bringup/launch/xbox_teleop.launch.py) | Starts `joy_node` and `teleop_twist_joy_node`. `teleop_twist_joy_node` publishes Twist messages on `/cmd_vel_teleop` for `robot_cmd_vel_muxer`. |
+| [teleop_opponent.launch.py](../../src/robot_bringup/launch/teleop_opponent.launch.py) | Starts `joy_node` and `teleop_twist_joy_node` with the velocity output remapped to `/opponent/cmd_vel` for the Gazebo opponent. |
 | [xbox_teleop.config.yaml](../../src/robot_bringup/config/xbox_teleop.config.yaml) | Linear x axis 1, yaw axis 0; normal/turbo scales both 1.2 m/s and 5 rad/s; enable button 2, turbo button 5. |
-| [weaponspeed_slider.launch](../../src/robot_bringup/launch/weaponspeed_slider.launch) | Starts the external `slider_publisher` using `Float32.yaml`. It publishes `/weapon/speed` with a range of 0–1 and a default of 0. |
 | [config.rviz](../../src/robot_bringup/config/config.rviz) | Optional RViz visualization configuration; not a control node. |
 
-See [slider_publisher](slider_publisher.md) for the GUI interface.
-
-**Improve:** make teleop selection explicit, publish operator enable/ownership state, and route the slider through a common weapon authority. A headless option must suppress slider and perception GUI, not just RViz.
+**Improve:** Make teleop selection explicit, publish operator enable and
+ownership state, and add a headless option that also disables the perception
+GUI.
 
 ## Package wiring
 
@@ -75,20 +74,26 @@ See [slider_publisher](slider_publisher.md) for the GUI interface.
 | arena_perception_config | arena_perception/config/arena_perception_config.yaml |
 | robot_localization_config | arena_perception/config/robot_localization_config.yaml |
 
-Always starts robot_state_publisher with frame prefix robot/, `robot_cmd_vel_muxer` and the weapon slider. Simulation selects Gazebo and opponent Xbox teleop. Hardware selects radio_bridge_node, USB camera and robot Xbox teleop. Real/fake perception selection is independent of use_sim. Localization runs in both modes, and Elf is always the selected autonomy composition, initially disabled by its /autonomy state.
+Bringup always starts `robot_state_publisher` with frame prefix `robot/` and
+`robot_cmd_vel_muxer`. Simulation starts Gazebo and configures
+`teleop_twist_joy_node` for `/opponent/cmd_vel`. Hardware starts
+`radio_bridge_node` and `/arena_camera/usb_cam`, and configures
+`teleop_twist_joy_node` for `/cmd_vel_teleop`. Real/fake perception selection
+is independent of `use_sim`. Localization runs in both modes.
+`elf_autonomy.launch.py` starts `elf_combat_strategizer` and `elf_navigator`,
+with autonomy initially disabled.
 
 Root timers, relative to launch start: Gazebo 3 s; perception 8 s simulation / 3 s hardware; localization 20/15 s; RViz 25/20 s; Elf 30 s. Included launches add further delays. There is no readiness handshake. Root computes run_rectification and passes it to perception, but perception does not consume it and always launches rectification.
 
 ```mermaid
 flowchart TD
-  Root[robofetz_as.launch.py] --> Description[robot_description]
-  Root --> Perception[real or fake arena_perception]
-  Root --> Localization[arena_perception localization]
-  Root --> Elf[combat_strategizer Elf launch]
+  Root[robofetz_as.launch.py] --> Description["robot_state_publisher"]
+  Root --> Perception["arena_perception.launch.py or fake_arena_perception.launch.py"]
+  Root --> Localization["robot_localization.launch.py"]
+  Root --> Elf["elf_autonomy.launch.py"]
   Root --> Mux["robot_cmd_vel_muxer"]
-  Root --> Slider[external slider]
-  Root --> Sim[simulation: Gazebo + opponent Xbox]
-  Root --> HW[hardware: USB camera + radio + robot Xbox]
+  Root --> Sim["robofetz_gazebo_sim.launch.py and teleop_opponent.launch.py"]
+  Root --> HW["arena_camera_usb.launch.py, radio_bridge_node, and xbox_teleop.launch.py"]
 ```
 
 ## Package improvements
