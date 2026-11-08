@@ -3,7 +3,6 @@ import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from tf2_ros import TransformBroadcaster, Buffer, TransformListener
-from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
 from geometry_msgs.msg import TransformStamped
 import tf2_ros
 import numpy as np
@@ -200,8 +199,11 @@ class OdometryCorrectionNode(Node):
                 return None 
             return transform
         
-        except (LookupException, ConnectivityException, ExtrapolationException, tf2_ros.TransformException) as e:
-            self.get_logger().error(f"TF lookup failed ({from_frame}->{to_frame}): {str(e)}")
+        except tf2_ros.TransformException as e:
+            self.get_logger().debug(
+                f"Waiting for transform ({from_frame}->{to_frame}): {e}",
+                throttle_duration_sec=2.0
+            )
             return None
 
 def main(args=None):

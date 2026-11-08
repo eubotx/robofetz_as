@@ -4,11 +4,13 @@
 # ros2 topic pub /autonomy std_msgs/msg/Bool "{data: true}" --once
 from enum import Enum
 import math
-import time
 
 from geometry_msgs.msg import PoseStamped
 import rclpy
+from rclpy.clock import JumpThreshold, TimeJump
+from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.time import Time
 from std_msgs.msg import Bool, String
 
 
@@ -64,12 +66,12 @@ class ElfCombatStrategizer(Node):
         self.state = ElfState.IDLE
         self.autonomy = False
         self.robot_pose: PoseStamped | None = None
-        self.robot_pose_last_time: float | None = None
+        self.robot_pose_last_time: Time | None = None
         self.opponent_pose: PoseStamped | None = None
 
-        self.proximity_start_time: float | None = None
+        self.proximity_start_time: Time | None = None
         self.escape_position: tuple[float, float] | None = None
-        self.wall_recovery_start_time: float | None = None
+        self.wall_recovery_start_time: Time | None = None
         self.wall_recovery_phase = 0
         self.wall_recovery_target_yaw: float | None = None
 
@@ -101,6 +103,10 @@ class ElfCombatStrategizer(Node):
         self.drive_mode_pub = self.create_publisher(String, '/drive_mode', 10)
 
         self.create_timer(self.command_interval, self.state_machine_loop)
+        self.clock_jump_handle = self.get_clock().create_jump_callback(
+            JumpThreshold(min_forward=None, min_backward=Duration(nanoseconds=-1)),
+            post_callback=self.reset_after_clock_jump,
+        )
 
         self.get_logger().info('Elf Combat Strategizer initialized!')
         self.get_logger().info(f'Arena: {self.arena_width}m x {self.arena_height}m')
@@ -112,10 +118,16 @@ class ElfCombatStrategizer(Node):
 
     def robot_pose_callback(self, msg: PoseStamped):
         self.robot_pose = msg
-        self.robot_pose_last_time = time.time()
+        self.robot_pose_last_time = self.get_clock().now()
 
     def opponent_pose_callback(self, msg: PoseStamped):
         self.opponent_pose = msg
+
+    def reset_after_clock_jump(self, _jump: TimeJump):
+        self.robot_pose = None
+        self.robot_pose_last_time = None
+        self.opponent_pose = None
+        self.transition_to_idle()
 
     def state_machine_loop(self):
         robot_pose_valid = self.check_robot_pose_valid()
@@ -163,7 +175,7 @@ class ElfCombatStrategizer(Node):
     def check_robot_pose_valid(self) -> bool:
         if self.robot_pose is None or self.robot_pose_last_time is None:
             return False
-        elapsed = time.time() - self.robot_pose_last_time
+        elapsed = (self.get_clock().now() - self.robot_pose_last_time).nanoseconds / 1e9
         return elapsed < self.robot_pose_timeout
 
     def check_proximity_condition(self) -> bool:
@@ -178,7 +190,7 @@ class ElfCombatStrategizer(Node):
 
         distance = math.sqrt((ox - rx) ** 2 + (oy - ry) ** 2)
 
-        now = time.time()
+        now = self.get_clock().now()
 
         if distance <= self.proximity_radius:
             if self.proximity_start_time is None:
@@ -187,14 +199,14 @@ class ElfCombatStrategizer(Node):
                     f'PROXIMITY: Entered {self.proximity_radius}m radius, '
                     f'distance={distance:.2f}m, starting timer'
                 )
-            else:
-                elapsed = now - self.proximity_start_time
+            elapsed = (now - self.proximity_start_time).nanoseconds / 1e9
+            if elapsed > 0:
                 remaining = self.proximity_duration - elapsed
                 if remaining > 0:
                     self.get_logger().info(
                         f'PROXIMITY: In range, {remaining:.1f}s until DEFENSE'
                     )
-            if now - self.proximity_start_time >= self.proximity_duration:
+            if elapsed >= self.proximity_duration:
                 self.proximity_start_time = None
                 return True
         else:
@@ -263,7 +275,7 @@ class ElfCombatStrategizer(Node):
 
     def transition_to_wall_recovery(self):
         self.state = ElfState.WALLRECOVERY
-        self.wall_recovery_start_time = time.time()
+        self.wall_recovery_start_time = None
         self.wall_recovery_phase = 0
         self.wall_recovery_target_yaw = None
         self.send_command('STOP')
@@ -316,11 +328,11 @@ class ElfCombatStrategizer(Node):
         if self.wall_recovery_phase == 0:
             self.send_command(f'BACKWARD:{self.backward_speed}')
             self.wall_recovery_phase = 1
-            self.wall_recovery_start_time = time.time()
+            self.wall_recovery_start_time = self.get_clock().now()
             self.get_logger().info('WALLRECOVERY: Phase 1 - Backward')
 
-        elif self.wall_recovery_phase == 1:
-            elapsed = time.time() - self.wall_recovery_start_time
+        elif self.wall_recovery_start_time is not None:
+            elapsed = (self.get_clock().now() - self.wall_recovery_start_time).nanoseconds / 1e9
             backward_time = (self.wall_recovery_backward_distance /
                              self.backward_speed)
 

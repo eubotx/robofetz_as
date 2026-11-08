@@ -1,6 +1,6 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import PathJoinSubstitution
@@ -92,17 +92,6 @@ def generate_launch_description():
         }]
     )
     
-    # =================== DELAYS ===================
-    delayed_converters = TimerAction(
-        period=1.0,
-        actions=[mog2_converter_node]
-    )
-
-    delayed_strategizer = TimerAction(
-        period=1.5,
-        actions=[point_to_pose_remap_node]
-    )
-    
     # =================== RETURN ===================
     return LaunchDescription([
         declare_camera_topic,
@@ -112,6 +101,6 @@ def generate_launch_description():
         declare_input_topic,
         declare_output_topic,
         mog2_detector_node,
-        delayed_converters,
-        delayed_strategizer,
+        mog2_converter_node,
+        point_to_pose_remap_node,
     ])

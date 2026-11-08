@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -90,17 +90,8 @@ def generate_launch_description():
         output='screen'
     )
     
-    # Add nodes with appropriate timing delays if needed
     ld.add_action(static_map_tf)
-    
-    ld.add_action(TimerAction(
-        period=1.0,
-        actions=[static_odom_tf]
-    ))
-    
-    ld.add_action(TimerAction(
-        period=2.0,
-        actions=[odom_drift_correction]
-    ))
-    
+    ld.add_action(static_odom_tf)
+    ld.add_action(odom_drift_correction)
+
     return ld

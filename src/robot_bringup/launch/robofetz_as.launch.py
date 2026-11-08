@@ -4,12 +4,20 @@ Main launch file for robot software operation.
 """
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
 from launch.conditions import IfCondition, UnlessCondition
+
+
+def validate_perception_mode(context):
+    use_sim = LaunchConfiguration('use_sim').perform(context)
+    use_fake_perception = LaunchConfiguration('use_fake_perception').perform(context)
+    if use_fake_perception == 'true' and use_sim == 'false':
+        raise RuntimeError('use_fake_perception:=true requires use_sim:=true (Gazebo ground truth)')
+
 
 def generate_launch_description():
     # Package names
@@ -106,14 +114,6 @@ def generate_launch_description():
     rviz_config = LaunchConfiguration('rviz_config')
     
     # ============================================
-    # CALCULATE RUN_RECTIFICATION PARAMETER TO SAVE COMPUTE
-    # ============================================
-    # Logic: false when use_sim is true AND world contains "pinhole", else true
-    run_rectification = PythonExpression([
-        '"false" if ("', use_sim, '" == "true" and "pinhole" in "', world_file, '") else "true"'
-    ])
-    
-    # ============================================
     # BUILD LAUNCH DESCRIPTION
     # ============================================
     
@@ -122,6 +122,7 @@ def generate_launch_description():
     # Add launch arguments
     ld.add_action(use_sim_arg)
     ld.add_action(use_fake_perception_arg)
+    ld.add_action(OpaqueFunction(function=validate_perception_mode))
     ld.add_action(world_arg)
     ld.add_action(launch_rviz_arg)
     ld.add_action(rviz_config_arg)
@@ -148,6 +149,19 @@ def generate_launch_description():
     )
     
     ld.add_action(robot_state_publisher_launch)
+
+    # Muxes cmd_vel between teleop and autonomous, so you can overwrite autonomy
+    cmd_vel_muxer = Node(
+        package='robot_bringup',
+        executable='cmd_vel_muxer',
+        name='robot_cmd_vel_muxer',
+        parameters=[{
+            'use_sim_time': use_sim
+        }],
+        output='screen'
+    )
+
+    ld.add_action(cmd_vel_muxer)
 
     # ============================================
     # 1A. GAZEBO SIMULATION (CONDITIONAL)
@@ -201,15 +215,9 @@ def generate_launch_description():
         condition=UnlessCondition(use_sim)
     )
     
-    # Start immidiatly, no need to wait for robot state publisher
     ld.add_action(radio_bridge)
     ld.add_action(arena_camera_usb)
-
-    # Waits for robot state publisher
-    ld.add_action(TimerAction(
-        period=3.0,
-        actions=[gazebo_sim_launch]
-    ))
+    ld.add_action(gazebo_sim_launch)
 
     # ============================================
     # 2A. ARENA PERCEPTION SYSTEM
@@ -227,7 +235,6 @@ def generate_launch_description():
         launch_arguments={
             'arena_perception_config': arena_perception_config_file,
             'use_sim_time': use_sim,
-            'run_rectification': run_rectification  # Pass the calculated value
         }.items(),
         # Only launch real perception when NOT using fake perception
         condition=UnlessCondition(use_fake_perception)
@@ -252,17 +259,9 @@ def generate_launch_description():
         condition=IfCondition(use_fake_perception)
     )
     
-    # Add arena perception with delay (in simulation, wait longer for Gazebo to start)
-    # Use PythonExpression to properly evaluate the string condition
-    arena_perception_delay = PythonExpression([
-        '8.0 if "', use_sim, '" == "true" else 3.0'
-    ])
-    
-    ld.add_action(TimerAction(
-        period=arena_perception_delay,
-        actions=[arena_perception_launch, fake_arena_perception_launch]
-    ))
-    
+    ld.add_action(arena_perception_launch)
+    ld.add_action(fake_arena_perception_launch)
+
     # ============================================
     # 3. ROBOT LOCALIZATION
     # ============================================
@@ -282,16 +281,7 @@ def generate_launch_description():
         }.items()
     )
     
-    # Add robot localization with longer delay in simulation
-    # Use PythonExpression to properly evaluate the string condition
-    localization_delay = PythonExpression([
-        '20.0 if "', use_sim, '" == "true" else 15.0'
-    ])
-    
-    ld.add_action(TimerAction(
-        period=localization_delay,
-        actions=[robot_localization_launch]
-    ))
+    ld.add_action(robot_localization_launch)
 
     # ============================================
     # 4. ROBOT TELEOP
@@ -351,29 +341,8 @@ def generate_launch_description():
         }.items()
     )
 
-    ld.add_action(TimerAction(
-        period=30.0,
-        actions=[autonomy_launch]
-    ))
+    ld.add_action(autonomy_launch)
 
-    # ============================================
-    # 5. CMD_VEL MUXER
-    # ============================================
-    
-    # Muxes cmd_vel between teleop and autonomous, so you can overwrite autonomy
-    cmd_vel_muxer = Node(
-        package='robot_bringup',
-        executable='cmd_vel_muxer',
-        name='robot_cmd_vel_muxer',
-        parameters=[{
-            'use_sim_time': use_sim
-        }],
-        output='screen'
-    )
-    
-    ld.add_action(cmd_vel_muxer)
-
-    
     # ============================================
     # 6. RVIZ2 VISUALIZATION (CONDITIONAL)
     # ============================================
@@ -396,14 +365,6 @@ def generate_launch_description():
         condition=IfCondition(launch_rviz)
     )
     
-    # Add RViz2 with a delay to ensure all other systems are up
-    rviz_delay = PythonExpression([
-        '25.0 if "', use_sim, '" == "true" else 20.0'
-    ])
-    
-    ld.add_action(TimerAction(
-        period=rviz_delay,
-        actions=[rviz_node]
-    ))
+    ld.add_action(rviz_node)
 
     return ld

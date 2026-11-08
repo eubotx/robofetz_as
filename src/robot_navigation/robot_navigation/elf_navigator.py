@@ -169,9 +169,7 @@ class ElfNavigator(Node):
             effective_yaw_error = self.normalize_angle(yaw_error + math.pi)
 
         now = self.get_clock().now()
-        dt = (now - self.last_time).nanoseconds * 1e-9
-        if dt > 0.1:
-            dt = 0.1
+        dt = min(max((now - self.last_time).nanoseconds * 1e-9, 0.0), 0.1)
         self.last_time = now
 
         if abs(effective_yaw_error) < math.pi / 1.5:

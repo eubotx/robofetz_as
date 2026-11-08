@@ -484,11 +484,10 @@ class FindCameraInWorldService(Node):
             return transform
             
         except tf2_ros.TransformException as e:
-            # More specific exception handling if needed
-            if "timeout" in str(e).lower():
-                self.get_logger().warn(f"Transform timeout ({from_frame}->{to_frame}): No transform within timeout")
-            else:
-                self.get_logger().error(f"TF lookup failed ({from_frame}->{to_frame}): {str(e)}")
+            self.get_logger().debug(
+                f"Waiting for transform ({from_frame}->{to_frame}): {e}",
+                throttle_duration_sec=2.0
+            )
             return None
     
     def log_calibration_details(self, marker_to_camera_transform, world_to_camera_transform, 

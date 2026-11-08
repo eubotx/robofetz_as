@@ -67,7 +67,7 @@ GUI.
 | Argument | Default / effect |
 | --- | --- |
 | use_sim | true; Gazebo versus serial radio + USB camera + robot Xbox teleop |
-| use_fake_perception | false; substitutes ground-truth relays for camera perception; simulation-only requirement is described but not enforced |
+| use_fake_perception | false. Uses Gazebo ground-truth relays in place of camera perception. Requires `use_sim:=true`. |
 | world | robofetz_arena_pinhole.world; also allows robofetz_arena_wideangle.world |
 | launch_rviz | true; only controls RViz |
 | rviz_config | config.rviz |
@@ -78,12 +78,15 @@ Bringup always starts `robot_state_publisher` with frame prefix `robot/` and
 `robot_cmd_vel_muxer`. Simulation starts Gazebo and configures
 `teleop_twist_joy_node` for `/opponent/cmd_vel`. Hardware starts
 `radio_bridge_node` and `/arena_camera/usb_cam`, and configures
-`teleop_twist_joy_node` for `/cmd_vel_teleop`. Real/fake perception selection
-is independent of `use_sim`. Localization runs in both modes.
+`teleop_twist_joy_node` for `/cmd_vel_teleop`. Simulation can use either
+camera-based or fake perception. Localization runs in both modes.
 `elf_autonomy.launch.py` starts `elf_combat_strategizer` and `elf_navigator`,
 with autonomy initially disabled.
 
-Root timers, relative to launch start: Gazebo 3 s; perception 8 s simulation / 3 s hardware; localization 20/15 s; RViz 25/20 s; Elf 30 s. Included launches add further delays. There is no readiness handshake. Root computes run_rectification and passes it to perception, but perception does not consume it and always launches rectification.
+Root bringup validates the perception mode, then starts the selected
+subsystems together. The Gazebo spawners wait for their inputs. Perception and
+localization wait for the camera data and transforms they need to publish
+poses. RViz can show the graph as those inputs become available.
 
 ```mermaid
 flowchart TD
@@ -98,7 +101,6 @@ flowchart TD
 
 ## Package improvements
 
-- Replace fixed delays with camera/TF/controller readiness and reject invalid mode combinations.
 - Provide explicit strategy, teleop, camera and headless profiles; propagate serial/camera settings and clocks.
 - Declare the remaining runtime dependencies in `package.xml` and add
   launch-composition validation without opening hardware.

@@ -40,7 +40,8 @@ flowchart LR
 state machine at 20 Hz. It starts with `/autonomy` disabled. Pursuit and retreat use
 a goal plus a drive direction. An immediate command interrupts goal tracking
 to stop or reverse during wall recovery.
-[Strategizer source](../../src/combat_strategizer/combat_strategizer/elf_combat_strategizer.py)
+The Elf autonomy launch loads the strategy's arena and maneuver settings
+from YAML. [Strategizer source](../../src/combat_strategizer/combat_strategizer/elf_combat_strategizer.py) · [Elf strategy settings](../../src/combat_strategizer/config/elf_strategizer_config.yaml)
 
 ```mermaid
 flowchart LR
@@ -72,9 +73,11 @@ flowchart LR
 The defaults assume a 1.5 m × 1.5 m arena starting at (0, 0), with a 0.2 m wall
 threshold and escape points 0.2 m from the center. Recovery time is
 `wall_recovery_backward_distance / backward_speed`, using defaults of 1.0 m
-and 0.5 m/s. Pose reception, proximity, and recovery use wall-clock time.
-The robot-pose timeout measures time since the last message arrived. Elf
-keeps the last opponent pose without an expiry.
+and 0.5 m/s. Pose reception, proximity, and recovery use the ROS node clock.
+With `use_sim_time:=true`, pausing simulation pauses these timers. A backward
+clock jump clears the stored poses and returns Elf to `IDLE`. The robot-pose
+timeout measures time since the last message arrived. Elf keeps the last
+opponent pose without an expiry during normal operation.
 
 ### Proposed improvement
 

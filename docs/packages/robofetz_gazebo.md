@@ -38,7 +38,15 @@ Not used in current launch. It is an alternative to combat_strategizer's similar
 
 [robofetz_gazebo_sim.launch.py](../../src/robofetz_gazebo/launch/robofetz_gazebo_sim.launch.py) starts `gz sim -r -v 4`, configures model-search paths, optionally includes robot_description, spawns two models with `ros_gz_sim/create`, and starts `ros_gz_bridge/parameter_bridge` as `gz_bridge`.
 
-Arguments: `world=robofetz_arena_wideangle.world` and `enable_robot_state_pub=true`. Root bringup overrides the world to pinhole and supplies its own `robot_state_publisher`. Internal timers: description +2 s, spawning +5 s, bridge +6 s, measured from this included launch's start. Robot spawn pose is (0.3,1.2,0), yaw -0.78. The opponent spawns at (1.2,0.3,0) with yaw 2.36. `spawn_robot` consumes `/robot_description`. `spawn_opponent` receives the expanded opponent xacro as a string.
+The standalone defaults are `world=robofetz_arena_wideangle.world` and
+`enable_robot_state_pub=true`. Root bringup selects the pinhole world and
+supplies its own `robot_state_publisher`. The bridge and spawners start
+alongside Gazebo. Both spawners wait for Gazebo's world and entity creation
+services. `spawn_robot` also waits for `/robot_description`, while
+`spawn_opponent` receives the expanded opponent xacro as a string. The
+robot spawns at (0.3, 1.2, 0) with yaw −0.78, and the opponent at
+(1.2, 0.3, 0) with yaw 2.36.
+[Jazzy spawner source](https://github.com/gazebosim/ros_gz/blob/jazzy/ros_gz_sim/src/create.cpp)
 
 [bridge_parameters.yaml](../../src/robofetz_gazebo/parameters/bridge_parameters.yaml) enables these endpoints (root namespace):
 
@@ -55,7 +63,8 @@ Arguments: `world=robofetz_arena_wideangle.world` and `enable_robot_state_pub=tr
 
 Wheel odometry/slip TF and additional ground-truth odometry mappings in the file are commented out. No weapon topic is bridged. Spawning uses Gazebo’s external create process.
 
-**Improve:** verify bridge types/QoS against installed dependencies; replace spawn timers with readiness; make wheel-feedback and weapon support explicit rather than inferred from model plugins.
+**Proposed improvement.** Verify bridge types and QoS against installed
+dependencies, and document wheel feedback and weapon support.
 
 ## Models and variants
 

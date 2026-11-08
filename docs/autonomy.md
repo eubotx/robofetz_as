@@ -29,7 +29,11 @@ the last goal if opponent updates stop. [Navigator source](../src/robot_navigati
 ### Simple autonomy launch
 
 `simple_autonomy.launch.py` starts `simple_combat_strategizer` and
-`simple_navigator`. [Simple launch](../src/combat_strategizer/launch/simple_autonomy.launch.py)
+`simple_navigator`. The navigator loads the same YAML as the standalone
+`simple_nav.launch.py`, with a default linear cap of 0.1 m/s. Set
+`simple_navigator_config` to select another parameter file. The Simple
+strategizer forwards poses without any strategy parameters.
+[Simple launch](../src/combat_strategizer/launch/simple_autonomy.launch.py) · [Navigator settings](../src/robot_navigation/config/simple_navigator_config.yaml)
 
 ## Elf autonomy stack
 
@@ -61,3 +65,10 @@ strategizer sends `FORWARD` or `BACKWARD` on `/drive_mode` to choose which
 end of the robot leads while tracking the goal. Immediate commands arrive on
 `/elf_navigator_cmd`. For example, `STOP` clears the current goal and
 publishes zero velocity. [Navigator source](../src/robot_navigation/robot_navigation/elf_navigator.py)
+
+### Elf autonomy launch
+
+`elf_autonomy.launch.py` starts the two Elf nodes. Set
+`elf_navigator_config` or `elf_strategizer_config` to select another YAML.
+The same launch is used by standard bringup.
+[Elf launch](../src/combat_strategizer/launch/elf_autonomy.launch.py) · [Navigator settings](../src/robot_navigation/config/elf_navigator_config.yaml) · [Strategy settings](../src/combat_strategizer/config/elf_strategizer_config.yaml)

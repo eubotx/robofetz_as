@@ -5,7 +5,7 @@ apriltag detection, robot detection, and odometry correction.
 """
 
 from launch import LaunchDescription
-from launch.actions import TimerAction, DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -219,41 +219,12 @@ def generate_launch_description():
         }.items()
     )
     
-    # Add timer actions for main nodes
-    ld.add_action(TimerAction(
-        period=1.0,  # Slightly offset to avoid congestion
-        actions=[apriltag_detection_diy]
-    ))
-
-    # ld.add_action(TimerAction(
-    #     period=1.0,  # Slightly offset to avoid congestion
-    #     actions=[apriltag_detection_ros]
-    # ))
-
-    ld.add_action(TimerAction(
-        period=3.0,
-        actions=[find_camera_service]
-    ))
-
-    ld.add_action(TimerAction(
-        period=5.0,
-        actions=[robot_detection]
-    ))
-
-    ld.add_action(TimerAction(
-        period=6.0,
-        actions=[roi_mask_node]
-    ))
-
-    ld.add_action(TimerAction(
-        period=7.0,
-        actions=[robot_tf_to_pose]
-    ))
-    
-    # Add opponent detection with appropriate timing (after ROI mask and cropping is ready)
-    ld.add_action(TimerAction(
-        period=15.0,  # Start after ROI mask node (6.0s) to ensure masked image is available
-        actions=[opponent_detection]
-    ))
+    ld.add_action(apriltag_detection_diy)
+    # ld.add_action(apriltag_detection_ros)
+    ld.add_action(find_camera_service)
+    ld.add_action(robot_detection)
+    ld.add_action(roi_mask_node)
+    ld.add_action(robot_tf_to_pose)
+    ld.add_action(opponent_detection)
 
     return ld

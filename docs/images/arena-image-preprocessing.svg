@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 285" role="img" aria-labelledby="title description">
+  <title id="title">Arena image preprocessing</title>
+  <desc id="description">Three schematic views of the same arena. In the raw image, lens distortion bends the boundary and floor lines. Rectification straightens them. The arena mask blacks out the pixels outside the projected arena boundary.</desc>
+  <defs>
+    <path id="raw-floor" d="M62 57 Q138 43 215 57 Q228 103 243 162 Q139 186 36 162 Q49 105 62 57Z"/>
+    <path id="rectified-floor" d="M60 53 H218 L244 166 H34Z"/>
+    <clipPath id="raw-clip"><use href="#raw-floor"/></clipPath>
+    <clipPath id="rectified-clip"><use href="#rectified-floor"/></clipPath>
+    <g id="rectified-scene">
+      <rect width="280" height="192" rx="6" fill="#b8c6d0"/>
+      <path d="M10 19 H34 V38 H10Z M232 16 H269 V36 H232Z M250 132 H271 V154 H250Z" fill="#899ba9"/>
+      <use href="#rectified-floor" fill="#e1eaf0" stroke="#344b5c" stroke-width="2"/>
+      <path d="M46 113 H232 M111 53 L101 166 M170 53 L179 166" clip-path="url(#rectified-clip)" fill="none" stroke="#a0b3c0" stroke-width="1.5"/>
+      <path d="M60 141 H74 V155 H60Z" fill="#283947"/>
+      <path d="M63 144 H71 V152 H63Z" fill="#fff"/>
+      <rect x="106" y="102" width="30" height="22" rx="4" fill="#156477"/>
+      <rect x="117" y="108" width="8" height="8" fill="#fff"/>
+      <path d="M172 89 H195 L202 100 L195 111 H172Z" fill="#a54b18"/>
+    </g>
+  </defs>
+
+  <rect width="960" height="285" rx="12" fill="#f3f7fa"/>
+  <g font-family="sans-serif" fill="#1b3243">
+    <g transform="translate(24 55)">
+      <text y="-17" font-size="21" font-weight="700">1. Raw image</text>
+      <rect width="280" height="192" rx="6" fill="#b8c6d0"/>
+      <path d="M14 23 L39 19 L40 41 L15 43Z M228 21 L266 26 L264 45 L225 41Z M247 130 L269 126 L273 148 L250 154Z" fill="#899ba9"/>
+      <use href="#raw-floor" fill="#e1eaf0" stroke="#344b5c" stroke-width="2"/>
+      <path d="M46 112 Q141 99 231 112 M113 49 Q109 102 100 174 M167 49 Q171 106 180 174" clip-path="url(#raw-clip)" fill="none" stroke="#a0b3c0" stroke-width="1.5"/>
+      <path d="M59 137 L74 139 L71 153 L57 151Z" fill="#283947"/>
+      <path d="M62 141 L70 142 L68 149 L61 148Z" fill="#fff"/>
+      <rect x="107" y="99" width="30" height="22" rx="4" fill="#156477" transform="rotate(-3 122 110)"/>
+      <rect x="118" y="106" width="8" height="8" fill="#fff"/>
+      <path d="M171 88 L194 91 L201 103 L193 113 L170 110Z" fill="#a54b18"/>
+      <text y="217" font-size="16">Lens distortion bends straight edges</text>
+    </g>
+    <g transform="translate(340 55)">
+      <text y="-17" font-size="21" font-weight="700">2. Rectified image</text>
+      <use href="#rectified-scene"/>
+      <text y="217" font-size="16">Arena edges are straight again</text>
+    </g>
+    <g transform="translate(656 55)">
+      <text y="-17" font-size="21" font-weight="700">3. Arena mask</text>
+      <use href="#rectified-scene"/>
+      <path d="M6 0 H274 Q280 0 280 6 V186 Q280 192 274 192 H6 Q0 192 0 186 V6 Q0 0 6 0Z M60 53 H218 L244 166 H34Z" fill="#101922" fill-rule="evenodd"/>
+      <use href="#rectified-floor" fill="none" stroke="#24768a" stroke-width="2" stroke-dasharray="6 4"/>
+      <text y="217" font-size="16">Pixels outside the ROI turn black</text>
+    </g>
+    <path d="M314 151 H329 L323 145 M329 151 L323 157 M630 151 H645 L639 145 M645 151 L639 157" fill="none" stroke="#426174" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

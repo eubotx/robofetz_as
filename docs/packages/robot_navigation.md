@@ -30,24 +30,22 @@ proportional and integral yaw control. It adjusts forward speed based on
 distance and heading error, and publishes zero velocity within the position
 tolerance. [Navigator source](../../src/robot_navigation/robot_navigation/simple_navigator.py)
 
+Both the standalone navigation launch and Simple autonomy load the same
+navigator YAML by default. [Simple settings](../../src/robot_navigation/config/simple_navigator_config.yaml)
+
 ```mermaid
 flowchart LR
   Pose["/robot/pose"] --> Simple["simple_navigator"]
   Goal["/goal_pose"] --> Simple
   Simple -->|"/cmd_vel_autonomous"| Mux["robot_cmd_vel_muxer"]
   Teleop["/cmd_vel_teleop"] --> Mux
-  Mux -->|"/cmd_vel"| Drive["gz_bridge or radio_bridge_node"]
+  Mux -->|"/cmd_vel"| Drive["Robot"]
 ```
 
 The navigator keeps the last robot and goal poses until new ones arrive. When
 their frames differ, it looks up a TF transform but computes the error using
 the original coordinates. Supply both poses in the same frame for meaningful
 steering. Arrival uses position alone.
-
-| Launch | Controller settings |
-| --- | --- |
-| [`simple_autonomy.launch.py`](../../src/combat_strategizer/launch/simple_autonomy.launch.py) | Starts the strategizer and navigator with source defaults. The linear speed cap is 1.0 m/s, the angular speed cap is 3.5 rad/s, and the position tolerance is 0.1 m. |
-| [`simple_nav.launch.py`](../../src/robot_navigation/launch/simple_nav.launch.py) | Starts the navigator on its own and loads [`simple_navigator_config.yaml`](../../src/robot_navigation/config/simple_navigator_config.yaml). The speed caps are 0.1 m/s and 2.0 rad/s, and the position tolerance is 0.05 m. |
 
 ### Proposed improvement
 
@@ -71,7 +69,7 @@ flowchart LR
   Strategy -->|"/elf_navigator_cmd"| Elf
   Elf -->|"/cmd_vel_autonomous"| Mux["robot_cmd_vel_muxer"]
   Teleop["/cmd_vel_teleop"] --> Mux
-  Mux -->|"/cmd_vel"| Drive["gz_bridge or radio_bridge_node"]
+  Mux -->|"/cmd_vel"| Drive["Robot"]
 ```
 
 ### Immediate commands
@@ -87,7 +85,10 @@ The parser also accepts `FORWARD`, `TURN`, `TURN_LEFT`, and `TURN_RIGHT` with
 optional speed values. It clears tracking before validating the action, and
 invalid numeric text can raise an exception.
 
-| Setting | Source default |
+Elf autonomy loads the following defaults from YAML.
+[Elf settings](../../src/robot_navigation/config/elf_navigator_config.yaml)
+
+| Setting | Launch default |
 | --- | --- |
 | Goal tracking speed caps | `forward_speed=3.0`, `backward_speed=3.0` m/s, `turn_speed=3.5` rad/s |
 | Goal tracking gains | `linear_kp=1.0`, `angular_kp=1.8`, `angular_ki=0.5`, `integral_windup_limit=2.0` |
@@ -114,7 +115,7 @@ flowchart LR
   Attack["/attack_command (standalone)"] --> Wrapper["nav2_navigator"]
   Escape["/escape_command (standalone)"] --> Wrapper
   Pose["/arena_perception_robot_base_footprint_pose"] --> Wrapper
-  Wrapper -->|"/cmd_vel (alignment)"| Drive["gz_bridge or radio_bridge_node"]
+  Wrapper -->|"/cmd_vel (alignment)"| Drive["Robot"]
   Wrapper -->|"/navigate_to_pose action"| Nav2["bt_navigator"]
   Nav2 --> Controller["controller_server"]
   Controller -->|"/cmd_vel_nav"| Smoother["velocity_smoother"]

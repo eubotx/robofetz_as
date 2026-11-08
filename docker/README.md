@@ -44,8 +44,8 @@ Open [the simulation desktop](http://localhost:6080/vnc.html?autoconnect=1&resiz
 in your host browser. Gazebo simulates the arena and sensors; RViz visualizes
 ROS data. Both run on the container's virtual desktop alongside the color
 selector. Click the simulated opponent in the color selector,
-or press **q** in that window to use its default settings. The launch starts
-Elf after a delay, with autonomy disabled. The desktop uses software rendering,
+or press **q** in that window to use its default settings. Elf starts
+with autonomy disabled. The desktop uses software rendering,
 so simulation speed depends on CPU capacity.
 
 ## Inspect the running simulation

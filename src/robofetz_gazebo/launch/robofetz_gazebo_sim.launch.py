@@ -3,7 +3,7 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess, TimerAction, DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -167,7 +167,6 @@ def generate_launch_description():
     #     output='screen'
     # )
     
-    # Build launch description with timing
     ld = LaunchDescription()
     
     ld.add_action(world_arg)
@@ -175,25 +174,10 @@ def generate_launch_description():
 
     ld.add_action(gazebo_process)
     
-    # Add robot_description_launch with timer (it will only execute if condition is true)
-    ld.add_action(TimerAction(
-        period=2.0,
-        actions=[robot_description_launch]
-    ))
-    
-    ld.add_action(TimerAction(
-        period=5.0,
-        actions=[spawn_robot, spawn_opponent]
-    ))
-    
-    ld.add_action(TimerAction(
-        period=6.0,
-        actions=[bridge]
-    ))
+    ld.add_action(robot_description_launch)
+    ld.add_action(bridge)
+    ld.add_action(spawn_robot)
+    ld.add_action(spawn_opponent)
+    # ld.add_action(camera_info_publisher)
 
-    # ld.add_action(TimerAction(
-    #     period=8.0,
-    #     actions=[camera_info_publisher]
-    # ))
-    
     return ld

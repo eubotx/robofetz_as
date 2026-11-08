@@ -1,98 +1,152 @@
 # System architecture
 
-A fixed arena camera supplies images for estimating the robot and opponent
-poses. `elf_combat_strategizer` uses `/robot/pose` and `/opponent/pose` to
-choose a maneuver. `elf_navigator` sends velocity commands on
-`/cmd_vel_autonomous`, and `robot_cmd_vel_muxer` publishes the selected
-command on `/cmd_vel` for `gz_bridge` or `radio_bridge_node`.
+ROBOFETZ_AS uses an overhead camera to observe the arena and steer a combat
+robot. Perception estimates where both robots are. The combat strategizer
+chooses a maneuver, the navigator turns it into a velocity command, and
+`robot_cmd_vel_muxer` selects the command that reaches the drive. The next
+camera observations show how the robots moved.
 [Root launch](../src/robot_bringup/launch/robofetz_as.launch.py) · [Package guides](packages/README.md)
-
-## How the system runs
-
-| Mode | Perception | Drive |
-| --- | --- | --- |
-| Default simulation | `gz_bridge` publishes the pinhole camera image on `/arena_camera/image` and calibration on `/arena_camera/camera_info`. | `gz_bridge` receives `/cmd_vel` for the robot and `/opponent/cmd_vel` from `teleop_twist_joy_node` for the opponent. |
-| Fake perception (`use_fake_perception:=true` in simulation) | `robot_tf_relay` and `opponent_tf_relay` use Gazebo ground-truth TF. `robot_tf_to_pose` and `opponent_tf_to_pose` still publish the pose topics. | `elf_navigator` and `robot_cmd_vel_muxer` use the same command path. Fake perception supplies no `/arena_perception/robot/visible_marker` for flip detection. |
-| Hardware (`use_sim:=false`) | `/arena_camera/usb_cam` supplies `/arena_camera/image` and `/arena_camera/camera_info` to the same perception pipeline. | `radio_bridge_node` forwards `/cmd_vel` and `/weapon/speed` over USB serial to the HC-12 radio path. [Firmware](firmware.md) |
-
-Root bringup starts perception after 8 s in simulation or 3 s on hardware, localization after 20/15 s and Elf after 30 s. These delays do not check readiness. Autonomy starts disabled.
-
-## Observation and command paths
 
 ```mermaid
 flowchart LR
-  Image["/arena_camera/image"] --> Rectify["/arena_camera/rectify_node"]
-  Rectify -->|"/arena_camera/image_rect"| Tags["apriltag_detection_node"]
-  Rectify -->|"/arena_camera/image_rect"| ROI["roi_mask_node"]
-  Tags -->|"/tf"| Calibration["find_camera_in_world_service"]
-  Tags -->|"/tf"| Detect["robot_detection_node"]
-  Calibration -->|"/tf"| Odom["odom_drift_correction_node"]
-  Detect -->|"/tf"| Odom
-  Odom -->|"/tf"| RobotPose["robot_tf_to_pose"]
-  ROI -->|"/arena_camera/image_rect_masked"| Color["opponent_det_ColorSingle"]
-  ROI -->|"/arena_camera/image_rect_masked"| Motion["opponent_det_MOG2single"]
-  Color -->|"/detections_2d/color"| Color3D["detection_2d_to_3d_color"]
-  Motion -->|"/detections_2d/mog2"| Motion3D["detection_2d_to_3d_mog2"]
-  Color3D -->|"/detections_3d/color_array"| Track["detection_kalman_filter"]
-  Motion3D -->|"/detections_3d/mog2_array"| Track
-  Track -->|"/tf"| OpponentPose["opponent_tf_to_pose"]
-  RobotPose -->|"/robot/pose"| Strategy["elf_combat_strategizer"]
-  RobotPose -->|"/robot/pose"| Navigator["elf_navigator"]
-  OpponentPose -->|"/opponent/pose"| Strategy
-  Enable["/autonomy"] --> Strategy
-  Strategy -->|"/goal_pose, /drive_mode, /elf_navigator_cmd"| Navigator
-  Navigator -->|"/cmd_vel_autonomous"| Mux["robot_cmd_vel_muxer"]
-  Teleop["teleop_twist_joy_node (hardware)"] -->|"/cmd_vel_teleop"| Mux
-  Detect -->|"/arena_perception/robot/visible_marker"| Mux
-  Mux -->|"/cmd_vel"| Gazebo["gz_bridge (simulation)"]
-  Mux -->|"/cmd_vel"| Radio["radio_bridge_node (hardware)"]
+  Arena["Arena"] -->|"Camera images"| Perception["arena_perception"]
+  Perception -->|"/robot/pose and /opponent/pose"| Strategy["combat_strategizer"]
+  Perception -->|"/robot/pose"| Navigation["robot_navigation"]
+  Strategy -->|"Goal and driving style"| Navigation
+  Navigation -->|"/cmd_vel_autonomous"| Mux["robot_cmd_vel_muxer"]
+  Mux -->|"/cmd_vel"| Drive["Gazebo or radio bridge"]
+  Drive -->|"Robot motion"| Arena
 ```
 
-| Interface | Producer → consumer | Meaning |
-| --- | --- | --- |
-| `/robot/pose` (PoseStamped) | `robot_tf_to_pose` → `elf_combat_strategizer`, `elf_navigator`, and the opponent detectors | Robot pose in `world`. The detectors use it for self-masking. |
-| `/opponent/pose` (PoseStamped) | `opponent_tf_to_pose` → `elf_combat_strategizer` | Opponent pose in `world`. Heading follows motion direction. |
-| `/autonomy` (Bool) | Operator → `elf_combat_strategizer` | Enables strategy. |
-| `/goal_pose` (PoseStamped), `/drive_mode` and `/elf_navigator_cmd` (String) | `elf_combat_strategizer` → `elf_navigator` | Attack copies the opponent goal in `world`. Defense sets a `map` goal. `elf_navigator` assumes these frames coincide. |
-| `/cmd_vel_autonomous`, `/cmd_vel_teleop` → `/cmd_vel` (Twist) | `elf_navigator` or `teleop_twist_joy_node` → [robot_cmd_vel_muxer](packages/robot_bringup.md#robot_cmd_vel_muxer) → `gz_bridge` or `radio_bridge_node` | Teleop takes priority for 0.5 s. Otherwise the node repeats the last autonomous command. A bottom tag reverses linear x. |
-| `/weapon/speed` (Float32) | Optional external publisher → `radio_bridge_node` | Normalized speed request [0,1]. |
+## How the system runs
 
-## TF ownership
+`robofetz_as.launch.py` selects the source of observations and the destination
+of drive commands. The default strategy and navigator are Elf in all three
+modes. Fake perception requires simulation because its pose relays read
+Gazebo ground-truth TF.
+
+| Mode | Where poses come from | Where drive commands go |
+| --- | --- | --- |
+| **Camera-based simulation** (default) | `gz_bridge` supplies the simulated pinhole camera's `/arena_camera/image` and `/arena_camera/camera_info` to the camera pipeline. | `gz_bridge` sends `/cmd_vel` to our simulated robot. Opponent teleop goes to Gazebo separately on `/opponent/cmd_vel`. |
+| **Simulation with fake perception** (`use_fake_perception:=true`) | TF relays use Gazebo ground truth in place of camera observations. The pose adapters still supply `/robot/pose` and `/opponent/pose` in `world`. | The same Gazebo command paths apply. The fake perception launch supplies no visible-marker messages for flip detection. |
+| **Hardware** (`use_sim:=false`) | The overhead USB camera supplies the image and camera information to the same camera pipeline. | The hardware gamepad feeds `/cmd_vel_teleop` to the mux. `radio_bridge_node` forwards the selected command over USB serial and the HC-12 radio link. |
+
+[Bringup options](packages/robot_bringup.md#package-wiring) · [Gazebo bridge](packages/robofetz_gazebo.md#external-processes-and-bridge-interfaces) · [ESP32 firmware](firmware.md)
+
+The root launch starts perception, localization, and Elf together. In
+camera mode, localization publishes a pose once it can combine a detected
+robot footprint with the calibrated camera transform. In fake perception,
+the relays wait for Gazebo's ground-truth TF. Elf and opponent fusion use
+Gazebo's `/clock` in simulation. Elf starts with autonomy disabled and
+requires a recent robot pose before leaving idle.
+[Startup sequence](../src/robot_bringup/launch/robofetz_as.launch.py)
+
+## From camera observations to poses
+
+The AprilTag detector starts with the rectified camera image and reports
+tag poses in `arena_camera_optical`. `find_camera_in_world_service` uses the
+known floor tag pose to establish the camera's pose in `world`. That TF
+link is the prerequisite for arena masking and for turning camera
+observations into robot and opponent positions in the arena.
+[Camera-to-world calibration](packages/arena_perception.md#camera-to-world-calibration)
 
 ```mermaid
 flowchart TD
-    World["world"] -->|static_map_tf_publisher| Map["map"]
-    Map -->|odom_drift_correction_node| Odom["odom"]
-    Odom -->|static_odom_tf_publisher| Base["robot/base_footprint"]
-    Base -->|robot_state_publisher| Links["Robot links and tag mounts"]
-    World -->|find_camera_in_world_service| Camera["arena_camera_optical"]
-    Camera -->|apriltag_detection_node| Tags["Detected tag frames"]
-    Camera -->|robot_detection_node| Detected["arena_perception/robot/base_footprint"]
-    World -->|detection_kalman_filter| Opponent["opponent"]
-    World -. "Gazebo only" .-> GroundTruth["robot/base_footprint_sim and opponent/base_footprint_sim"]
+  Image["Rectified arena image"] --> Tags["AprilTag detection"]
+  Tags -->|"Floor tag observation"| Calibrate["find_camera_in_world_service"]
+  Calibrate --> CameraTF["world → arena_camera_optical"]
+  Tags -->|"Robot tag observation"| Robot["Robot footprint detection"]
+  Robot --> Localize["Robot localization"]
+  CameraTF --> Localize
+  Image --> Mask["Arena ROI mask"]
+  CameraTF --> Mask
+  Mask --> Detect["Color and motion detection"]
+  Detect -->|"Pixel detections"| Project["Floor projection and opponent tracking"]
+  CameraTF --> Project
+  Localize --> RobotPose["/robot/pose"]
+  RobotPose -->|"Exclude our robot from detections"| Detect
+  Project --> OpponentPose["/opponent/pose"]
 ```
 
-`odom_drift_correction_node` carries the robot’s motion in `map → odom`
-because `odom → robot/base_footprint` is identity. The default radio and
-Gazebo paths supply no ROS wheel odometry. In fake perception,
-`opponent_tf_to_pose` reads `arena_perception/opponent/base_footprint`.
-`robot_tf_to_pose` reads `robot/base_footprint` in both modes.
-[Perception wiring](packages/arena_perception.md#package-wiring)
+- **Our robot.** The detector combines the observed top or bottom tag with
+  its fixed mount in the robot description to recover the base footprint.
+  Localization expresses the footprint in `world`. The opponent detectors
+  use that pose and camera TF to exclude our robot from their search.
+  [Robot detection and localization](packages/arena_perception.md#robot-detection-and-localization)
+- **The opponent.** Color and motion detectors report candidate pixels.
+  Projection uses the camera TF to intersect their rays with the arena
+  floor. A Kalman filter combines the measurements into one track whose
+  heading follows the estimated motion.
+  [Opponent detection and localization](packages/arena_perception.md#opponent-detection-and-localization)
 
-## Autonomy approaches
+### TF ownership
 
-| Approach | Strategy | Motion |
+The robot's camera-frame detection and its localized footprint have
+different frame names. The pose adapters read `robot/base_footprint` and
+`opponent` relative to `world` and publish `geometry_msgs/msg/PoseStamped`
+on `/robot/pose` and `/opponent/pose` in the default camera pipeline.
+[Perception wiring](packages/arena_perception.md#package-wiring) · [Pose adapters](packages/combat_strategizer.md#pose-adapters-and-helpers)
+
+```mermaid
+flowchart TD
+  World["world"] -->|"static_map_tf_publisher"| Map["map"]
+  Map -->|"odom_drift_correction_node"| Odom["odom"]
+  Odom -->|"static_odom_tf_publisher"| Base["robot/base_footprint"]
+  Base -->|"robot_state_publisher"| Links["Robot links and tag mounts"]
+  World -->|"find_camera_in_world_service"| Camera["arena_camera_optical"]
+  Camera -->|"apriltag_detection_node"| Tags["Detected tag frames"]
+  Camera -->|"robot_detection_node"| Detected["arena_perception/robot/base_footprint"]
+  World -->|"detection_kalman_filter"| Opponent["opponent"]
+```
+
+The standard launch supplies identity transforms for `world → map` and
+`odom → robot/base_footprint`. With no wheel odometry in that chain, the
+camera-derived motion appears in `map → odom`. In fake perception, Gazebo
+ground-truth relays supply the detected footprint frames. The robot still
+goes through the localization chain, and the opponent pose adapter reads
+the relayed `arena_perception/opponent/base_footprint` directly.
+[Localization launch](../src/arena_perception/launch/robot_localization.launch.py) · [Fake perception launch](../src/arena_perception/launch/fake_arena_perception.launch.py)
+
+## From a maneuver to motion
+
+In a pursuit, `elf_combat_strategizer` uses `/opponent/pose` as the goal and
+asks to drive forward. `elf_navigator` compares that goal to `/robot/pose`
+and publishes linear and angular velocity. When Elf retreats, it sends a
+defense goal in `map` and asks the navigator to drive backward. The navigator
+compares coordinates directly, so this works with the identity
+`world → map` transform in standard bringup.
+[Elf strategy](packages/combat_strategizer.md#elf_combat_strategizer) · [Elf navigator](packages/robot_navigation.md#elf_navigator)
+
+| Topic | What crosses the package boundary |
+| --- | --- |
+| `/autonomy` | The operator enables or disables Elf with a `std_msgs/msg/Bool`. |
+| `/goal_pose` and `/drive_mode` | The strategizer gives the navigator a `PoseStamped` target and a `String` direction (`FORWARD` or `BACKWARD`). |
+| `/elf_navigator_cmd` | The strategizer can interrupt goal tracking with a `String` command such as `STOP` or a straight reverse for wall recovery. |
+| `/cmd_vel_autonomous` and `/cmd_vel_teleop` | The navigator and hardware teleop provide `geometry_msgs/msg/Twist` commands to the mux. |
+| `/cmd_vel` | `robot_cmd_vel_muxer` publishes the selected `Twist` for the Gazebo bridge or radio bridge. |
+
+The mux gives teleop priority for 0.5 s after the last teleop message.
+Otherwise it republishes the latest autonomous command, or zero if none has
+arrived. It uses the last top or bottom marker reported on
+`/arena_perception/robot/visible_marker` and reverses linear x by default
+when the bottom tag is visible. On hardware, `radio_bridge_node` also takes
+an independent normalized weapon request on `/weapon/speed` as
+`std_msgs/msg/Float32`.
+[Velocity muxer](packages/robot_bringup.md#robot_cmd_vel_muxer) · [Radio bridge and firmware](firmware.md)
+
+### Autonomy variants
+
+| Variant | What it changes | Drive command path |
 | --- | --- | --- |
-| [Original direct pursuit (Rhino)](../src/combat_strategizer/launch/simple_autonomy.launch.py) | Obsolete first iteration retained as a learning example. `simple_combat_strategizer` forwards opponent poses directly to `/goal_pose`. | `simple_navigator` drives toward the goal. |
-| [Elf (default)](../src/combat_strategizer/launch/elf_autonomy.launch.py) | Pursues the opponent. Within 0.2 m for 5 s, selects a defense point and drives backward. Near a wall and facing outward, commands a timed reverse. | `elf_navigator` tracks the goal or executes immediate commands. `robot_cmd_vel_muxer` selects the drive source. |
-| [Optional Nav2](packages/robot_navigation.md#nav2_navigator) | The `nav2_attack` executable selects targets and defense points from `/arena_perception_robot_base_footprint_pose` and `/arena_perception_opponent_base_footprint_pose`. | `nav2_navigator` aligns locally, then sends a goal on the `/navigate_to_pose` action. `nav2_navigator` and `relay_vel_republisher_cmd` publish directly to `/cmd_vel`. |
+| [Simple (historical Rhino example)](autonomy.md#simple-autonomy-stack) | The original direct-pursuit strategy forwards each opponent pose as a goal. `simple_navigator` steers forward toward it. | `simple_navigator` publishes `/cmd_vel_autonomous` for the mux. |
+| [Elf (default)](autonomy.md#elf-autonomy-stack) | Adds pursuit, retreat, and wall recovery. `elf_navigator` tracks goals in either direction and accepts immediate commands. | `elf_navigator` publishes `/cmd_vel_autonomous` for the mux. |
+| [Nav2 (optional example)](packages/robot_navigation.md#nav2_navigator) | `nav2_attack` uses the legacy pose topics and aligns before sending a `/navigate_to_pose` goal. It illustrates local alignment followed by path planning and tracking. | The wrapper and the Nav2 velocity relay publish directly to `/cmd_vel`. Combining them with the default mux creates competing publishers on the drive topic. |
 
 ## System improvements
 
-| Current behavior | Proposed change | Check |
+| Boundary | Proposed change | How to check it |
 | --- | --- | --- |
-| `opponent_det_ColorSingle` and `opponent_det_MOG2single` read full-size `/arena_camera/image_rect_masked` with half-resolution `/arena_camera/cropped/camera_info`. | Use one matching image/calibration pair for self-masking and projection. | Project a known arena point at both resolutions. |
-| `robot_tf_to_pose` and `opponent_tf_to_pose` restamp cached poses. `elf_combat_strategizer` checks robot pose reception time and retains the last opponent pose indefinitely. | Carry measurement time and validity through perception and control. | Stop camera updates and verify that both poses expire. |
-| `robot_cmd_vel_muxer` and the radio firmware retain commands. Elf wall recovery relies on a one-shot reverse. | Renew reverse commands for the maneuver duration. Expire drive and weapon requests independently at the actuator. | Interrupt the controller and the radio separately and measure time to zero. |
-| The optional Nav2 path bypasses `robot_cmd_vel_muxer`. | Route each drive source through `robot_cmd_vel_muxer`. | Check drive publisher ownership and stop behavior in each profile. |
-| Elf and fusion use mixed clocks. Fixed launch delays can elapse before camera or TF is ready. | Propagate simulation time and gate startup on camera, calibration and TF availability. | Pause Gazebo and repeat startup with a delayed camera. |
+| Image processing → opponent projection | Deferred. Pair the full-size masked image with its camera info and project rectified pixels using `P`. [Perception improvement](packages/arena_perception.md#proposed-improvements) | Project a known arena-floor point and compare its estimated and measured positions. |
+| Perception → strategy | Preserve observation timestamps and expire stale poses. The adapters restamp cached TF, and Elf retains the last opponent pose. | Interrupt camera updates and measure when the robot and opponent poses become stale to the strategy. |
+| Controller → drive | Keep one publisher on `/cmd_vel` across controller variants. Renew timed maneuvers while active and give autonomous commands an expiry. | Check drive publisher ownership and verify that losing the controller leads to zero velocity in simulation. |
+| Radio → actuators | Give drive and weapon requests independent deadlines in firmware. The radio firmware currently retains both setpoints. | In an explicit hardware test, interrupt the radio and measure when each actuator stops. |

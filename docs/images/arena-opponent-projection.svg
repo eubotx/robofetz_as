@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 404" role="img" aria-labelledby="title description">
+  <title id="title">Projecting an opponent detection onto the arena floor</title>
+  <desc id="description">A side view shows a ray from the overhead camera through the detection pixel and an observed point above the opponent footprint. The ray hits the floor farther from the camera than the footprint. The camera transform allows that intersection to be computed in world coordinates.</desc>
+  <rect width="960" height="404" rx="12" fill="#f3f7fa"/>
+  <path d="M48 318 H912 V384 H48Z" fill="#e0e9ef"/>
+  <path d="M48 318 H912" fill="none" stroke="#344b5c" stroke-width="3"/>
+  <path d="M530 318 V267 Q530 252 545 252 H577 Q592 252 592 267 V318Z" fill="#f5dac9" stroke="#995020" stroke-width="2"/>
+  <path d="M561 252 V318" fill="none" stroke="#995020" stroke-width="2" stroke-dasharray="6 5"/>
+  <path d="M247 163 L342 66" fill="none" stroke="#708997" stroke-width="2"/>
+  <path d="M230 78 L561 252" fill="none" stroke="#156477" stroke-width="3"/>
+  <path d="M561 252 L687 318" fill="none" stroke="#156477" stroke-width="3" stroke-dasharray="7 5"/>
+  <circle cx="230" cy="78" r="8" fill="#1b3243"/>
+  <path d="M297 105 L305 113 L297 121 L289 113Z" fill="#156477" stroke="#f3f7fa" stroke-width="2"/>
+  <circle cx="561" cy="252" r="6" fill="#a54b18" stroke="#f3f7fa" stroke-width="2"/>
+  <circle cx="561" cy="318" r="5" fill="#a54b18" stroke="#f3f7fa" stroke-width="2"/>
+  <circle cx="687" cy="318" r="7" fill="#156477" stroke="#f3f7fa" stroke-width="2"/>
+  <g fill="none" stroke="#526e7e" stroke-width="1.5">
+    <path d="M161 78 H215 M316 93 H370 M307 112 L343 125 H370 M574 244 L606 223 H626"/>
+    <path d="M561 328 V344 M687 328 V344"/>
+  </g>
+  <g font-family="sans-serif" fill="#1b3243">
+    <text x="48" y="73" font-size="20" font-weight="700">Overhead</text>
+    <text x="48" y="96" font-size="20" font-weight="700">camera</text>
+    <text x="379" y="99" font-size="19">Image plane</text>
+    <text x="379" y="132" font-size="19" font-weight="700">Detection pixel</text>
+    <text x="346" y="216" font-size="19" fill="#156477">Viewing ray</text>
+    <text x="635" y="228" font-size="19">Point seen on the opponent</text>
+    <text x="65" y="350" font-size="19">Arena floor · world z = 0</text>
+    <text x="549" y="368" text-anchor="end" font-size="19">Opponent footprint</text>
+    <text x="676" y="368" font-size="19" font-weight="700">Estimated position</text>
+  </g>
+</svg>
