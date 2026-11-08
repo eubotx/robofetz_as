@@ -16,7 +16,21 @@ The perception launch uses pose adapters from `combat_strategizer` to publish
 uses `/robot/pose` to steer.
 [Combat strategizer guide](combat_strategizer.md) · [Navigator guide](robot_navigation.md)
 
-## From camera image to arena coordinates
+## Camera preprocessing and calibration
+
+```mermaid
+flowchart TD
+  Camera["Gazebo or USB camera"] -->|"/arena_camera/image + camera_info"| Rectify["rectify_node"]
+  Rectify -->|"/arena_camera/image_rect"| Tags["apriltag_detection_node"]
+  Tags --> RobotTags["Robot tag TF"]
+  Tags -->|"arena_camera_optical → arena_tag"| Calibrate["find_camera_in_world_service"]
+  Calibrate --> CameraTF["world → arena_camera_optical"]
+  Rectify -->|"/arena_camera/image_rect"| Mask["roi_mask_node"]
+  CameraTF --> Mask
+  Mask --> Masked["/arena_camera/image_rect_masked"]
+  Masked --> Crop["crop_decimate_node"]
+  Crop --> Cropped["/arena_camera/cropped/image_rect_masked<br/>/arena_camera/cropped/camera_info"]
+```
 
 ### Camera input and rectification
 
@@ -121,6 +135,18 @@ of these topics the detectors use.
 
 ## Robot detection and localization
 
+```mermaid
+flowchart TD
+  RobotTags["Robot tag TF"] --> Robot["robot_detection_node"]
+  Mounts["Fixed tag mounts from robot description"] --> Robot
+  Robot -->|"arena_camera_optical → arena_perception/robot/base_footprint"| Localize["odom_drift_correction_node"]
+  CameraTF["world → arena_camera_optical"] --> Localize
+  Localize -->|"map → odom"| Chain["world → map → odom → robot/base_footprint"]
+  Chain --> RobotPose["robot_tf_to_pose"]
+  RobotPose --> Pose["/robot/pose"]
+  Pose --> Autonomy["Strategy and navigation"]
+```
+
 `robot_detection_node` selects the newest robot tag transform up to 0.2 s
 old. It combines that measurement with the corresponding fixed tag-to-base
 transform from the robot description and publishes
@@ -142,6 +168,25 @@ frame in `world` and publishes `/robot/pose`.
 [Localization launch](../../src/arena_perception/launch/robot_localization.launch.py) · [Correction source](../../src/arena_perception/arena_perception/odom_drift_correction_node.py) · [Pose adapter](combat_strategizer.md#pose-adapters-and-helpers)
 
 ## Opponent detection and localization
+
+```mermaid
+flowchart TD
+  Masked["/arena_camera/image_rect_masked"] --> Color["Color detector"]
+  Masked --> Motion["MOG2 detector"]
+  RobotPose["/robot/pose"] -->|"Self-masking"| Color
+  RobotPose -->|"Self-masking"| Motion
+  CameraGeometry["world → arena_camera_optical<br/>/arena_camera/cropped/camera_info"] --> Color
+  CameraGeometry --> Motion
+  CameraGeometry --> Color3D["Color projection"]
+  CameraGeometry --> Motion3D["MOG2 projection"]
+  Color -->|"/detections_2d/color"| Color3D
+  Motion -->|"/detections_2d/mog2"| Motion3D
+  Color3D -->|"/detections_3d/color_array"| Filter["detection_kalman_filter"]
+  Motion3D -->|"/detections_3d/mog2_array"| Filter
+  Filter -->|"world → opponent"| Adapter["opponent_tf_to_pose"]
+  Adapter --> Pose["/opponent/pose"]
+  Pose --> Strategy["Strategy"]
+```
 
 ### Detection variants
 
@@ -187,18 +232,6 @@ The fusion launch passes `use_sim_time` to the detectors, projectors, filter
 and pose adapter. For a standalone launch, set `use_sim_time:=true` when
 using a simulated camera and Gazebo's `/clock`.
 [Filter source](../../src/arena_perception/arena_perception/detection_kalman_filter.py) · [Fusion settings](../../src/arena_perception/config/opponent_detection_config.yaml)
-
-```mermaid
-flowchart LR
-  Masked["/arena_camera/image_rect_masked"] --> Color["Color detector"]
-  Masked --> Motion["MOG2 detector"]
-  Color -->|"/detections_2d/color"| Color3D["Color projection"]
-  Motion -->|"/detections_2d/mog2"| Motion3D["MOG2 projection"]
-  Color3D -->|"/detections_3d/color_array"| Filter["detection_kalman_filter"]
-  Motion3D -->|"/detections_3d/mog2_array"| Filter
-  Filter -->|"world → opponent"| Adapter["opponent_tf_to_pose"]
-  Adapter --> Pose["/opponent/pose"]
-```
 
 The optional single-detector launches use `point_to_pose_remap` to turn
 `/detections_3d/color_point` or `/detections_3d/mog2_point` directly into
@@ -265,28 +298,6 @@ once the floor tag calibration succeeds or a saved camera pose loads.
 Robot localization and opponent projection use TF lookups to wait for
 their required transforms.
 [Root launch](../../src/robot_bringup/launch/robofetz_as.launch.py) · [System architecture](../architecture.md)
-
-```mermaid
-flowchart TD
-  Camera["Gazebo or USB camera"] -->|"/arena_camera/image + camera_info"| Rectify["rectify_node"]
-  Rectify -->|"/arena_camera/image_rect"| Tags["apriltag_detection_node"]
-  Tags -->|"arena_camera_optical → arena_tag"| Calibrate["find_camera_in_world_service"]
-  Calibrate --> CameraTF["world → arena_camera_optical"]
-  Tags -->|"Robot tag TF"| Robot["robot_detection_node"]
-  CameraTF --> Localize["odom_drift_correction_node"]
-  Robot -->|"Detected footprint TF"| Localize
-  Localize -->|"map → odom"| RobotPose["robot_tf_to_pose"]
-  Rectify --> Mask["roi_mask_node"]
-  CameraTF --> Mask
-  Mask --> Crop["crop_decimate_node"]
-  Crop -->|"/arena_camera/cropped/camera_info"| Opponent
-  Mask -->|"/arena_camera/image_rect_masked"| Opponent["Opponent detection, projection and fusion"]
-  CameraTF --> Opponent
-  RobotPose -->|"/robot/pose for self-masking"| Opponent
-  Opponent -->|"world → opponent"| OpponentPose["opponent_tf_to_pose"]
-  RobotPose -->|"/robot/pose"| Autonomy["Strategy and navigation"]
-  OpponentPose -->|"/opponent/pose"| Autonomy
-```
 
 In simulation, `use_fake_perception:=true` replaces the camera pipeline with
 TF relays from Gazebo ground truth. The robot still goes through localization

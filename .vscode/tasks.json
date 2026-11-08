@@ -10,6 +10,14 @@
       "problemMatcher": []
     },
     {
+      "label": "ROS: clean build",
+      "type": "process",
+      "command": "bash",
+      "args": [".devcontainer/workspace.sh", "clean-build"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
       "label": "ROS: test simulation workspace",
       "type": "process",
       "command": "bash",
