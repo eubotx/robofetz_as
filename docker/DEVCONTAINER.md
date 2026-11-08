@@ -129,6 +129,18 @@ independently of ordinary application source edits.
 
 Run **ROS: simulation desktop**, then open [noVNC](http://localhost:6080/vnc.html?autoconnect=1&resize=scale). Gazebo and RViz use the included Xvfb desktop and software rendering on either host. Select the opponent color, or press **q** in the color selector to accept defaults. Autonomy remains disabled until explicitly enabled in simulation.
 
+Xbox controllers are unsupported in this WSL 2 setup because the tested WSL
+kernel lacks the `xpad` driver. To drive the simulated opponent, open a second
+Dev Container terminal while the simulation is running:
+
+```bash
+ros2 run robot_bringup keyboard_node
+```
+
+Use WASD or the arrow keys to steer, Space to stop, and Q to quit. If you have
+installed rqt Robot Steering, you can also use its
+[graphical controls](README.md#drive-the-simulated-opponent).
+
 ```bash
 ros2 topic echo /arena_camera/image --once --field header
 ros2 topic echo /robot/pose --once

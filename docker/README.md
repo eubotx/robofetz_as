@@ -74,20 +74,36 @@ ros2 run tf2_ros tf2_echo world robot/base_footprint
 
 Press Ctrl+C to stop `tf2_echo`, then type `exit` to leave that shell.
 
-## Try Elf against a moving opponent
+## Drive the simulated opponent
 
-For the running **sim** service, wait for Elf to start, then run these from the
-host checkout:
+Xbox controllers are unsupported in this WSL 2 setup because the tested WSL
+kernel lacks the `xpad` driver. The Compose service also passes through no host
+devices.
+With the simulation running, start the included keyboard node from a second
+host terminal:
 
 ```bash
-docker compose -f docker/compose.yaml exec sim ros-env ros2 topic pub --once /autonomy std_msgs/msg/Bool '{data: true}'
 docker compose -f docker/compose.yaml exec sim ros-env ros2 run robot_bringup keyboard_node
 ```
 
 Focus the keyboard node's terminal. Use WASD or the arrow keys to move the
 **simulated opponent**, Space to stop it, and Q to quit the keyboard node.
+
+For graphical control, use [rqt Robot Steering](https://github.com/ros-visualization/rqt_robot_steering)
+if you have installed it in the simulation's ROS environment. Set its topic to
+`/opponent/cmd_vel` and select `Twist` messages.
+
+## Try Elf against a moving opponent
+
+Wait for Elf to start, then enable autonomy in the running simulation and drive
+the opponent using one of the controls above.
+
+```bash
+docker compose -f docker/compose.yaml exec sim ros-env ros2 topic pub --once /autonomy std_msgs/msg/Bool '{data: true}'
+```
+
 To disable Elf in the simulation, publish the same message with
-`'{data: false}'`. The Compose service passes through no host devices.
+`'{data: false}'`.
 
 ## Stop, restart or run a variant
 

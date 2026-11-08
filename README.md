@@ -1,6 +1,8 @@
 # ROBOFETZ_AS - An Autonomous System for Battle Bot Tournaments / Combat Robotics
 
-**ROBOFETZ_AS** is an autonomous system based on ROS2 (Jazzy) to make battle bots actual autonomous robots. It provides robot perception, robot localization, combat strategy infrastructure, robot navigation, robot controls, and all required ROS2 infrastructure including a full simulation environment.
+**ROBOFETZ_AS** is a hands-on learning project for combat robot autonomy using
+ROS 2 Jazzy. It brings together perception, localization, strategy, navigation,
+and robot control.
 
 [Package guides](docs/packages/README.md) · [System architecture](docs/architecture.md) · [Contributor guide](AGENTS.md)
 
@@ -10,6 +12,21 @@ The system can run:
 
 * Fully in simulation (Gazebo)
 * On real hardware (camera + ESP32 controlled robot)
+
+## Learning goals
+
+The project keeps earlier implementations and alternative node variants so you
+can compare how they solve the same problem, what each approach assumes, and
+where its trade-offs show up. The [autonomy approaches](docs/architecture.md#autonomy-approaches)
+compare Elf's default state-machine strategy with the original direct pursuit
+and optional Nav2 planning. The
+[perception guide](docs/packages/arena_perception.md#package-wiring) shows how
+color-only and motion-only opponent detection differ from the fused pipeline.
+
+When an AI coding agent helps with a change, it should explain how the
+affected parts fit together, why it chose the approach, and how you can check
+the result yourself. For behavior changes, Gazebo and ROS 2 inspection tools
+let you follow the data and see how the robot responds.
 
 ## Robot Hardware
 
@@ -26,7 +43,9 @@ The assembled Elfbar robot and its CAD model.
 ## Prerequisites
 
 * Ubuntu 24.04 LTS (native installation recommended)
-  *When running on WSL2, hardware-related features (camera, ESP32, gamepads) may be limited.*
+  *This project does not support Xbox controllers on WSL 2. The tested WSL kernel
+  lacks the `xpad` driver. Use [keyboard or rqt steering in simulation](docker/README.md#drive-the-simulated-opponent).
+  Camera and ESP32 access may also be limited.*
 
 ---
 

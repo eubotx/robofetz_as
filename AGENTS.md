@@ -1,8 +1,28 @@
 # Working in ROBOFETZ_AS
 
-This ROS 2 Jazzy workspace is a learning repository for combat robot autonomy.
-Elf is the default. Preserve earlier approaches so readers can compare direct
-pursuit, Elf’s state machine and optional Nav2 planning.
+This ROS 2 Jazzy workspace teaches combat robot autonomy through concrete
+examples. Elf is the default strategy. Keep earlier implementations and
+alternative node variants when they illustrate a distinct approach, so readers
+can compare their assumptions, behavior, and trade-offs.
+
+## Teaching while making changes
+
+Completing the requested work and helping the user understand it are both part
+of the task. Match the depth of the explanation to the change and the user's
+familiarity with the system.
+
+- Explain the relevant concept through this repository. For a ROS behavior
+  change, show which nodes, topics, or launch settings are involved and point
+  to the files the user can follow.
+- Explain why you chose the approach and what trade-off mattered when there
+  was a meaningful choice.
+- When documenting a variant, explain what problem it solves, how it differs
+  from the default, and when its limitations matter. Identify it as a default,
+  an optional path, or a historical example. Where practical, show how to
+  compare the approaches under the same conditions in simulation.
+- Give the user a concrete way to check the result and describe what they
+  should observe. For behavior changes, prefer a simulation check or a ROS 2
+  inspection command. State which checks you actually ran.
 
 ## Finding the relevant code
 
