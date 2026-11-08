@@ -38,6 +38,13 @@
       "command": "bash",
       "args": [".devcontainer/workspace.sh", "sim"],
       "problemMatcher": []
+    },
+    {
+      "label": "ROS: noVNC desktop only",
+      "type": "process",
+      "command": "bash",
+      "args": [".devcontainer/workspace.sh", "sim", "--desktop-only"],
+      "problemMatcher": []
     }
   ]
 }

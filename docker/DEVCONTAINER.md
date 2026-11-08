@@ -21,6 +21,55 @@ to stop, and Q to quit. For a gamepad, use the [Xbox profile](#xbox-controller-p
 To compare with Gazebo ground truth, stop the task and run
 `bash .devcontainer/workspace.sh sim use_fake_perception:=true`.
 
+## Restart nodes independently
+
+Stop **ROS: simulation desktop** and start **ROS: noVNC desktop only**.
+You can also run `bash .devcontainer/workspace.sh sim --desktop-only` in a
+terminal. Open the same forwarded port 6080. Keep the display task running
+while you start the following commands in separate Dev Container terminals.
+
+```bash
+# Terminal 1: Gazebo, the ROS bridge, and robot_state_publisher
+ros2 launch robofetz_gazebo robofetz_gazebo_sim.launch.py world:=robofetz_arena_pinhole.world
+
+# Terminal 2: RViz with the bringup configuration
+ros2 run rviz2 rviz2 -d "$(ros2 pkg prefix --share robot_bringup)/config/config.rviz" \
+  --ros-args -p use_sim_time:=true
+```
+
+Gazebo supplies `/clock` through the bridge. For the usual camera-based pose
+topics in RViz, run the next two commands in their own terminals. Select the
+opponent color in the browser desktop as in the full simulation.
+
+```bash
+ros2 launch arena_perception arena_perception.launch.py use_sim_time:=true
+ros2 launch arena_perception robot_localization.launch.py use_sim_time:=true
+```
+
+For Elf, run the drive mux, navigator, and strategy in three more terminals.
+The parameter files match the default Elf launch.
+
+```bash
+ros2 run robot_bringup robot_cmd_vel_muxer --ros-args -p use_sim_time:=true
+
+ros2 run robot_navigation elf_navigator --ros-args -p use_sim_time:=true \
+  --params-file "$(ros2 pkg prefix --share robot_navigation)/config/elf_navigator_config.yaml"
+
+ros2 run combat_strategizer elf_combat_strategizer --ros-args -p use_sim_time:=true \
+  --params-file "$(ros2 pkg prefix --share combat_strategizer)/config/elf_strategizer_config.yaml"
+```
+
+Press Ctrl+C in the strategy terminal, then check `ros2 node list` from another
+terminal. `/elf_combat_strategizer` should disappear while `/elf_navigator`,
+`/gz_bridge`, and `/rviz2` stay up. Rerun the strategy command after an edit.
+If you enabled Elf in simulation, disable it with
+`ros2 topic pub --once /autonomy std_msgs/msg/Bool '{data: false}'` before
+stopping either Elf process. Check for zero velocity with
+`ros2 topic echo /cmd_vel --once`. The mux keeps publishing its last
+autonomous velocity until it receives another command.
+[Drive mux](../docs/packages/robot_bringup.md#robot_cmd_vel_muxer) ·
+[Default Elf launch](../src/combat_strategizer/launch/elf_autonomy.launch.py)
+
 ## Edit, build, and test
 
 | When | Action |

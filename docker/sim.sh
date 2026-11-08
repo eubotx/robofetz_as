@@ -1,6 +1,11 @@
 #!/bin/bash
 set -eo pipefail
 
+if [[ "${1:-}" == --desktop-only && $# -ne 1 ]]; then
+    printf '%s takes no launch arguments.\n' "$1" >&2
+    exit 2
+fi
+
 unset WAYLAND_DISPLAY WAYLAND_SOCKET
 export XDG_SESSION_TYPE=x11
 export DISPLAY=:99
@@ -80,7 +85,9 @@ with socket.create_connection(("127.0.0.1", 5900), timeout=0.5) as vnc:
 check_processes
 printf 'Simulation desktop ready on container port 6080. Open /vnc.html?autoconnect=1&resize=scale at its host address.\n'
 
-start_process 'ROS launch' ros2 launch robot_bringup robofetz_as.launch.py use_sim:=true "$@"
+if [[ "${1:-}" != --desktop-only ]]; then
+    start_process 'ROS launch' ros2 launch robot_bringup robofetz_as.launch.py use_sim:=true "$@"
+fi
 check_processes
 status=0
 wait -n -p exited_pid "${pids[@]}" || status=$?
