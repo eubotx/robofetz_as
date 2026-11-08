@@ -24,7 +24,7 @@ Detector(families="tagStandard41h12").detect(image)
 PY
 gz sim --versions
 ros2 launch robot_bringup robofetz_as.launch.py --show-args >/dev/null
-"$(ros2 pkg prefix combat_strategizer)/lib/combat_strategizer/cmd_vel_muxer" &
+"$(ros2 pkg prefix robot_bringup)/lib/robot_bringup/cmd_vel_muxer" &
 mux=$!
 trap 'kill -TERM "$mux" 2>/dev/null || true; wait "$mux" 2>/dev/null || true' EXIT
 timeout 30 ros2 topic echo /cmd_vel geometry_msgs/msg/Twist --once

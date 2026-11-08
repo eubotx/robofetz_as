@@ -11,22 +11,15 @@ def generate_launch_description():
         output='screen',
     )
 
-    simple_attack = Node(
+    simple_combat_strategizer = Node(
         package='combat_strategizer',
-        executable='simple_attack',
-        name='simple_attack',
-    )
-
-    weapon_control = Node(
-        package='combat_strategizer',
-        executable='weapon_control',
-        name='weapon_control',
+        executable='simple_combat_strategizer',
+        name='simple_combat_strategizer',
     )
 
     # Build launch description
     ld = LaunchDescription()
     ld.add_action(simple_navigator)
-    ld.add_action(simple_attack)
-    ld.add_action(weapon_control)
+    ld.add_action(simple_combat_strategizer)
 
     return ld

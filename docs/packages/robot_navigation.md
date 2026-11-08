@@ -1,118 +1,175 @@
 # robot_navigation
 
-[Package index](README.md) · [System architecture](../architecture.md)
+The navigator receives a goal pose, robot pose and other driving style commands and uses that information to
+compute linear and
+angular velocity commands as `geometry_msgs/msg/Twist` on
+`/cmd_vel_autonomous` for the robot to drive there.
 
-Provides the Elf and direct-pursuit controllers, a Nav2 action client and two map tools.
 
-## Nodes
 
-### elf_navigator — default reactive controller
+The combat strategizer chooses the goal pose and driving style.
+`robot_cmd_vel_muxer` selects between autonomous and teleop velocity commands
+and publishes the result on `/cmd_vel`.
+[Autonomy overview](../autonomy.md) · [Combat strategizer guide](combat_strategizer.md) · [robot_cmd_vel_muxer](robot_bringup.md#robot_cmd_vel_muxer)
 
-[Source: ElfNavigator](../../src/robot_navigation/robot_navigation/elf_navigator.py).
+## Variants
 
-| Direction | Topic | Type | Contract |
-| --- | --- | --- | --- |
-| Subscribe | /robot/pose | geometry_msgs/PoseStamped | Cached x/y/yaw, no input-age or frame validation. |
-| Subscribe | /goal_pose | geometry_msgs/PoseStamped | Enables tracking and resets yaw integral on every message. |
-| Subscribe | /drive_mode | std_msgs/String | Uppercased; FORWARD selects forward control, every other value follows backward branch. |
-| Subscribe | /elf_navigator_cmd | std_msgs/String | Immediate command, cancels tracking and clears the goal. |
-| Publish | /cmd_vel_autonomous | geometry_msgs/Twist | Linear x in m/s, angular z in rad/s. |
+There are different variants of navigators available:
 
-The 20 Hz tracking loop uses distance-proportional linear control and PI yaw control. For backward tracking it offsets yaw error by pi. Linear speed is scaled by `max(0.3, 1-abs(yaw_error)/pi)`, so large yaw error does **not** prevent translation. Within `position_tolerance` it publishes zero once and disables tracking. Missing poses/goals or inactive tracking cause no output, not repeated zero. It compares coordinates directly and ignores goal orientation.
-
-Immediate strings: `STOP`, `FORWARD[:speed]`, `BACKWARD[:speed]`, `TURN[:angular]`, `TURN_LEFT[:speed]`, `TURN_RIGHT[:speed]`. A command publishes **once**, with no duration or completion feedback. Invalid numeric text is not caught; unknown actions clear tracking before returning without a replacement command. Default mux behavior is what retains one-shot motion.
-
-| Parameters | Source defaults |
-| --- | --- |
-| Immediate command speeds | default_linear_speed=0.3, default_angular_speed=3.0 |
-| Tracking caps | forward_speed=3.0, backward_speed=3.0, turn_speed=3.5 |
-| Tracking gains | linear_kp=1.0, angular_kp=1.8, angular_ki=0.5, integral_windup_limit=2.0 |
-| Tolerance | position_tolerance=0.1 |
-| Loaded but not used in control | angle_threshold_for_driving=0.17 |
-
-**Improve:** Reject malformed commands and stop when inputs expire.
-
-### simple_navigator — forward-only goal tracking
-
-[Source: SimpleBotNavigator](../../src/robot_navigation/robot_navigation/simple_navigator.py). Executable `simple_navigator`; source node name `battle_bot_navigator`, renamed `simple_navigator` by launch.
-
-Subscribes to `/robot/pose` and `/goal_pose` (`geometry_msgs/PoseStamped`), publishes `/cmd_vel_autonomous` (`geometry_msgs/Twist`) at 30 Hz when inputs exist. Only forward tracking is implemented. PI yaw control and distance/angle-based speed adjustment run until position tolerance; then it keeps publishing zero. Each goal resets the integral. Missing input returns without a stop. For differing frames it requests TF but **never applies the returned transform**; subtraction still uses original coordinates. TF exceptions publish zero, other exceptions only log.
-
-Source defaults: `linear_kp=0.5`, `angular_kp=1.8`, `angular_ki=0.5`, `max_linear=1.0`, `max_angular=3.5`, `position_tolerance=0.1`, `orientation_tolerance=0.3`, `goal_frame=map`, `integral_windup_limit=2.0`, `min_speed=0.3`, `angle_threshold_for_driving=0.5`, `distance_to_slow_down=0.1`. Orientation tolerance, goal_frame and angle threshold do not enforce final orientation/frame conversion/driving gating. The runtime parameter callback reloads current stored parameters during the pre-set callback rather than explicitly applying proposed values.
-
-[simple_nav.launch.py](../../src/robot_navigation/launch/simple_nav.launch.py) loads [simple_navigator_config.yaml](../../src/robot_navigation/config/simple_navigator_config.yaml): lower caps/gains, including max_linear=0.1, linear_kp=0.2, angular_kp=1.0, angular_ki=0.05 and position_tolerance=0.05. The launch that pairs this controller with `simple_attack` constructs the node with its source defaults.
-
-**Improve:** Apply the transform before computing position error.
-
-### nav2_navigator — optional alignment/action wrapper
-
-[Source: Nav2Navigator](../../src/robot_navigation/robot_navigation/nav2_navigator.py). Executable/node `nav2_navigator`, also the base class used by `combat_strategizer/nav2_attack`.
-
-| Direction | Name | Type | Contract |
-| --- | --- | --- | --- |
-| Subscribe | /arena_perception_robot_base_footprint_pose | geometry_msgs/PoseStamped | Stores pose only, losing frame/stamp. |
-| Subscribe in standalone main only | /attack_command | geometry_msgs/PoseStamped | Calls attack(target). |
-| Subscribe in standalone main only | /escape_command | geometry_msgs/PoseStamped | Threat to face; safe destination hard-coded to (0,0). |
-| Publish | /cmd_vel | geometry_msgs/Twist | Direct alignment commands, bypasses mux. |
-| Action client | navigate_to_pose (relative) | nav2_msgs/action/NavigateToPose | Sends goal.pose; does not consume feedback; result callback ignores result status. |
-
-`attack(opponent_pose)` asynchronously cancels a known old goal, aligns toward the opponent, then sends its position to Nav2. `escape(opponent_pose, safe_pose)` aligns toward the threat before navigating to safety. The 10 Hz alignment loop uses PID yaw control. States are IDLE, ALIGNING and NAVIGATING. Action-server wait is up to 1 s; rejection/unavailable server and any completed result return to IDLE. Cancellation is not awaited, and old callbacks are not correlated with a current request. Goal header is relabeled to `goal_frame` and stamped now, without transforming its coordinates. Standalone escape leaves its constructed safe pose quaternion at message defaults.
-
-Parameters: `angular_kp=1.5`, `angular_ki=0.05`, `angular_kd=0.1`, `max_angular=1.0`, `orientation_tolerance=0.1`, `goal_frame=map`; `linear_kp=0.5` is declared but unused.
-
-**Improve:** Track goal IDs so results from canceled actions cannot complete the current maneuver.
-
-### map_node — defense-map experiment
-
-[Source: MapNode](../../src/robot_navigation/robot_navigation/map_node.py). Loads `map/map.pgm` and `my_map.yaml` via the source-tree-searching `get_map_dir()` helper; requires metadata `map_size`, `origin` and `real_size`. Assumes square dimensions and derives resolution as real_size/map_size, rather than using YAML resolution.
-
-Input: `/arena_perception_opponent_base_footprint_pose` (`geometry_msgs/PoseStamped`). At 1 Hz it paints a dark region around the cached opponent, blurs the map and chooses its brightest pixel as the defense position. It produces outputs even before an opponent arrives.
-
-| Output | Type | Frame/encoding |
+| Navigator | Role | How it moves the robot |
 | --- | --- | --- |
-| /map_defence | nav_msgs/OccupancyGrid | map; pixel values ≤100 occupied, ≥200 free, intermediate unknown; rows flipped for ROS. |
-| /map_debug_image | sensor_msgs/Image | map header, mono8; image rows remain top-down. |
-| /defense_position | geometry_msgs/PointStamped | map; brightest-pixel coordinates, z=0. |
+| `simple_navigator` | Original direct-pursuit controller | Steers forward toward a goal pose. |
+| `elf_navigator` | Default controller | Tracks a goal forward or backward and handles immediate commands from the Elf strategizer. |
+| `nav2_navigator` | Optional Nav2 example | Aligns the robot locally, then hands the destination to Nav2 for path planning and tracking. |
 
-This is neither the Nav2 static map server nor an active component of Elf; Nav2Attack's defense subscription is commented out.
+## Simple navigator
 
-**Improve:** Select a reachable free cell using a recent opponent pose.
-
-### create_map — offline CLI, not a ROS node
-
-[Source](../../src/robot_navigation/robot_navigation/create_map.py). Installed executable `create_map`. Accepts positional `TL|TR|BL|BR:RADIUS` corners and `--square-length`, `--map-size`, `--real-size`, `--border-thickness`. Reads existing YAML or defaults (128 pixels, real_size 2.56, square_length 54, border 2), creates an arena, optionally invokes GIMP after prompting, blurs and writes `map.pgm`, `map_view.png` and `my_map.yaml`. PGM rotates -90 degrees; PNG does not. It preserves existing YAML fields and updates metadata rather than ensuring a complete new Nav2 YAML schema. No ROS endpoints.
-
-**Improve:** Use explicit units for square length and write to a caller-selected output directory.
-
-## Package wiring
-
-Elf, simple and Nav2 are **alternative controllers**, not sequential stages. Elf/simple publish the same autonomous topic; do not run both as owners. Nav2 wrapper may be a standalone process or inherited into Nav2Attack, not necessarily a second process beside it. Map generation and defense-map evaluation form a separate experimental path.
+`simple_navigator` receives `/robot/pose` and `/goal_pose` as
+`geometry_msgs/msg/PoseStamped`. At 30 Hz it steers toward the goal with
+proportional and integral yaw control. It adjusts forward speed based on
+distance and heading error, and publishes zero velocity within the position
+tolerance. [Navigator source](../../src/robot_navigation/robot_navigation/simple_navigator.py)
 
 ```mermaid
 flowchart LR
-  ElfStrategy[Elf strategy] --> Elf[elf_navigator]
-  SimpleStrategy[simple_attack] --> Simple[simple_navigator]
-  Elf --> Mux[external velocity mux]
-  Simple --> Mux
-  Attack[Nav2Attack or standalone command inputs] --> Wrapper[Nav2Navigator]
-  Wrapper -->|NavigateToPose action| Nav2[external Nav2 stack]
-  Wrapper -->|alignment cmd_vel| Output[drive output]
-  Nav2 -->|cmd_vel_smoothed relay| Output
-  Generate[create_map CLI] --> Files[map assets]
-  Files --> MapServer[external map_server]
-  Files --> Defense[map_node experiment]
+  Pose["/robot/pose"] --> Simple["simple_navigator"]
+  Goal["/goal_pose"] --> Simple
+  Simple -->|"/cmd_vel_autonomous"| Mux["robot_cmd_vel_muxer"]
+  Teleop["/cmd_vel_teleop"] --> Mux
+  Mux -->|"/cmd_vel"| Drive["Robot drive"]
 ```
 
-## External nodes/configuration provided by nav2.launch.py
+The navigator keeps the last robot and goal poses until new ones arrive. When
+their frames differ, it looks up a TF transform but computes the error using
+the original coordinates. Supply both poses in the same frame for meaningful
+steering. Arrival uses position alone.
 
-[Launch](../../src/robot_navigation/launch/nav2.launch.py) starts `nav2_map_server/map_server`, its lifecycle manager, includes `nav2_bringup/navigation_launch.py` with composition disabled, and starts `topic_tools/relay` from `cmd_vel_smoothed` to `cmd_vel`. Arguments: `use_sim_time=True`, `autostart=True`, `params_file` defaults to `nav2_params.yaml`, `map` defaults to `my_map.yaml`. It does not start Nav2Attack, the local wrapper or map_node.
+| Launch | Controller settings |
+| --- | --- |
+| [`simple_autonomy.launch.py`](../../src/combat_strategizer/launch/simple_autonomy.launch.py) | Starts the strategizer and navigator with source defaults. The linear speed cap is 1.0 m/s, the angular speed cap is 3.5 rad/s, and the position tolerance is 0.1 m. |
+| [`simple_nav.launch.py`](../../src/robot_navigation/launch/simple_nav.launch.py) | Starts the navigator on its own and loads [`simple_navigator_config.yaml`](../../src/robot_navigation/config/simple_navigator_config.yaml). The speed caps are 0.1 m/s and 2.0 rad/s, and the position tolerance is 0.05 m. |
 
-The local wrapper requires `navigate_to_pose`. [bt_navigator.xml](../../src/robot_navigation/config/bt_navigator.xml) composes ComputePathToPose, FollowPath, costmap-clear services, Spin, Wait and BackUp, with controller/planner selector topics. These servers belong to Nav2, not custom package implementations.
+### Proposed improvement
 
-[nav2_params.yaml](../../src/robot_navigation/config/nav2_params.yaml) uses DWB; [nav2_params_mppi.yaml](../../src/robot_navigation/config/nav2_params_mppi.yaml) selects MPPI (DiffDrive, 56 steps, 0.1 s model_dt, batch_size 1000). Both use map and robot/base_footprint, refer to /odom, and select static/inflation costmap plugins. Voxel/scan settings exist but voxel is not in the active plugin list. Collision-monitor configuration refers to /scan and a depth point cloud absent from the default graph; its output is cmd_vel_collision, while the explicit relay forwards cmd_vel_smoothed directly. Configuration alone is not evidence that collision monitoring protects this output. The default system supplies no ROS /odom publisher.
+- Apply the transform before computing position error.
+
+## Elf navigator
+
+`elf_navigator` also tracks `/goal_pose` using `/robot/pose`, with a 20 Hz
+control loop. The strategizer sends `FORWARD` or `BACKWARD` on `/drive_mode`.
+In reverse, the navigator steers the rear of the robot toward the goal and
+commands negative linear velocity. It compares the pose coordinates directly,
+uses position to determine arrival, and publishes zero once on arrival before
+ending goal tracking.
+[Navigator source](../../src/robot_navigation/robot_navigation/elf_navigator.py)
+
+```mermaid
+flowchart LR
+  Pose["/robot/pose"] --> Elf["elf_navigator"]
+  Strategy["Elf strategizer"] -->|"/goal_pose and /drive_mode"| Elf
+  Strategy -->|"/elf_navigator_cmd"| Elf
+  Elf -->|"/cmd_vel_autonomous"| Mux["robot_cmd_vel_muxer"]
+  Teleop["/cmd_vel_teleop"] --> Mux
+  Mux -->|"/cmd_vel"| Drive["Robot drive"]
+```
+
+### Immediate commands
+
+`/elf_navigator_cmd` carries a `std_msgs/msg/String`. Elf sends `STOP` to clear
+the active goal and publish zero velocity, and `BACKWARD:0.5` by default to
+start a straight reverse during wall recovery. The navigator publishes one
+velocity message per command. The strategizer times the recovery and sends the
+next stop, while `robot_cmd_vel_muxer` keeps publishing the last autonomous
+command.
+
+The parser also accepts `FORWARD`, `TURN`, `TURN_LEFT`, and `TURN_RIGHT` with
+optional speed values. It clears tracking before validating the action, and
+invalid numeric text can raise an exception.
+
+| Setting | Source default |
+| --- | --- |
+| Goal tracking speed caps | `forward_speed=3.0`, `backward_speed=3.0` m/s, `turn_speed=3.5` rad/s |
+| Goal tracking gains | `linear_kp=1.0`, `angular_kp=1.8`, `angular_ki=0.5`, `integral_windup_limit=2.0` |
+| Arrival | `position_tolerance=0.1` m |
+| Immediate command speeds | `default_linear_speed=0.3` m/s, `default_angular_speed=3.0` rad/s |
+
+### Proposed improvement
+
+- Reject malformed commands and stop when inputs expire.
+
+## Nav2 navigator
+
+`nav2_navigator` is an optional example for comparing local pose tracking
+with path planning. It takes the robot pose from
+`/arena_perception_robot_base_footprint_pose`. It turns toward the opponent
+using a 10 Hz PID loop, then sends a `nav2_msgs/action/NavigateToPose` goal to
+`navigate_to_pose`. An attack uses the opponent as the destination. An escape
+faces the opponent first and then sends a safe destination.
+[Navigator source](../../src/robot_navigation/robot_navigation/nav2_navigator.py)
+
+```mermaid
+flowchart LR
+  Input["Standalone command topics or strategy calls"] --> Wrapper["nav2_navigator"]
+  Pose["/arena_perception_robot_base_footprint_pose"] --> Wrapper
+  Wrapper -->|"Alignment /cmd_vel"| Drive["Robot drive"]
+  Wrapper -->|"navigate_to_pose action"| Nav2["Nav2 servers"]
+  Nav2 -->|"/cmd_vel_smoothed"| Relay["Velocity relay"]
+  Relay -->|"/cmd_vel"| Drive
+```
+
+The standalone executable takes `PoseStamped` commands on `/attack_command`
+and `/escape_command`. Its escape demo uses (0, 0) as the safe destination.
+`nav2_attack` inherits the wrapper and calls its methods directly. The wrapper
+uses the configured goal frame label without transforming the coordinates.
+Any completed action result returns it to `IDLE`, including a failed or
+canceled goal. Cancellation is asynchronous, so an old result can also affect
+the current state. [Nav2 strategy](combat_strategizer.md#nav2-attack)
+
+[`nav2.launch.py`](../../src/robot_navigation/launch/nav2.launch.py) starts the
+external Nav2 servers, static map server, and velocity relay. Start the wrapper
+or the Nav2 strategy separately. The launch uses
+[`nav2_params.yaml`](../../src/robot_navigation/config/nav2_params.yaml) with
+DWB by default. Set `params_file` to
+[`nav2_params_mppi.yaml`](../../src/robot_navigation/config/nav2_params_mppi.yaml)
+to select MPPI. Both configurations expect `/odom`, which standard bringup
+does not supply. Both reference the supplied behavior tree for planning, path
+following, and recovery. [Behavior tree](../../src/robot_navigation/config/bt_navigator.xml)
+
+The wrapper and relay publish directly to `/cmd_vel`, so running them alongside
+`robot_cmd_vel_muxer` gives the drive topic multiple publishers. The relay takes
+`cmd_vel_smoothed` directly. The collision monitor's configured output is
+`cmd_vel_collision`.
+
+### Proposed improvement
+
+- Track goal IDs so results from canceled actions cannot complete the current
+  maneuver.
+
+## Map tools
+
+| Tool | Purpose |
+| --- | --- |
+| [`create_map`](../../src/robot_navigation/robot_navigation/create_map.py) | Offline CLI that creates an arena image and writes `map.pgm`, `map_view.png`, and `my_map.yaml`. |
+| [`map_node`](../../src/robot_navigation/robot_navigation/map_node.py) | Defense experiment that darkens the area around the opponent on an arena map and selects the brightest pixel as a candidate escape point. |
+
+`map_node` reads `map.pgm` and the `map_size`, `origin`, and `real_size`
+fields in `my_map.yaml`. It uses the legacy opponent pose topic and publishes
+`/map_defence` (occupancy grid), `/map_debug_image` (mono8 image), and
+`/defense_position` (point in `map`) at 1 Hz. The active strategies choose
+defense positions independently.
+
+### Proposed improvements
+
+- **`create_map`**. Use explicit units for square length and write to a
+  caller-selected output directory.
+- **`map_node`**. Select a reachable free cell using a recent opponent pose.
 
 ## Package improvements
 
-- Expose mutually exclusive controller profiles and normalize goal, pose, completion and output contracts.
-- Integrate Nav2's odometry/sensor/output requirements explicitly before treating it as interchangeable with Elf.
-- Separate offline asset generation from runtime map access; declare direct action, topic_tools, image/scientific-Python dependencies and add behavior tests for frame conversion, failure and cancellation.
+- Expose mutually exclusive controller profiles and normalize goal, pose,
+  completion and output contracts.
+- Integrate Nav2's odometry, sensor, and output requirements explicitly before
+  treating it as interchangeable with Elf.
+- Separate offline asset generation from runtime map access. Declare direct
+  action, `topic_tools`, image, and scientific Python dependencies and add
+  behavior tests for frame conversion, failure and cancellation.

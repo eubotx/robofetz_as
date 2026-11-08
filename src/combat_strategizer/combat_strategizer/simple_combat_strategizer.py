@@ -2,9 +2,9 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 
-class SimpleAttack(Node):
+class SimpleCombatStrategizer(Node):
     def __init__(self):
-        super().__init__('simple_attack')  # Node name is simple_attack
+        super().__init__('simple_combat_strategizer')
 
         # Create a subscriber to the /camera/opponent/pose topic
         self.subscription = self.create_subscription(
@@ -16,7 +16,7 @@ class SimpleAttack(Node):
         # Create a publisher to the /goal_pose topic
         self.publisher = self.create_publisher(PoseStamped, '/goal_pose', 10)
 
-        self.get_logger().info('Simple Attack Node Started!')
+        self.get_logger().info('Simple Combat Strategizer Node Started!')
 
     def listener_callback(self, msg):
         # Log received PoseStamped message
@@ -29,6 +29,6 @@ class SimpleAttack(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = SimpleAttack()  # Node name is SimpleAttack
+    node = SimpleCombatStrategizer()
     rclpy.spin(node)
     rclpy.shutdown()

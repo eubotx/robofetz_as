@@ -19,5 +19,5 @@ Qt widgets hold control values. A ROS timer samples them and updates one publish
 
 **Package improvements**
 
-- Route the slider through the robot’s weapon arming and expiry policy.
+- Add arming and expiry checks to the weapon command path.
 - Make the GUI optional for headless simulation.

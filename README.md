@@ -17,10 +17,9 @@ The system can run:
 
 The project keeps earlier implementations and alternative node variants so you
 can compare how they solve the same problem, what each approach assumes, and
-where its trade-offs show up. The [autonomy approaches](docs/architecture.md#autonomy-approaches)
-compare Elf's default state-machine strategy with the original direct pursuit
-and optional Nav2 planning. The
-[perception guide](docs/packages/arena_perception.md#package-wiring) shows how
+where its trade-offs show up. The [autonomy guide](docs/autonomy.md)
+compares Elf's default state-machine strategy with the original direct pursuit.
+The [perception guide](docs/packages/arena_perception.md#package-wiring) shows how
 color-only and motion-only opponent detection differ from the fused pipeline.
 
 When an AI coding agent helps with a change, it should explain how the
@@ -244,17 +243,6 @@ Clean workspace:
 
 ```bash
 rm -rf build install log
-```
-
-Arm the optional `weapon_control` policy:
-
-`/weapon/armed` only gates that node. The default weapon slider and radio path
-do not subscribe to it; see [weapon interfaces](docs/packages/combat_strategizer.md)
-and [firmware behavior](docs/firmware.md).
-
-```bash
-ros2 topic pub /weapon/armed std_msgs/Bool "{data: true}"
-ros2 topic pub /weapon/armed std_msgs/Bool "{data: false}"
 ```
 
 Check simulation time usage:

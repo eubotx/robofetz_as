@@ -2,9 +2,30 @@
 
 [Package index](README.md) · [System architecture](../architecture.md)
 
-Starts the simulation or hardware stack. Provides the serial radio bridge and an optional keyboard driver for the simulated opponent.
+Starts the simulation or hardware stack. Provides `robot_cmd_vel_muxer`, the serial radio
+bridge, and an optional keyboard driver for the simulated opponent.
 
 ## Nodes
+
+### robot_cmd_vel_muxer
+
+The `cmd_vel_muxer` executable runs as `robot_cmd_vel_muxer` in standard
+bringup. It publishes `/cmd_vel` at 20 Hz. A command on `/cmd_vel_teleop`,
+including zero velocity, takes priority for 0.5 seconds by default.
+Afterward, the node repeats the last `/cmd_vel_autonomous` message until a new
+one arrives. It has no autonomous command timeout, so a one-shot wall
+recovery command can persist if the strategizer stops before sending
+`STOP`. The `bottom` marker on `/arena_perception/robot/visible_marker`
+reverses linear x by default. A `none` marker preserves the last known
+orientation.
+[Node source](../../src/robot_bringup/robot_bringup/cmd_vel_muxer.py)
+
+In simulation, `ros2 node info /robot_cmd_vel_muxer` should show both velocity
+inputs and the `/cmd_vel` publisher.
+
+#### Proposed improvement
+
+- Expire autonomous commands and make timed reverse renewable.
 
 ### radio_bridge_node
 
@@ -30,10 +51,10 @@ All subscriptions use depth 10. Numbers are formatted to two decimal places. Dri
 
 | Launch/config | Interface and role |
 | --- | --- |
-| [xbox_teleop.launch.py](../../src/robot_bringup/launch/xbox_teleop.launch.py) | Includes external teleop_twist_joy launch with joy_vel=cmd_vel_teleop. Joystick input becomes Twist for the mux. |
+| [xbox_teleop.launch.py](../../src/robot_bringup/launch/xbox_teleop.launch.py) | Includes the external `teleop_twist_joy` launch with `joy_vel=cmd_vel_teleop`. Joystick input becomes a Twist for `robot_cmd_vel_muxer`. |
 | [teleop_opponent.launch.py](../../src/robot_bringup/launch/teleop_opponent.launch.py) | Sets `joy_vel=opponent/cmd_vel` so the operator can drive the Gazebo opponent with the Xbox controller while testing the robot’s autonomy. |
 | [xbox_teleop.config.yaml](../../src/robot_bringup/config/xbox_teleop.config.yaml) | Linear x axis 1, yaw axis 0; normal/turbo scales both 1.2 m/s and 5 rad/s; enable button 2, turbo button 5. |
-| [weaponspeed_slider.launch](../../src/robot_bringup/launch/weaponspeed_slider.launch) | Starts external slider_publisher using Float32.yaml; weapon/speed range 0–1, default 0. This is independent of /weapon/armed. |
+| [weaponspeed_slider.launch](../../src/robot_bringup/launch/weaponspeed_slider.launch) | Starts the external `slider_publisher` using `Float32.yaml`. It publishes `/weapon/speed` with a range of 0–1 and a default of 0. |
 | [config.rviz](../../src/robot_bringup/config/config.rviz) | Optional RViz visualization configuration; not a control node. |
 
 See [slider_publisher](slider_publisher.md) for the GUI interface.
@@ -54,7 +75,7 @@ See [slider_publisher](slider_publisher.md) for the GUI interface.
 | arena_perception_config | arena_perception/config/arena_perception_config.yaml |
 | robot_localization_config | arena_perception/config/robot_localization_config.yaml |
 
-Always starts robot_state_publisher with frame prefix robot/, the command mux and the weapon slider. Simulation selects Gazebo and opponent Xbox teleop. Hardware selects radio_bridge_node, USB camera and robot Xbox teleop. Real/fake perception selection is independent of use_sim. Localization runs in both modes, and Elf is always the selected autonomy composition, initially disabled by its /autonomy state.
+Always starts robot_state_publisher with frame prefix robot/, `robot_cmd_vel_muxer` and the weapon slider. Simulation selects Gazebo and opponent Xbox teleop. Hardware selects radio_bridge_node, USB camera and robot Xbox teleop. Real/fake perception selection is independent of use_sim. Localization runs in both modes, and Elf is always the selected autonomy composition, initially disabled by its /autonomy state.
 
 Root timers, relative to launch start: Gazebo 3 s; perception 8 s simulation / 3 s hardware; localization 20/15 s; RViz 25/20 s; Elf 30 s. Included launches add further delays. There is no readiness handshake. Root computes run_rectification and passes it to perception, but perception does not consume it and always launches rectification.
 
@@ -64,7 +85,7 @@ flowchart TD
   Root --> Perception[real or fake arena_perception]
   Root --> Localization[arena_perception localization]
   Root --> Elf[combat_strategizer Elf launch]
-  Root --> Mux[combat_strategizer mux]
+  Root --> Mux["robot_cmd_vel_muxer"]
   Root --> Slider[external slider]
   Root --> Sim[simulation: Gazebo + opponent Xbox]
   Root --> HW[hardware: USB camera + radio + robot Xbox]
@@ -74,4 +95,5 @@ flowchart TD
 
 - Replace fixed delays with camera/TF/controller readiness and reject invalid mode combinations.
 - Provide explicit strategy, teleop, camera and headless profiles; propagate serial/camera settings and clocks.
-- Declare actual runtime dependencies in package.xml, which currently contains only test dependencies; add launch-composition validation without opening hardware.
+- Declare the remaining runtime dependencies in `package.xml` and add
+  launch-composition validation without opening hardware.

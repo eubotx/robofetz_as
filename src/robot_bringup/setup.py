@@ -34,6 +34,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'cmd_vel_muxer = robot_bringup.cmd_vel_muxer:main',
             'keyboard_node = robot_bringup.keyboard_node:main',
             'radio_bridge_node = robot_bringup.transmitter:main',
         ],
