@@ -49,6 +49,7 @@ setup(
 
     entry_points={
         'console_scripts': [
+            'tf_to_pose_stamped = robofetz_gazebo.tf_to_pose:main',
             'tf_to_pose = robofetz_gazebo.tf_to_pose:main',
             'grayscale_republisher = robofetz_gazebo.grayscale_republisher_node:main',
             'camera_info_publisher = robofetz_gazebo.camera_info_publisher:main',

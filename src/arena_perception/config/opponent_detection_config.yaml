@@ -38,6 +38,15 @@ opponent_det_MOG2single:
     stationary_timeout: 2.0
     debug: true
 
+detection_2d_to_3d_node:
+  ros__parameters:
+    target_frame: "world"
+    camera_frame: "arena_camera_optical"
+    z_plane: 0.0
+    confidence_threshold: 0.5
+    tf_timeout_sec: 0.1
+    publish_visualization: true
+
 detection_2d_to_3d_color:
   ros__parameters:
     target_frame: "world"

@@ -162,12 +162,17 @@ box center is the contour centroid.
 
 ### From pixels to an arena pose
 
-Two instances of `detection_transformation_2D_3D_node` turn the color and
+Two instances of `detection_2d_to_3d_node` turn the color and
 motion detection pixels into camera rays. They use the camera TF to express
 each ray in `world` and intersect it with the floor at z = 0. This estimates
 a position on the arena floor from a single camera. The point can shift if
 the observed part of the opponent is above the floor.
 [Projection source](../../src/arena_perception/arena_perception/detection_transformation_2D_3D_node.py)
+
+The launches use separate color and MOG2 node names so their YAML settings
+can differ. A direct run uses the `detection_2d_to_3d_node` section of the
+same YAML. The older `detection_transformation_2D_3D_node` command is an
+alias. [Projection settings](../../src/arena_perception/config/opponent_detection_config.yaml)
 
 ![Schematic side view of a ray from the overhead camera through a detection pixel. The ray passes through a point above the opponent and hits the floor beyond its footprint.](../images/arena-opponent-projection.svg)
 
@@ -297,10 +302,5 @@ messages for flip detection.
 | --- | --- |
 | [`filter_transform_node`](../../src/arena_perception/arena_perception/filter_transform_node.py) | Optional TF smoothing between configurable frames. The example YAML selects a median filter. |
 | [`param_loader`](../../src/arena_perception/arena_perception/param_loader.py) | Python helper for declaring parameters from nested YAML. |
-| [`minimal_tf_test`](../../src/arena_perception/arena_perception/minimal_tf_test.py) and [`static_tf_test`](../../src/arena_perception/arena_perception/static_tf_test'.py) | Standalone examples for generating synthetic TF. |
+| [`minimal_tf_test`](../../src/arena_perception/arena_perception/minimal_tf_test.py) and [`static_tf_test`](../../src/arena_perception/arena_perception/static_tf_test.py) | Standalone examples for generating synthetic TF. |
 | [`resize_apriltag.py`](../../src/arena_perception/scripts/apriltags/resize_apriltag.py) | Offline tool that scales a tag PNG to a 2048 × 2048 texture using nearest-neighbor interpolation. |
-
-The `camera_rectification_node`, `static_tf_test`, `opponent_det_MOG2multiple`,
-`detection_transformation_2D_3D` and `detection_2d_to_3d_node` console entries
-point at missing module paths. The `param_loader` entry has no `main`.
-[Console entry points](../../src/arena_perception/setup.py)

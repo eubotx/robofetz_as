@@ -22,7 +22,7 @@ Spawns the robot and opponent in Gazebo and bridges their commands, camera data 
 
 ### tf_to_pose_stamped
 
-[Source: TFToPoseStamped](../../src/robofetz_gazebo/robofetz_gazebo/tf_to_pose.py). Executable `tf_to_pose`, node `tf_to_pose_stamped`. Requires `parent_frame`, `child_frame` and `pose_topic`; `publish_rate=10.0` Hz. Uses latest TF with lookup timeout 0.1 s; publishes `geometry_msgs/PoseStamped`, depth 10, copying the **transform header**. Lookup failures produce throttled warnings.
+[Source: TFToPoseStamped](../../src/robofetz_gazebo/robofetz_gazebo/tf_to_pose.py). Executable and node `tf_to_pose_stamped`, with `tf_to_pose` as a command alias in this package. Requires `parent_frame`, `child_frame` and `pose_topic`; `publish_rate=10.0` Hz. Uses latest TF with lookup timeout 0.1 s; publishes `geometry_msgs/PoseStamped`, depth 10, copying the **transform header**. Lookup failures produce throttled warnings.
 
 Not used in current launch. It is an alternative to combat_strategizer's similarly named adapter; that adapter instead restamps with now and defaults to 60 Hz.
 

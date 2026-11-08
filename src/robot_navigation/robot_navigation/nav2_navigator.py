@@ -12,8 +12,8 @@ class Nav2Navigator(Node):
     Uses a non-blocking state machine to avoid deadlocks.
     """
 
-    def __init__(self):
-        super().__init__('nav2_navigator')
+    def __init__(self, *, node_name='nav2_navigator'):
+        super().__init__(node_name)
 
         # Navigation parameters
         self.declare_parameters(

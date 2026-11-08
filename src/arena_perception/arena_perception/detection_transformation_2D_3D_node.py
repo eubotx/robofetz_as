@@ -16,7 +16,7 @@ import numpy as np
 class Detection2DTo3DConverter(Node):
 
     def __init__(self):
-        super().__init__('detection_transformation_2D_3D_node')
+        super().__init__('detection_2d_to_3d_node')
 
         # Parameters
         self.declare_parameters(

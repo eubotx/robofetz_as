@@ -33,7 +33,9 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'robot_cmd_vel_muxer = robot_bringup.cmd_vel_muxer:main',
             'cmd_vel_muxer = robot_bringup.cmd_vel_muxer:main',
+            'enemy_teleop_node = robot_bringup.keyboard_node:main',
             'keyboard_node = robot_bringup.keyboard_node:main',
             'radio_bridge_node = robot_bringup.transmitter:main',
         ],

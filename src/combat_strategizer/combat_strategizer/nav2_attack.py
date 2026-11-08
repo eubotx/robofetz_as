@@ -53,7 +53,7 @@ class ProximityCondition:
 
 class Nav2Attack(Nav2Navigator):
     def __init__(self):
-        super().__init__()
+        super().__init__(node_name='nav2_attack')
 
         self.combat_state = State.ATTACK
 

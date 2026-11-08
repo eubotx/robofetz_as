@@ -135,10 +135,10 @@ Run **ROS: simulation desktop**, then open [noVNC](http://localhost:6080/vnc.htm
 Xbox controllers are unsupported in this WSL 2 setup because the tested WSL
 kernel lacks the `xpad` driver. To drive the simulated opponent, open a second
 Dev Container terminal while the simulation is running and start
-`enemy_teleop_node` using the `keyboard_node` executable:
+`enemy_teleop_node`:
 
 ```bash
-ros2 run robot_bringup keyboard_node
+ros2 run robot_bringup enemy_teleop_node
 ```
 
 Use WASD or the arrow keys to steer, Space to stop, and Q to quit. If you have

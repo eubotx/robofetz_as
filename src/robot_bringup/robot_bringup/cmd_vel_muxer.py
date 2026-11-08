@@ -7,7 +7,7 @@ import time
 
 class CmdVelMuxer(Node):
     def __init__(self):
-        super().__init__('cmd_vel_muxer')
+        super().__init__('robot_cmd_vel_muxer')
         
         # Parameters
         self.declare_parameter('teleop_timeout', 0.5)  # seconds

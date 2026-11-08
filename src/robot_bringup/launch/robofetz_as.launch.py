@@ -153,7 +153,7 @@ def generate_launch_description():
     # Muxes cmd_vel between teleop and autonomous, so you can overwrite autonomy
     cmd_vel_muxer = Node(
         package='robot_bringup',
-        executable='cmd_vel_muxer',
+        executable='robot_cmd_vel_muxer',
         name='robot_cmd_vel_muxer',
         parameters=[{
             'use_sim_time': use_sim

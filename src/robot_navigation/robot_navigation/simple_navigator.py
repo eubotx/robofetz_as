@@ -10,7 +10,7 @@ from tf2_ros.transform_listener import TransformListener
 
 class SimpleBotNavigator(Node):
     def __init__(self):
-        super().__init__('battle_bot_navigator')
+        super().__init__('simple_navigator')
         
         # Declare parameters - aggressive defaults
         self.declare_parameters(
@@ -65,7 +65,7 @@ class SimpleBotNavigator(Node):
         # Control timer (30Hz)
         self.control_timer = self.create_timer(1.0/30.0, self.control_loop)
         
-        self.get_logger().info("Battle Bot Navigator initialized - Ready to fight!")
+        self.get_logger().info('Simple navigator initialized.')
 
     # =======================
     # Dynamic parameter handling

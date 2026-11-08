@@ -9,8 +9,9 @@ bridge, and an optional keyboard driver for the simulated opponent.
 
 ### robot_cmd_vel_muxer
 
-The `cmd_vel_muxer` executable runs as `robot_cmd_vel_muxer` in standard
-bringup. It publishes `/cmd_vel` at 20 Hz. A command on `/cmd_vel_teleop`,
+The `robot_cmd_vel_muxer` executable and node share the same name.
+`cmd_vel_muxer` is a command alias. The node publishes `/cmd_vel` at 20 Hz.
+A command on `/cmd_vel_teleop`,
 including zero velocity, takes priority for 0.5 seconds by default.
 Afterward, the node repeats the last `/cmd_vel_autonomous` message until a new
 one arrives. It has no autonomous command timeout, so a one-shot wall
@@ -43,7 +44,7 @@ All subscriptions use depth 10. Numbers are formatted to two decimal places. Dri
 
 ### enemy_teleop_node
 
-[Source: EnemyTeleop](../../src/robot_bringup/robot_bringup/keyboard_node.py). Executable `keyboard_node`, node `enemy_teleop_node`. Publishes `geometry_msgs/Twist` on `/opponent/cmd_vel`, depth 10. A nominal 0.1 s timer polls terminal keys and republishes the retained command: arrows/WASD select ±0.5 m/s or ±1 rad/s, space stops, Q quits. Terminal reads can block for 0.1 s each, so the timer is not a strict output-rate guarantee. Shutdown attempts a zero command. No parameters, subscriptions, services or actions. Uses POSIX termios/tty and is not started by the default simulation launch.
+[Source: EnemyTeleop](../../src/robot_bringup/robot_bringup/keyboard_node.py). Executable and node `enemy_teleop_node`, with `keyboard_node` as a command alias. Publishes `geometry_msgs/Twist` on `/opponent/cmd_vel`, depth 10. A nominal 0.1 s timer polls terminal keys and republishes the retained command: arrows/WASD select ±0.5 m/s or ±1 rad/s, space stops, Q quits. Terminal reads can block for 0.1 s each, so the timer is not a strict output-rate guarantee. Shutdown attempts a zero command. No parameters, subscriptions, services or actions. Uses POSIX termios/tty and is not started by the default simulation launch.
 
 **Improve:** Expire keyboard commands when input stops.
 

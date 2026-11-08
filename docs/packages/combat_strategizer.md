@@ -86,15 +86,15 @@ opponent pose without an expiry during normal operation.
 ## nav2_attack
 
 `nav2_attack` is an optional example that inherits the `Nav2Navigator` class.
-It runs under the node name `nav2_navigator`, uses the legacy robot and
-opponent pose topics, and calls `attack()` and `escape()` within the same
-node. The inherited wrapper aligns the robot before sending the destination
+It runs as `nav2_attack`, uses the legacy robot and opponent pose topics,
+and calls `attack()` and `escape()` within the same node. The inherited
+wrapper aligns the robot before sending the destination
 to `bt_navigator` on `/navigate_to_pose`.
 [Strategizer source](../../src/combat_strategizer/combat_strategizer/nav2_attack.py) · [nav2_navigator](robot_navigation.md#nav2_navigator)
 
 ```mermaid
 flowchart LR
-  subgraph Combined["nav2_navigator node"]
+  subgraph Combined["nav2_attack node"]
     Strategy["Nav2Attack"]
     Wrapper["Inherited Nav2Navigator"]
     Strategy -->|"attack or escape destination"| Wrapper

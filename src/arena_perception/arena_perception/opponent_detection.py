@@ -19,7 +19,7 @@ class FrameDiffRobotDetector(Node):
     """
 
     def __init__(self):
-        super().__init__('frame_diff_oponent_detector')
+        super().__init__('opponent_detection')
 
         # =================== PARAMETERS ===================
         self.declare_parameters(

@@ -80,10 +80,10 @@ Xbox controllers are unsupported in this WSL 2 setup because the tested WSL
 kernel lacks the `xpad` driver. The Compose service also passes through no host
 devices.
 With the simulation running, start `enemy_teleop_node` from a second host
-terminal using the `keyboard_node` executable:
+terminal:
 
 ```bash
-docker compose -f docker/compose.yaml exec sim ros-env ros2 run robot_bringup keyboard_node
+docker compose -f docker/compose.yaml exec sim ros-env ros2 run robot_bringup enemy_teleop_node
 ```
 
 Focus the terminal running `enemy_teleop_node`. Use WASD or the arrow keys to

@@ -67,7 +67,7 @@ def generate_launch_description():
     
     mog2_converter_node = Node(
         package=pkg,
-        executable='detection_transformation_2D_3D_node',
+        executable='detection_2d_to_3d_node',
         name='detection_2d_to_3d_mog2',
         output='screen',
         parameters=[LaunchConfiguration('opponent_detection_config')],
